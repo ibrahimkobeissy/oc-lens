@@ -49,6 +49,40 @@ Flow: a page calls an API route → a module in `lib/queries/` runs SQL aggregat
 - **Three data states must render**: empty, sparse, populated. No `NaN`, no `Infinity`, no `$0.00` where the honest answer is "not priced". Unknown enum values get an explicit `unknown` bucket, never a silent `0`.
 - **Never read `account`, `credential`, `auth.json`, or `account.json`** — no value from them may appear in any response (data-model §6). This is stricter than, and independent of, the guardrails below.
 
+## Report every milestone back to the vault (mandatory)
+
+The build runs here, but the **thinking and the record of it live in the second brain** at `/home/ibrahim/Documents/second-brain`. That vault is where this project was designed and where its history is kept. A milestone that is not written back is lost — nobody is reading this repo's git log from over there.
+
+**This is an explicit, user-sanctioned exception to the "stay inside the project directory" rule in the section below.** Writing to the two vault files named here is authorized. Nothing else outside this repo is.
+
+**What counts as a milestone** — do not report per-ticket noise:
+
+- A backlog **wave** completed (not a single ticket).
+- A **locked decision (D1–D7) changed, or a new ruling made** that contradicts the backlog.
+- A **probe run that updates `project-docs/opencode-data-model.md`** — especially anything that resolves the ⚠️ UNVERIFIED shapes, since the vault's design notes rest on them.
+- **Scope moving**: something in v1 dropped, or a non-goal taken on.
+- A blocker that stops the build.
+
+**Where to write** — these two files only:
+
+| File | What to do |
+| --- | --- |
+| `vault/02-personal/areas/oc-lens/oc-lens.md` | append one dated line under `## 📈 Log & Progress` |
+| `vault/02-personal/areas/oc-lens/todo-kanban.md` | move the card between the `## Todo` / `## In Progress` / `## Done` swimlanes |
+
+**House style for anything written into the vault** (its conventions, not this repo's):
+
+- **Never hard-wrap prose.** One paragraph = one continuous line, no manual newlines mid-paragraph. Obsidian reflows it; hard wraps freeze the text at ~80 columns.
+- **Always leave a blank line before a table**, or it renders as raw `| … |`.
+- Link other notes with `[[wikilinks]]`; use absolute dates (`2026-08-01`), never "yesterday".
+- Write the honest outcome, including corrections to earlier claims. The existing log already contains a `**Correction to the recon note:**` entry — that is the expected standard, not an exception.
+
+**Hard rules:**
+
+- **Never run git in the vault** — not `add`, not `commit`, not `push`. Read-only git is fine. The user stages and commits there manually, always.
+- **Never copy source code into the vault.** It is a whiteboard for thinking, not a mirror of this repo. Link to paths here instead.
+- Touch **only** the two files above. Do not create notes, edit other Areas, or reorganize anything.
+
 ## Security Guardrails
 
 Agents operate **inside the project directory**. Treat anything outside it as

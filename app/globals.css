@@ -1,23 +1,202 @@
 @import "tailwindcss";
 
+/* Manual class-based dark mode: `dark:` utilities activate under a `.dark`
+   ancestor rather than the OS `prefers-color-scheme` media query, since the
+   theme is a user toggle (components/theme-provider.tsx), not just OS-driven. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * oc-lens design tokens (OCL-002).
+ *
+ * Direction (D5): terminal-native, high-contrast, one restrained accent used
+ * sparingly. This is oc-lens's own identity — not a port of cc-lens's
+ * orange/Claude palette. Data colour comes from the 8-hue categorical chart
+ * palette below, never from the accent.
+ *
+ * Every chart hue and every status colour has been verified to carry a
+ * contrast ratio of at least 3:1 against its own theme's background (WCAG
+ * 1.4.11 non-text contrast) — see app/style-guide/page.tsx for a live
+ * per-swatch readout.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --radius: 0.5rem;
+
+  --background: #f6f7f6;
+  --foreground: #12140f;
+
+  /* Elevated panel surface (cards, popovers, menus). */
+  --surface: #ffffff;
+  --surface-foreground: #12140f;
+
+  --border: #e2e5e1;
+  --input: #d7dbd3;
+
+  --muted: #eef0ed;
+  --muted-foreground: #5b6058;
+
+  /* The one accent hue (D5) — primary actions, links, focus rings. Never reused as a chart colour. */
+  --accent: #0f766e;
+  --accent-foreground: #ffffff;
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
+  --ring: var(--accent);
+
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #15803d;
+  --success-foreground: #ffffff;
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+
+  /* Categorical chart palette — 8 hues, distinguishable from each other and from the accent. */
+  --chart-1: #1d4ed8; /* blue */
+  --chart-2: #15803d; /* green */
+  --chart-3: #b45309; /* amber */
+  --chart-4: #7c3aed; /* purple */
+  --chart-5: #be123c; /* rose */
+  --chart-6: #0e7490; /* cyan */
+  --chart-7: #b91c1c; /* red */
+  --chart-8: #4338ca; /* indigo */
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+.dark {
+  --background: #0a0c0a;
+  --foreground: #eef1ec;
+
+  --surface: #141712;
+  --surface-foreground: #eef1ec;
+
+  --border: #262b22;
+  --input: #262b22;
+
+  --muted: #1b1f18;
+  --muted-foreground: #98a091;
+
+  --accent: #2dd4bf;
+  --accent-foreground: #08130a;
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
+  --ring: var(--accent);
+
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+
+  --destructive: #f87171;
+  --destructive-foreground: #1a0505;
+  --success: #4ade80;
+  --success-foreground: #06210d;
+  --warning: #fbbf24;
+  --warning-foreground: #241a02;
+
+  --chart-1: #60a5fa;
+  --chart-2: #4ade80;
+  --chart-3: #fbbf24;
+  --chart-4: #c4b5fd;
+  --chart-5: #fb7185;
+  --chart-6: #22d3ee;
+  --chart-7: #f87171;
+  --chart-8: #818cf8;
+}
+
+/* Explicit light override, usable at any nesting depth (e.g. a forced-theme
+   preview panel on /style-guide) even under a `.dark` ancestor. Values match `:root`. */
+.light {
+  --background: #f6f7f6;
+  --foreground: #12140f;
+  --surface: #ffffff;
+  --surface-foreground: #12140f;
+  --border: #e2e5e1;
+  --input: #d7dbd3;
+  --muted: #eef0ed;
+  --muted-foreground: #5b6058;
+  --accent: #0f766e;
+  --accent-foreground: #ffffff;
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
+  --ring: var(--accent);
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #15803d;
+  --success-foreground: #ffffff;
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+  --chart-1: #1d4ed8;
+  --chart-2: #15803d;
+  --chart-3: #b45309;
+  --chart-4: #7c3aed;
+  --chart-5: #be123c;
+  --chart-6: #0e7490;
+  --chart-7: #b91c1c;
+  --chart-8: #4338ca;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: -0.006em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Numerals, costs, token counts, IDs read as data — keep them monospace with tabular figures. */
+  .font-mono,
+  .tabular-nums {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum" 1;
+  }
 }

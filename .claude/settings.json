@@ -1,0 +1,72 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Edit(~/.ssh/**)",
+      "Write(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Edit(~/.aws/**)",
+      "Write(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Write(~/.gnupg/**)",
+      "Read(~/.config/gcloud/**)",
+      "Write(~/.config/gcloud/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.oci/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.netrc)",
+      "Read(~/.git-credentials)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.npmrc)",
+      "Read(~/.pypirc)",
+      "Read(~/.config/anthropic/**)",
+      "Read(~/.claude/.credentials.json)",
+      "Read(~/.claude.json)",
+      "Read(~/.codex/**)",
+      "Read(~/.gemini/**)",
+      "Read(~/.bash_history)",
+      "Read(~/.zsh_history)",
+      "Read(~/.python_history)",
+      "Read(~/.psql_history)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./**/*.p12)",
+      "Read(./**/*.pfx)",
+      "Read(./**/*.jks)",
+      "Read(./**/*.keystore)",
+      "Read(./**/id_rsa)",
+      "Read(./**/id_rsa.*)",
+      "Read(./**/id_ed25519)",
+      "Read(./**/id_ed25519.*)",
+      "Read(./**/id_ecdsa)",
+      "Read(./**/*service-account*.json)",
+      "Read(./**/*credentials*.json)",
+      "Read(./**/secrets.*)",
+      "Read(./**/*.secret)",
+      "Read(./**/*.tfstate)",
+      "Read(./**/*.tfstate.*)",
+      "Read(./**/.pgpass)",
+      "Read(./**/.my.cnf)",
+      "Read(./**/.vault-token)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Edit|Write|NotebookEdit|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/skills/security-guardrails/scripts/guard-sensitive-paths.py\"",
+            "statusMessage": "Checking path against security guardrails"
+          }
+        ]
+      }
+    ]
+  }
+}

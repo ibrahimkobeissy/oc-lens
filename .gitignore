@@ -1,0 +1,13 @@
+# Read-only upstream reference checkout (see project-docs/backlog.md §0.4)
+.reference/
+
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+.env*
+!.env.example
+test/fixtures/*.db
+test/fixtures/*.db-*
+.DS_Store

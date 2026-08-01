@@ -121,7 +121,7 @@ graph LR
   T130 --> T132["OCL-132 CI + release"]
 
   classDef done fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#14532d;
-  class T001,T002,T003,T010,T011 done;
+  class T001,T002,T003,T010,T011,T012,T013,T016,T017,T020,T021,T071 done;
 ```
 
 ### 4.2 Critical path

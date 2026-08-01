@@ -21,7 +21,7 @@ export function MobileNav() {
             <div
               key={route.href}
               aria-disabled="true"
-              className="flex flex-1 flex-col items-center gap-1 py-2 text-[10px] text-muted-foreground opacity-40"
+              className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] text-muted-foreground opacity-40"
             >
               <Icon className="size-5" />
               {route.label}

@@ -222,6 +222,12 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.035em;
+  }
   /* Numerals, costs, token counts, IDs read as data — keep them monospace with tabular figures. */
   .font-mono,
   .tabular-nums {

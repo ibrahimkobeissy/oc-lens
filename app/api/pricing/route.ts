@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 import { getConnection } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
 import { PricingValidationError, readPricing, writePricing } from "@/lib/pricing/config";
-import { listPricableModels, type PricableModel } from "@/lib/pricing/models";
-import type { OcResponse, PricingConfig } from "@/types/oc";
+import { listPricableModels } from "@/lib/pricing/models";
+import type { OcResponse, PricingConfig, PricingSettingsResponse } from "@/types/oc";
 
-interface PricingRouteData extends PricingConfig {
-  pricableModels: PricableModel[];
-}
+export const dynamic = "force-dynamic";
 
 function envelope<T>(data: T): OcResponse<T> {
   return { data, meta: { generatedAt: Date.now(), schemaVersion, warnings: [] } };
@@ -18,7 +16,7 @@ function envelope<T>(data: T): OcResponse<T> {
  * `writePricing` are always called with no path override here, so the module
  * constant (honouring `XDG_CONFIG_HOME`) is the only path that's ever used.
  */
-export async function GET(): Promise<NextResponse<OcResponse<PricingRouteData>>> {
+export async function GET(): Promise<NextResponse<OcResponse<PricingSettingsResponse>>> {
   const config = readPricing();
   const connectResult = getConnection();
   const pricableModels = connectResult.ok ? listPricableModels(connectResult.db, config) : [];

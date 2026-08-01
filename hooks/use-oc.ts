@@ -3,17 +3,21 @@
 import { ocFetcher, ocSWRConfig, type OcApiError } from "@/lib/swr";
 import type {
   ActivityStats,
+  AgentsResponse,
   CostBreakdown,
   ExportResponse,
   HealthResponse,
   OcEnvelope,
   OverviewStats,
+  PricingSettingsResponse,
   ProjectDetail,
   ProjectSummary,
   SessionDetail,
   SessionListResponse,
   SessionReplay,
   SettingsResponse,
+  SkillSummary,
+  StorageBreakdown,
   TodosResponse,
   ToolsStats,
 } from "@/types/oc";
@@ -26,10 +30,14 @@ type StaticRoute =
   | "/api/sessions"
   | "/api/projects"
   | "/api/tools"
+  | "/api/skills"
   | "/api/todos"
   | "/api/costs"
+  | "/api/storage"
+  | "/api/pricing"
   | "/api/settings"
   | "/api/health"
+  | "/api/agents"
   | "/api/export";
 
 /** Every OCL-010 API route, with arbitrary validated server-side query parameters. */
@@ -62,17 +70,25 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
               ? ProjectDetail
               : WithoutQuery<R> extends "/api/tools"
                 ? ToolsStats
-                : WithoutQuery<R> extends "/api/todos"
-                  ? TodosResponse
+                : WithoutQuery<R> extends "/api/skills"
+                  ? SkillSummary[]
+                  : WithoutQuery<R> extends "/api/todos"
+                    ? TodosResponse
                   : WithoutQuery<R> extends "/api/costs"
                     ? CostBreakdown
-                    : WithoutQuery<R> extends "/api/settings"
-                      ? SettingsResponse
+                    : WithoutQuery<R> extends "/api/storage"
+                      ? StorageBreakdown
+                      : WithoutQuery<R> extends "/api/pricing"
+                        ? PricingSettingsResponse
+                        : WithoutQuery<R> extends "/api/settings"
+                          ? SettingsResponse
                       : WithoutQuery<R> extends "/api/health"
                         ? HealthResponse
+                      : WithoutQuery<R> extends "/api/agents"
+                        ? AgentsResponse
                       : WithoutQuery<R> extends "/api/export"
-                        ? ExportResponse
-                        : never;
+                            ? ExportResponse
+                            : never;
 
 export interface UseOcOptions
   extends Omit<

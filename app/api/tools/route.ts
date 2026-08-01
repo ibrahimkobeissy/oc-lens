@@ -5,7 +5,7 @@ import { redactConfig } from "@/lib/config/redact";
 import { getConnection, query } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
 import { versionHistory } from "@/lib/queries/projects";
-import { featureAdoption, mcpUsage, skillUsage, toolErrors, toolUsage, type PartQueryFilter } from "@/lib/queries/tools";
+import { featureAdoption, mcpUsage, skillUsage, toolActivity, toolErrors, toolUsage, type PartQueryFilter } from "@/lib/queries/tools";
 import type { ToolsRouteResponse, ToolsStats } from "@/types/oc";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +62,7 @@ export async function GET(request: Request): Promise<NextResponse<ToolsRouteResp
 
     const tools = toolUsage(connection.db, filter);
     const errors = toolErrors(connection.db, filter);
+    const activity = toolActivity(connection.db, filter);
     const mcpServers = mcpUsage(connection.db, servers, filter);
     const skills = skillUsage(connection.db, filter);
     const adoption = featureAdoption(connection.db, servers, filter);
@@ -69,6 +70,7 @@ export async function GET(request: Request): Promise<NextResponse<ToolsRouteResp
     const data: ToolsStats = {
       tools: tools.data,
       errors: errors.data,
+      activity: activity.data,
       mcpServers: mcpServers.data,
       skills: skills.data,
       featureAdoption: adoption.data,

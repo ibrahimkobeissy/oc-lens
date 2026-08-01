@@ -326,6 +326,7 @@ export interface SessionSummary {
   parentId: string | null; // session.parent_id
   messageCounts: { user: number; assistant: number }; // derived: count of message rows by data.role for this session
   toolCallCount: number; // derived: count of part rows with data.type === 'tool' for this session
+  errorCount: number; // derived: count of tool parts whose data.state.status === 'error' (OCL-051 contract amendment)
   tokens: OcTokens; // session.tokens_*
   cost: OcCost;
   hasReasoning: boolean; // derived: any part with data.type === 'reasoning'
@@ -347,6 +348,12 @@ export interface ToolSummary {
   p95DurationMs: number | null; // derived: same, 95th percentile
   firstSeen: number | null; // derived: earliest part.time_created for this tool
   lastSeen: number | null; // derived: latest part.time_created for this tool
+}
+
+export interface ToolActivityPoint {
+  date: string; // derived: local calendar day of part.time_created
+  totalCalls: number;
+  errorCount: number;
 }
 
 export interface McpServerSummary {
@@ -376,11 +383,32 @@ export interface AgentSummary {
   avgSessionLengthMs: number | null; // derived
 }
 
+export interface AgentActivityPoint {
+  date: string; // derived: UTC YYYY-MM-DD from message.time_created
+  agent: string; // message.data.agent, with missing values bucketed as the literal 'unknown'
+  messageCount: number; // derived
+}
+
+export interface AgentSwitchEvent {
+  seq: number; // session_message.seq where type = 'agent-switched'
+  sessionId: string | null; // session_message.data.sessionId
+  agent: string; // session_message.data.to, with malformed/missing values as the literal 'unknown'
+  timeCreated: number | null; // session_message.data.time, null when malformed/missing
+}
+
+export interface AgentsResponse {
+  agents: AgentSummary[]; // derived: lib/queries/agents.ts agentUsage
+  activity: AgentActivityPoint[]; // derived: lib/queries/agents.ts agentActivity
+  switches: AgentSwitchEvent[]; // derived: lib/queries/agents.ts agentSwitchEvents
+}
+
 export interface SkillSummary {
   skill: string; // derived: extracted from the 'skill' tool's state.input — the literal 'unknown' bucket when no recognisable name is present
   totalCalls: number;
   sessionCount: number;
   errorCount: number;
+  p50DurationMs: number | null; // derived from state.time.start/end; null when no invocation has both timestamps
+  p95DurationMs: number | null;
 }
 
 export interface FileChangeSummary {
@@ -413,6 +441,20 @@ export interface PricingConfig {
   version: 1;
   prices: Record<string, PricingModelRate>; // key: `${providerID}/${modelID}` — user-entered, from ~/.config/oc-lens/config.json
   updatedAt: number; // derived: epoch ms of the last successful write
+}
+
+/** One provider/model observed in assistant messages, with its aggregate token evidence. */
+export interface PricableModel {
+  providerID: string;
+  modelID: string;
+  key: string; // derived: `${providerID}/${modelID}`
+  tokens: OcTokens;
+  priced: boolean; // derived: key exists in PricingConfig.prices
+}
+
+/** GET /api/pricing payload (OCL-090 additive route contract). */
+export interface PricingSettingsResponse extends PricingConfig {
+  pricableModels: PricableModel[];
 }
 
 // ─── Replay ──────────────────────────────────────────────────────────────────
@@ -477,6 +519,7 @@ export interface OverviewStats {
   modelBreakdown: ModelUsage[];
   projectBreakdown: ProjectSummary[];
   dailyActivity: DailyActivity[];
+  dailyTokens: Array<{ date: string; tokens: OcTokens }>; // additive OCL-032 amendment: session token totals bucketed by local start date
   hourOfDay: HourBucket[];
   costBreakdown: CostBreakdown;
 }
@@ -525,6 +568,7 @@ export interface VersionRecord {
 export interface ToolsStats {
   tools: ToolSummary[];
   errors: ToolErrorSummary[];
+  activity: ToolActivityPoint[]; // additive OCL-074 amendment for a real per-day error-rate denominator
   mcpServers: McpServerSummary[];
   skills: SkillSummary[];
   featureAdoption: FeatureAdoption;
@@ -635,8 +679,11 @@ export type SessionReplayRouteResponse = OcResponse<SessionReplay>;
 export type ProjectsRouteResponse = OcResponse<ProjectSummary[]>;
 export type ProjectRouteResponse = OcResponse<ProjectDetail>;
 export type ToolsRouteResponse = OcResponse<ToolsStats>;
+export type SkillsRouteResponse = OcResponse<SkillSummary[]>;
 export type TodosRouteResponse = OcResponse<TodosResponse>;
 export type CostsRouteResponse = OcResponse<CostBreakdown>;
+export type StorageRouteResponse = OcResponse<StorageBreakdown>;
 export type SettingsRouteResponse = OcResponse<SettingsResponse>;
 export type HealthRouteResponse = OcResponse<HealthResponse>;
+export type AgentsRouteResponse = OcResponse<AgentsResponse>;
 export type ExportRouteResponse = OcResponse<ExportResponse>;

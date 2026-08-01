@@ -33,6 +33,7 @@ interface ListBody {
       durationMs: number | null;
       messageCounts: { user: number; assistant: number };
       toolCallCount: number;
+      errorCount: number;
       tokens: { input: number; output: number; reasoning: number; cacheRead: number; cacheWrite: number };
       cost: { amount: number; priced: boolean };
       [key: string]: unknown;
@@ -123,6 +124,12 @@ describe("GET /api/sessions", () => {
     const { body } = await list("?project=proj_infra&agent=build&from=1756000000000&to=1760000000000&limit=100");
     expect(body.data?.sessions.map((session) => session.id)).toEqual(["ses_0025", "ses_0022", "ses_0020"]);
     expect(body.data?.totalCount).toBe(3);
+  });
+
+  it("returns exact per-session error evidence for the has-errors badge", async () => {
+    const { body } = await list("?search=ses_0006&hasError=true");
+    expect(body.data?.sessions).toHaveLength(1);
+    expect(body.data?.sessions[0]).toMatchObject({ id: "ses_0006", errorCount: 1 });
   });
 
   it.each([

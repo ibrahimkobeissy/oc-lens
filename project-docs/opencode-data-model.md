@@ -206,6 +206,10 @@ Observed distribution across 47 parts: `text` 14 · `step-start` 10 · `reasonin
 - `tool` names are **lowercase** (`read`, `write`, `edit`, `bash`, `grep`, `glob`, `webfetch`, `todowrite`, `task`, `skill`, `question`). cc-lens's `TOOL_CATEGORIES` map is keyed on Claude Code's PascalCase names and **must be rewritten**, not ported.
 - MCP tools appear as `<server>_<tool>` (e.g. `serena_find_symbol`) — **ambiguous**, since server and tool names can both contain underscores. Resolve server names from the config `mcp` block (or `GET /mcp`) and longest-prefix match. **Never split on the first underscore.** See OCL-071.
 
+#### ⚠️ FIXTURE-VERIFIED ONLY — `skill` invocation name
+
+The generated OCL-013 fixture stores the invoked skill name at `part.data.state.input.name` for `part.data.tool = "skill"`. OCL-102 uses that exact key and buckets missing, blank, or non-string values as the literal `unknown`. This convention is **not verified against an upstream live opencode skill call**: the maintainer's observed live sample did not establish the skill-specific input shape, so this must not be promoted to ✅ live-verified without a probe.
+
 ### ⚠️ UNVERIFIED — `patch`, `compaction`, `file`, `agent`, `snapshot`
 
 The vault synthesis claims `part.data.type='patch'` (with `files[]` + `hash`) and `'compaction'` (with `{auto, overflow}`) exist. **Neither appeared in the 47 parts on this machine.** Tickets OCL-055 (compaction cards) and OCL-103 (file-change timeline) each begin with a mandatory probe step: generate real sessions that produce those parts, dump the shapes, and record them back into this document before writing the renderer.

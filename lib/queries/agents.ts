@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { query } from "@/lib/db/connection";
 import { decodeMessageData, decodePartData, mergeWarnings } from "@/lib/decode";
 import { costFor } from "@/lib/pricing/cost";
-import type { AgentSummary, OcTokens, OcWarning, PricingConfig } from "@/types/oc";
+import type { AgentActivityPoint, AgentSummary, AgentSwitchEvent, OcTokens, OcWarning, PricingConfig } from "@/types/oc";
 import type { PartQueryFilter, QueryResult } from "./tools";
 
 interface SessionRow { id: string; agent: string | null; project_id: string; time_created: number; time_updated: number }
@@ -10,15 +10,14 @@ interface MessageRow { id: string; session_id: string; time_created: number; dat
 interface PartRow { message_id: string; session_id: string; data: string }
 interface SwitchRow { seq: number; data: string }
 
-export interface AgentSwitchEvent { seq: number; sessionId: string | null; agent: string; timeCreated: number | null }
-
 interface Bucket {
-  sessions: Set<string>; messageCount: number; tokens: OcTokens; costAmount: number; priced: boolean;
+  sessions: Set<string>; messageCount: number; tokens: OcTokens; costAmount: number; hasPricedUsage: boolean; allUsagePriced: boolean;
   tools: Map<string, number>; errorCount: number; durations: number[]; durationSessions: Set<string>;
 }
 const zeroTokens = (): OcTokens => ({ input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 });
-function bucket(): Bucket { return { sessions: new Set(), messageCount: 0, tokens: zeroTokens(), costAmount: 0, priced: false, tools: new Map(), errorCount: 0, durations: [], durationSessions: new Set() }; }
+function bucket(): Bucket { return { sessions: new Set(), messageCount: 0, tokens: zeroTokens(), costAmount: 0, hasPricedUsage: false, allUsagePriced: true, tools: new Map(), errorCount: 0, durations: [], durationSessions: new Set() }; }
 function addTokens(a: OcTokens, b: OcTokens): void { a.input += b.input; a.output += b.output; a.reasoning += b.reasoning; a.cacheRead += b.cacheRead; a.cacheWrite += b.cacheWrite; }
+function hasTokenUsage(tokens: OcTokens): boolean { return tokens.input !== 0 || tokens.output !== 0 || tokens.reasoning !== 0 || tokens.cacheRead !== 0 || tokens.cacheWrite !== 0; }
 const EMPTY_PRICING: PricingConfig = { version: 1, prices: {}, updatedAt: 0 };
 
 function included(session: SessionRow, filter: PartQueryFilter): boolean {
@@ -47,8 +46,12 @@ export function agentUsage(db: DatabaseSync, filter: PartQueryFilter = {}, prici
     if (session && !b.durationSessions.has(session.id) && session.time_updated >= session.time_created) { b.durations.push(session.time_updated - session.time_created); b.durationSessions.add(session.id); }
     if (decoded.value.tokens) {
       addTokens(b.tokens, decoded.value.tokens);
-      const price = costFor(decoded.value.tokens, `${decoded.value.providerID ?? "unknown"}/${decoded.value.modelID ?? "unknown"}`, pricing);
-      b.costAmount += price.amount; b.priced = b.priced || price.priced;
+      if (hasTokenUsage(decoded.value.tokens)) {
+        const price = costFor(decoded.value.tokens, `${decoded.value.providerID ?? "unknown"}/${decoded.value.modelID ?? "unknown"}`, pricing);
+        b.costAmount += price.amount;
+        b.hasPricedUsage = b.hasPricedUsage || price.priced;
+        b.allUsagePriced = b.allUsagePriced && price.priced;
+      }
     }
   }
   for (const part of parts) {
@@ -57,7 +60,7 @@ export function agentUsage(db: DatabaseSync, filter: PartQueryFilter = {}, prici
     b.tools.set(decoded.value.tool, (b.tools.get(decoded.value.tool) ?? 0) + 1); if (decoded.value.status === "error") b.errorCount++;
   }
   const data = Array.from(buckets, ([agent, b]) => ({ agent, sessionCount: b.sessions.size, messageCount: b.messageCount, tokens: b.tokens,
-    cost: { amount: b.costAmount, priced: b.priced }, toolMix: Array.from(b.tools, ([tool, calls]) => ({ tool, calls })).sort((a, c) => c.calls - a.calls || a.tool.localeCompare(c.tool)),
+    cost: b.hasPricedUsage && b.allUsagePriced ? { amount: b.costAmount, priced: true } : { amount: 0, priced: false }, toolMix: Array.from(b.tools, ([tool, calls]) => ({ tool, calls })).sort((a, c) => c.calls - a.calls || a.tool.localeCompare(c.tool)),
     errorCount: b.errorCount, avgSessionLengthMs: b.durations.length ? b.durations.reduce((a, n) => a + n, 0) / b.durations.length : null,
   })).sort((a, b) => b.sessionCount - a.sessionCount || a.agent.localeCompare(b.agent));
   return { data, warnings: mergeWarnings([warnings]) };
@@ -72,4 +75,28 @@ export function agentSwitchEvents(db: DatabaseSync): QueryResult<AgentSwitchEven
     return { seq: row.seq, sessionId: typeof value.sessionId === "string" ? value.sessionId : null, agent: typeof value.to === "string" ? value.to : "unknown", timeCreated: typeof value.time === "number" ? value.time : null };
   });
   return { data, warnings: mergeWarnings([warnings]) };
+}
+
+export function agentActivity(db: DatabaseSync): QueryResult<AgentActivityPoint[]> {
+  const buckets = new Map<string, AgentActivityPoint>();
+  const warnings: OcWarning[] = [];
+  for (const message of query<MessageRow>(db, "SELECT id, session_id, time_created, data FROM message ORDER BY time_created, id")) {
+    const decoded = decodeMessageData(message.data);
+    warnings.push(...decoded.warnings);
+    const dateValue = new Date(message.time_created);
+    if (!Number.isFinite(message.time_created) || Number.isNaN(dateValue.getTime())) {
+      warnings.push({ code: "invalid-message-time", message: "Messages had an invalid creation time", count: 1 });
+      continue;
+    }
+    const date = dateValue.toISOString().slice(0, 10);
+    const agent = decoded.value.agent ?? "unknown";
+    const key = `${date}\u0000${agent}`;
+    const point = buckets.get(key) ?? { date, agent, messageCount: 0 };
+    point.messageCount += 1;
+    buckets.set(key, point);
+  }
+  return {
+    data: [...buckets.values()].sort((left, right) => left.date.localeCompare(right.date) || left.agent.localeCompare(right.agent)),
+    warnings: mergeWarnings([warnings]),
+  };
 }

@@ -23,7 +23,20 @@ describe("ROUTES", () => {
 
   it("marks only the pages that actually exist as enabled", () => {
     const enabled = ROUTES.filter((r) => r.enabled).map((r) => r.href);
-    expect(enabled).toEqual(["/", "/style-guide"]);
+    expect(enabled).toEqual([
+      "/",
+      "/activity",
+      "/sessions",
+      "/projects",
+      "/tools",
+      "/todos",
+      "/costs",
+      "/agents",
+      "/export",
+      "/settings",
+      "/settings/pricing",
+      "/style-guide",
+    ]);
   });
 });
 

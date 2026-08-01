@@ -125,12 +125,12 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): Quer
   if (unknownAgentCount > 0) warnings.push([{ code: "unknown-agent", message: "Sessions had no recorded agent", count: unknownAgentCount }]);
   if (unknownModelCount > 0) warnings.push([{ code: "unknown-model", message: "Sessions had no recorded model", count: unknownModelCount }]);
 
-  const flags = new Map<string, { toolCalls: number; reasoning: boolean; mcp: boolean; task: boolean; webfetch: boolean }>();
+  const flags = new Map<string, { toolCalls: number; errors: number; reasoning: boolean; mcp: boolean; task: boolean; webfetch: boolean }>();
   const firstUserText = new Map<string, string>();
   for (const row of parts) {
     const decoded = decodePartData(row.data);
     warnings.push(decoded.warnings);
-    const state = flags.get(row.session_id) ?? { toolCalls: 0, reasoning: false, mcp: false, task: false, webfetch: false };
+    const state = flags.get(row.session_id) ?? { toolCalls: 0, errors: 0, reasoning: false, mcp: false, task: false, webfetch: false };
     if (decoded.value.type === "reasoning") state.reasoning = true;
     if (decoded.value.type === "text" && firstUserMessageIds.get(row.session_id) === row.message_id && !firstUserText.has(row.session_id)) {
       const text = decoded.value.text.trim();
@@ -138,6 +138,7 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): Quer
     }
     if (decoded.value.type === "tool") {
       state.toolCalls += 1;
+      if (decoded.value.status === "error") state.errors += 1;
       state.task ||= decoded.value.tool === "task";
       state.webfetch ||= decoded.value.tool === "webfetch";
       state.mcp ||= resolveMcpTool(decoded.value.tool, mcpServers) !== null;
@@ -149,7 +150,7 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): Quer
   const data = rows.map((row): SessionSummary => {
     const model = decodeSessionModel(row.model);
     warnings.push(model.warnings);
-    const state = flags.get(row.id) ?? { toolCalls: 0, reasoning: false, mcp: false, task: false, webfetch: false };
+    const state = flags.get(row.id) ?? { toolCalls: 0, errors: 0, reasoning: false, mcp: false, task: false, webfetch: false };
     const title = isPlaceholderTitle(row.title) ? (firstUserText.get(row.id) ?? row.slug) : row.title;
     const duration = row.time_updated >= row.time_created ? row.time_updated - row.time_created : null;
     return {
@@ -160,6 +161,7 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): Quer
       timeArchived: row.time_archived, parentId: row.parent_id,
       messageCounts: messageCounts.get(row.id) ?? { user: 0, assistant: 0 },
       toolCallCount: state.toolCalls,
+      errorCount: state.errors,
       tokens: {
         input: row.tokens_input ?? 0, output: row.tokens_output ?? 0,
         reasoning: row.tokens_reasoning ?? 0, cacheRead: row.tokens_cache_read ?? 0,

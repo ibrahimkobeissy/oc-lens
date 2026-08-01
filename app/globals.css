@@ -41,12 +41,20 @@
   --muted: #eef0ed;
   --muted-foreground: #5b6058;
 
-  /* The one accent hue (D5) — primary actions, links, focus rings. Never reused as a chart colour. */
-  --accent: #0f766e;
-  --accent-foreground: #ffffff;
-  --primary: var(--accent);
-  --primary-foreground: var(--accent-foreground);
-  --ring: var(--accent);
+  /* The one restrained brand hue (D5) — primary actions, links, focus rings.
+     Never reused as a chart colour. Kept as its own `--primary` slot, distinct
+     from `--accent`: shadcn's generated component templates (OCL-003) use
+     `hover:bg-accent` to mean a neutral hover/highlight surface (its own
+     long-standing convention), not the brand colour — aliasing them here would
+     make every ghost/outline button hover flash full brand teal. */
+  --primary: #0f766e;
+  --primary-foreground: #ffffff;
+  --ring: var(--primary);
+
+  /* Neutral hover/highlight surface — shadcn's `--accent` slot. Same role as
+     `--muted` one step more visible, so a hover state actually reads. */
+  --accent: #e7e9e4;
+  --accent-foreground: var(--foreground);
 
   --secondary: var(--muted);
   --secondary-foreground: var(--foreground);
@@ -58,7 +66,7 @@
   --warning: #b45309;
   --warning-foreground: #ffffff;
 
-  /* Categorical chart palette — 8 hues, distinguishable from each other and from the accent. */
+  /* Categorical chart palette — 8 hues, distinguishable from each other and from the brand hue. */
   --chart-1: #1d4ed8; /* blue */
   --chart-2: #15803d; /* green */
   --chart-3: #b45309; /* amber */
@@ -89,11 +97,12 @@
   --muted: #1b1f18;
   --muted-foreground: #98a091;
 
-  --accent: #2dd4bf;
-  --accent-foreground: #08130a;
-  --primary: var(--accent);
-  --primary-foreground: var(--accent-foreground);
-  --ring: var(--accent);
+  --primary: #2dd4bf;
+  --primary-foreground: #08130a;
+  --ring: var(--primary);
+
+  --accent: #1f241c;
+  --accent-foreground: var(--foreground);
 
   --secondary: var(--muted);
   --secondary-foreground: var(--foreground);
@@ -130,11 +139,11 @@
   --input: #d7dbd3;
   --muted: #eef0ed;
   --muted-foreground: #5b6058;
-  --accent: #0f766e;
-  --accent-foreground: #ffffff;
-  --primary: var(--accent);
-  --primary-foreground: var(--accent-foreground);
-  --ring: var(--accent);
+  --primary: #0f766e;
+  --primary-foreground: #ffffff;
+  --ring: var(--primary);
+  --accent: #e7e9e4;
+  --accent-foreground: var(--foreground);
   --secondary: var(--muted);
   --secondary-foreground: var(--foreground);
   --destructive: #dc2626;

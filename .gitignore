@@ -1,6 +1,9 @@
 # Read-only upstream reference checkout (see project-docs/backlog.md §0.4)
 .reference/
 
+# Ephemeral per-agent worktree checkouts (Agent tool isolation:"worktree")
+.claude/worktrees/
+
 node_modules/
 .next/
 out/

@@ -4,6 +4,8 @@ import { SidebarProvider } from "@/components/layout/sidebar-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { GlobalSearch } from "@/components/global-search";
+import { KeyboardNavProvider } from "@/components/keyboard-nav-provider";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -16,6 +18,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <MobileNav />
       </div>
+      <GlobalSearch />
+      <KeyboardNavProvider />
     </SidebarProvider>
   );
 }

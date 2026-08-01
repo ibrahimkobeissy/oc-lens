@@ -51,14 +51,15 @@ function ThemeToggleButton() {
   );
 }
 
-/**
- * Visual affordance only — opens nothing yet. The real ⌘K palette is
- * OCL-022's job (components/global-search.tsx); wiring the keyboard shortcut
- * and dialog here would step on that ticket's file.
- */
 function CommandPaletteAffordance() {
   return (
-    <Button type="button" variant="outline" size="sm" className="gap-2 text-muted-foreground" disabled>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="gap-2 text-muted-foreground"
+      onClick={() => window.dispatchEvent(new Event("oc-lens:open-search"))}
+    >
       <Search className="size-3.5" />
       <span className="hidden sm:inline">Search</span>
       <kbd className="hidden rounded border border-border bg-muted px-1.5 font-mono text-[10px] sm:inline">⌘K</kbd>

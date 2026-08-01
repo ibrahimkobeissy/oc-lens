@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Sibling agent worktrees live under .claude/worktrees/ inside the repo
+    // tree (see Agent tool isolation:"worktree") — never lint another
+    // in-flight worktree's files (or their own nested .next/**) from here.
+    ".claude/worktrees/**",
   ]),
 ]);
 

@@ -1,7 +1,47 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Info } from "lucide-react";
 import { ThemeProvider, ThemeScript, useTheme } from "@/components/theme-provider";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function hexToRgb(hex: string): [number, number, number] | null {
   const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
@@ -132,6 +172,260 @@ function ThemedPanel({ mode }: { mode: "light" | "dark" }) {
   );
 }
 
+/**
+ * OCL-003's 17 shadcn primitives, shown once and re-themed by the page's real
+ * toggle (ThemeToggleDemo above), rather than duplicated into forced
+ * light/dark panels like ThemedPanel — several of these (dialog, popover,
+ * select, sheet, tooltip, command) portal their content to <body> via Radix,
+ * outside a forced-theme div's subtree, so a static split view wouldn't
+ * actually re-theme their portaled content. Toggling the real page theme does.
+ */
+function PrimitivesShowcase() {
+  return (
+    <TooltipProvider>
+      <div className="space-y-10 rounded-lg border border-border bg-surface p-6 text-surface-foreground">
+        <h2 className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+          17 primitives (OCL-003) — toggle the theme above to re-theme this section, including portaled content
+        </h2>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Alert</h3>
+          <Alert>
+            <Info />
+            <AlertTitle>Heads up</AlertTitle>
+            <AlertDescription>A default alert, using the accent-adjacent border/foreground tokens.</AlertDescription>
+          </Alert>
+          <Alert variant="destructive">
+            <Info />
+            <AlertTitle>Something went wrong</AlertTitle>
+            <AlertDescription>A destructive alert, using the destructive token pair.</AlertDescription>
+          </Alert>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Badge</h3>
+          <div className="flex flex-wrap gap-2">
+            <Badge>default</Badge>
+            <Badge variant="secondary">secondary</Badge>
+            <Badge variant="destructive">destructive</Badge>
+            <Badge variant="outline">outline</Badge>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Breadcrumb</h3>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="#">Overview</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink href="#">Sessions</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>crisp-otter</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Button</h3>
+          <div className="flex flex-wrap gap-2">
+            <Button>default</Button>
+            <Button variant="secondary">secondary</Button>
+            <Button variant="destructive">destructive</Button>
+            <Button variant="outline">outline</Button>
+            <Button variant="ghost">ghost</Button>
+            <Button variant="link">link</Button>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Card</h3>
+          <Card className="max-w-sm">
+            <CardHeader>
+              <CardTitle>crisp-otter</CardTitle>
+              <CardDescription>global · build · deepseek-v4-flash-free</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">7,912 input · 6 output · 15 reasoning tokens.</p>
+            </CardContent>
+            <CardFooter>
+              <Button size="sm">Open replay</Button>
+            </CardFooter>
+          </Card>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Command</h3>
+          <Command className="max-w-sm rounded-md border border-border">
+            <CommandInput placeholder="Search sessions or projects..." />
+            <CommandList>
+              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandGroup heading="Sessions">
+                <CommandItem>crisp-otter</CommandItem>
+                <CommandItem>quiet-falcon</CommandItem>
+              </CommandGroup>
+              <CommandGroup heading="Projects">
+                <CommandItem>global</CommandItem>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Dialog</h3>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">Open dialog</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirm action</DialogTitle>
+                <DialogDescription>This is a dialog rendered via a Radix portal.</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline">Cancel</Button>
+                <Button>Confirm</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Input</h3>
+          <div className="flex max-w-sm flex-col gap-2">
+            <Input placeholder="Filter sessions..." />
+            <Input placeholder="Disabled" disabled />
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Popover</h3>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">Open popover</Button>
+            </PopoverTrigger>
+            <PopoverContent>A popover rendered via a Radix portal.</PopoverContent>
+          </Popover>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Progress</h3>
+          <div className="flex max-w-sm flex-col gap-2">
+            <Progress value={33} />
+            <Progress value={72} />
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Select</h3>
+          <Select defaultValue="build">
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Agent" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="build">build</SelectItem>
+              <SelectItem value="plan">plan</SelectItem>
+              <SelectItem value="unknown">unknown</SelectItem>
+            </SelectContent>
+          </Select>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Separator</h3>
+          <div className="max-w-sm">
+            <p className="text-sm">Above</p>
+            <Separator className="my-2" />
+            <p className="text-sm">Below</p>
+            <div className="mt-2 flex h-6 items-center gap-2">
+              <span className="text-sm">Left</span>
+              <Separator orientation="vertical" />
+              <span className="text-sm">Right</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Sheet</h3>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline">Open sheet</Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Session filters</SheetTitle>
+                <SheetDescription>A sheet rendered via a Radix portal.</SheetDescription>
+              </SheetHeader>
+            </SheetContent>
+          </Sheet>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Skeleton</h3>
+          <div className="flex max-w-sm flex-col gap-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Table</h3>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Session</TableHead>
+                <TableHead>Agent</TableHead>
+                <TableHead>Tokens</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell>crisp-otter</TableCell>
+                <TableCell>build</TableCell>
+                <TableCell>7,933</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>quiet-falcon</TableCell>
+                <TableCell>plan</TableCell>
+                <TableCell>2,104</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Tabs</h3>
+          <Tabs defaultValue="overview" className="max-w-sm">
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="tools">Tools</TabsTrigger>
+              <TabsTrigger value="replay">Replay</TabsTrigger>
+            </TabsList>
+            <TabsContent value="overview">Overview tab content.</TabsContent>
+            <TabsContent value="tools">Tools tab content.</TabsContent>
+            <TabsContent value="replay">Replay tab content.</TabsContent>
+          </Tabs>
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">Tooltip</h3>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline">Hover me</Button>
+            </TooltipTrigger>
+            <TooltipContent>A tooltip rendered via a Radix portal.</TooltipContent>
+          </Tooltip>
+        </section>
+      </div>
+    </TooltipProvider>
+  );
+}
+
 function ThemeToggleDemo() {
   const { theme, toggleTheme, mounted } = useTheme();
   return (
@@ -166,6 +460,8 @@ export default function StyleGuidePage() {
             <ThemedPanel mode="light" />
             <ThemedPanel mode="dark" />
           </section>
+
+          <PrimitivesShowcase />
 
           <section className="space-y-1 font-mono text-xs text-muted-foreground">
             <p>Typography: --font-sans for body text; --font-mono (via .font-mono / .tabular-nums) for numerals, costs, token counts, and IDs.</p>

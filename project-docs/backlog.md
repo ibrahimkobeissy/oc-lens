@@ -119,6 +119,9 @@ graph LR
   PAGES --> T130["OCL-130 CLI + packaging"]
   T130 --> T131["OCL-131 README"]
   T130 --> T132["OCL-132 CI + release"]
+
+  classDef done fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#14532d;
+  class T001,T002,T003,T010,T011 done;
 ```
 
 ### 4.2 Critical path

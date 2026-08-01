@@ -25,9 +25,15 @@
   --background: #f6f7f6;
   --foreground: #12140f;
 
-  /* Elevated panel surface (cards, popovers, menus). */
+  /* Elevated panel surface (cards, popovers, menus). `--card`/`--popover` alias
+     `--surface` — shadcn's component templates (OCL-003) reference those exact
+     names, so both must resolve without OCL-003 needing to touch this file. */
   --surface: #ffffff;
   --surface-foreground: #12140f;
+  --card: var(--surface);
+  --card-foreground: var(--surface-foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--surface-foreground);
 
   --border: #e2e5e1;
   --input: #d7dbd3;
@@ -72,6 +78,10 @@
 
   --surface: #141712;
   --surface-foreground: #eef1ec;
+  --card: var(--surface);
+  --card-foreground: var(--surface-foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--surface-foreground);
 
   --border: #262b22;
   --input: #262b22;
@@ -112,6 +122,10 @@
   --foreground: #12140f;
   --surface: #ffffff;
   --surface-foreground: #12140f;
+  --card: var(--surface);
+  --card-foreground: var(--surface-foreground);
+  --popover: var(--surface);
+  --popover-foreground: var(--surface-foreground);
   --border: #e2e5e1;
   --input: #d7dbd3;
   --muted: #eef0ed;
@@ -144,6 +158,10 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-foreground: var(--surface-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-muted: var(--muted);

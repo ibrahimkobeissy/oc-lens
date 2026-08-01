@@ -11,7 +11,7 @@ export function MobileNav() {
   return (
     <nav
       data-slot="mobile-nav"
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-surface/95 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur md:hidden"
     >
       {MOBILE_NAV_ROUTES.map((route) => {
         const Icon = route.icon;
@@ -33,8 +33,8 @@ export function MobileNav() {
             key={route.href}
             href={route.href}
             className={cn(
-              "flex flex-1 flex-col items-center gap-1 py-2 text-[10px]",
-              isActive ? "text-foreground" : "text-muted-foreground",
+              "relative flex min-h-14 flex-1 cursor-pointer flex-col items-center justify-center gap-1 py-2 text-[10px] transition-colors duration-200",
+              isActive ? "font-medium text-primary after:absolute after:inset-x-5 after:bottom-1 after:h-0.5 after:rounded-full after:bg-primary" : "text-muted-foreground hover:text-foreground",
             )}
           >
             <Icon className="size-5" />

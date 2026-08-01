@@ -3,13 +3,16 @@ import { asNumber, asRecord, asString, safeJsonParse } from "./json";
 import { decodeTokens } from "./tokens";
 import { type Decoded, mergeWarnings, warning } from "./warnings";
 
-const KNOWN_TOOL_STATUSES: ToolStatus[] = ["completed", "error", "pending", "running"];
+const KNOWN_TOOL_STATUSES = ["completed", "error", "pending", "running"] as const;
 
-// ToolStatus (frozen in types/oc.ts) has no `unknown` sentinel; an
-// unrecognised value falls back to "pending" as the closest honest reading
-// ("we don't yet know the outcome"), rather than guessing "completed"/"error".
-function decodeToolStatus(raw: unknown): ToolStatus {
-  return typeof raw === "string" && (KNOWN_TOOL_STATUSES as string[]).includes(raw) ? (raw as ToolStatus) : "pending";
+function decodeToolStatus(raw: unknown): Decoded<ToolStatus> {
+  if (typeof raw === "string" && (KNOWN_TOOL_STATUSES as readonly string[]).includes(raw)) {
+    return { value: raw as ToolStatus, warnings: [] };
+  }
+  return {
+    value: "unknown",
+    warnings: [warning("unknown-tool-status", "Tool parts had an unrecognised or missing state.status; rendered as unknown")],
+  };
 }
 
 function unknownPart(rawType: string, raw: unknown, extraWarning?: OcWarning): Decoded<OcPartData> {
@@ -71,19 +74,20 @@ export function decodePartData(raw: string | null): Decoded<OcPartData> {
     case "tool": {
       const state = asRecord(obj.state);
       const time = asRecord(state?.time);
+      const status = decodeToolStatus(state?.status);
       return {
         value: {
           type: "tool",
           tool: asString(obj.tool) ?? "",
           callId: asString(obj.callID) ?? "",
-          status: decodeToolStatus(state?.status),
+          status: status.value,
           input: state?.input,
-          output: asString(state?.output),
+          output: asString(state?.output) ?? asString(state?.error),
           title: asString(state?.title),
           timeStart: asNumber(time?.start),
           timeEnd: asNumber(time?.end),
         },
-        warnings: [],
+        warnings: status.warnings,
       };
     }
 

@@ -7,6 +7,8 @@ import { schemaVersion } from "@/lib/db/schema-guard";
 import { computeStorageSizes } from "@/lib/db/storage";
 import type { OcResponse, SettingsResponse, StorageBreakdown } from "@/types/oc";
 
+export const dynamic = "force-dynamic";
+
 interface WorktreeRow {
   worktree: string;
 }

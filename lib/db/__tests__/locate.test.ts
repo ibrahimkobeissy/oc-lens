@@ -15,10 +15,14 @@ describe("locateDb", () => {
     cleanupTempDir(dir);
   });
 
-  it("returns found:false with every searched path when nothing exists", () => {
+  it("treats a missing OC_LENS_DB as authoritative instead of falling through", () => {
     const ocLensDbPath = join(dir, "custom.db");
     const xdgPath = join(dir, "xdg", "opencode", "opencode.db");
     const defaultPath = join(dir, "home", ".local", "share", "opencode", "opencode.db");
+    mkdirSync(join(dir, "xdg", "opencode"), { recursive: true });
+    mkdirSync(join(dir, "home", ".local", "share", "opencode"), { recursive: true });
+    writeFileSync(xdgPath, "");
+    writeFileSync(defaultPath, "");
 
     const result = locateDb({
       env: { OC_LENS_DB: ocLensDbPath, XDG_DATA_HOME: join(dir, "xdg") },
@@ -27,7 +31,7 @@ describe("locateDb", () => {
 
     expect(result).toEqual({
       found: false,
-      searched: [ocLensDbPath, xdgPath, defaultPath],
+      searched: [ocLensDbPath],
     });
   });
 

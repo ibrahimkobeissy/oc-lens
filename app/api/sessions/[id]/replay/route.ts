@@ -4,6 +4,7 @@ import { readOpencodeConfig } from "@/lib/config/read";
 import { redactConfig } from "@/lib/config/redact";
 import { getConnection, query } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
+import { readPricing } from "@/lib/pricing/config";
 import { getReplay } from "@/lib/queries/replay";
 import type { SessionReplayRouteResponse } from "@/types/oc";
 
@@ -77,7 +78,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
     ).map((row) => row.worktree);
     const config = readOpencodeConfig({ projectWorktrees });
     const mcpServers = config ? redactConfig(config).mcpServers.map((server) => server.name) : [];
-    const result = getReplay(connection.db, id, mcpServers);
+    const result = getReplay(connection.db, id, mcpServers, readPricing());
 
     if (result.data === null) {
       return errorResponse("session_not_found", `Session ${id} was not found.`, 404);

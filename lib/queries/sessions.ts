@@ -4,8 +4,9 @@ import { decodeMessageData } from "@/lib/decode/message";
 import { decodePartData } from "@/lib/decode/part";
 import { decodeSessionModel, isPlaceholderTitle } from "@/lib/decode/session";
 import { mergeWarnings } from "@/lib/decode/warnings";
+import { costBreakdown } from "@/lib/pricing/breakdown";
 import { resolveMcpTool } from "@/lib/tools/mcp";
-import type { OcTokens, OcWarning, SessionDetail, SessionSummary } from "@/types/oc";
+import type { OcTokens, OcWarning, PricingConfig, SessionDetail, SessionSummary } from "@/types/oc";
 
 export interface QueryResult<T> {
   data: T;
@@ -75,8 +76,9 @@ function selectSessions(db: DatabaseSync, filter: SessionFilter): SessionRow[] {
   if (filter.from !== undefined) { clauses.push("s.time_created >= ?"); params.push(filter.from); }
   if (filter.to !== undefined) { clauses.push("s.time_created < ?"); params.push(filter.to); }
   if (filter.search?.trim()) {
-    clauses.push("(LOWER(s.title) LIKE ? OR LOWER(s.slug) LIKE ? OR LOWER(COALESCE(p.name, p.worktree, '')) LIKE ?)");
-    const term = `%${filter.search.toLowerCase()}%`;
+    clauses.push("(LOWER(s.title) LIKE ? ESCAPE '\\' OR LOWER(s.slug) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(p.name, p.worktree, '')) LIKE ? ESCAPE '\\')");
+    const escaped = filter.search.toLowerCase().replace(/[\\%_]/g, "\\$&");
+    const term = `%${escaped}%`;
     params.push(term, term, term);
   }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
@@ -90,7 +92,7 @@ function selectSessions(db: DatabaseSync, filter: SessionFilter): SessionRow[] {
     ${where} ORDER BY s.time_created DESC, s.id`, params);
 }
 
-export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): QueryResult<SessionSummary[]> {
+export function listSessions(db: DatabaseSync, filter: SessionFilter = {}, pricing?: PricingConfig): QueryResult<SessionSummary[]> {
   const rows = selectSessions(db, filter);
   if (rows.length === 0) return { data: [], warnings: [] };
   const ids = rows.map((row) => row.id);
@@ -146,6 +148,9 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): Quer
     flags.set(row.session_id, state);
   }
   const parentIds = new Set(query<{ parent_id: string }>(db, "SELECT DISTINCT parent_id FROM session WHERE parent_id IS NOT NULL").map((row) => row.parent_id));
+  const costs = pricing === undefined
+    ? new Map<string, SessionSummary["cost"]>()
+    : new Map(costBreakdown(db, pricing).bySession.map((entry) => [entry.sessionId, entry.cost]));
 
   const data = rows.map((row): SessionSummary => {
     const model = decodeSessionModel(row.model);
@@ -167,7 +172,7 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): Quer
         reasoning: row.tokens_reasoning ?? 0, cacheRead: row.tokens_cache_read ?? 0,
         cacheWrite: row.tokens_cache_write ?? 0,
       },
-      cost: { amount: 0, priced: false }, hasReasoning: state.reasoning,
+      cost: costs.get(row.id) ?? { amount: 0, priced: false }, hasReasoning: state.reasoning,
       hasCompaction: false, usesMcp: state.mcp,
       usesSubagent: state.task || parentIds.has(row.id), usesWebfetch: state.webfetch,
     };
@@ -175,8 +180,8 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}): Quer
   return { data, warnings: mergeWarnings(warnings) };
 }
 
-export function getSession(db: DatabaseSync, id: string): QueryResult<SessionDetail | null> {
-  const result = listSessions(db, { id });
+export function getSession(db: DatabaseSync, id: string, pricing?: PricingConfig): QueryResult<SessionDetail | null> {
+  const result = listSessions(db, { id }, pricing);
   const session = result.data[0];
   if (!session) return { data: null, warnings: result.warnings };
   const childIds = query<ChildRow>(db, "SELECT id FROM session WHERE parent_id = ? ORDER BY time_created, id", [id]).map((r) => r.id);

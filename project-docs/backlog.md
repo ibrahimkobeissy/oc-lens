@@ -245,7 +245,25 @@ graph LR
   T015 --> T100
   T053 --> T100
 
-  T032 --> PAGES["Remaining pages: 054-057 081 103 112"]
+  subgraph W8["Wave W8 — replay internals and file timeline"]
+    T054["OCL-054 tool rendering"]
+    T055["OCL-055 reasoning / compaction probe"]
+    T056["OCL-056 replay chart / sidebar"]
+    T057["OCL-057 turn cost / duration"]
+    T103["OCL-103 file timeline"]
+  end
+
+  T053 --> T054
+  T071 --> T054
+  T053 --> T055
+  T053 --> T056
+  T021 --> T056
+  T053 --> T057
+  T016 --> T057
+  T015 --> T103
+  T053 --> T103
+
+  T032 --> PAGES["All pages complete"]
   T033 --> PAGES
   T034 --> PAGES
   T035 --> PAGES
@@ -264,12 +282,23 @@ graph LR
   T053 --> PAGES
   T062 --> PAGES
   T100 --> PAGES
+  T054 --> PAGES
+  T055 --> PAGES
+  T056 --> PAGES
+  T057 --> PAGES
+  T103 --> PAGES
   PAGES --> T130["OCL-130 CLI + packaging"]
-  T130 --> T131["OCL-131 README"]
-  T130 --> T132["OCL-132 CI + release"]
+  T130 --> T140["OCL-140 pricing integrity review"]
+  T130 --> T141["OCL-141 query/API honesty review"]
+  T130 --> T142["OCL-142 UI/accessibility review"]
+  T140 --> REVIEW["Full-project review remediated"]
+  T141 --> REVIEW
+  T142 --> REVIEW
+  REVIEW --> T131["OCL-131 README"]
+  REVIEW --> T132["OCL-132 CI + release"]
 
   classDef done fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#14532d;
-  class T001,T002,T003,T010,T011,T012,T013,T014,T015,T016,T017,T020,T021,T022,T023,T024,T030,T031,T032,T033,T034,T035,T040,T041,T042,T050,T051,T052,T053,T060,T061,T062,T070,T071,T072,T073,T074,T075,T076,T080,T090,T091,T092,T100,T101,T102,T110,T111,T112,T120,T121,API done;
+  class T001,T002,T003,T010,T011,T012,T013,T014,T015,T016,T017,T020,T021,T022,T023,T024,T030,T031,T032,T033,T034,T035,T040,T041,T042,T050,T051,T052,T053,T054,T055,T056,T057,T060,T061,T062,T070,T071,T072,T073,T074,T075,T076,T080,T090,T091,T092,T100,T101,T102,T103,T110,T111,T112,T120,T121,T130,T140,T141,T142,API,PAGES,REVIEW done;
 ```
 
 ### 4.2 Critical path
@@ -294,6 +323,7 @@ Waves are barriers: everything in wave *n* must merge before wave *n+1* starts. 
 | W7 | OCL-053, OCL-062, OCL-100 | 3 | Depend on wave-6 page shells. |
 | W8 | OCL-054, OCL-055, OCL-056, OCL-057, OCL-103 | 5 | Replay internals — all depend on OCL-053's turn-card shell. |
 | W9 | OCL-130 | 1 | Needs every page to exist. |
+| W9R | OCL-140, OCL-141, OCL-142 | 3 | Confirmed full-project review findings; release remains blocked until all are green. |
 | W10 | OCL-131, OCL-132 | 2 | |
 
 **Serialisation hotspots** — these files are touched by many tickets and are therefore *owned* by exactly one:
@@ -1160,7 +1190,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** A `tool` part renderer: tool name + category colour, input args (collapsed, pretty-printed, long values truncated), `state.title`, output (truncated with expand), status chip (`completed`/`error`/`pending`/`running`), and **per-call duration from `state.time`** — the upgrade cc-lens cannot offer. Consecutive calls of the same tool group with a summary line.
 
-**Owns** `components/sessions/replay/tool-part.tsx`, `components/sessions/replay/tool-group.tsx`
+**Owns** `components/sessions/replay/tool-part.tsx`, `components/sessions/replay/tool-group.tsx`, their tests, the verified `state.error` fallback and explicit unknown-status decoding in `lib/decode/part.ts` with regression tests, additive `ToolStatus = ... | "unknown"` typing in `types/oc.ts` and directly affected status consumers, plus the serialized grouping/renderer/deep-link integration in OCL-053's `components/sessions/replay/turn-cards.tsx` and regression test (W8 integration amendment)
 
 **Reference** `.reference/cc-lens/components/sessions/replay/tool-group.tsx`, `lib/tool-summary.ts`
 
@@ -1186,7 +1216,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Reasoning-part renderer (collapsed by default, with `time.start/end` duration and reasoning-token count); compaction card if and only if the probe succeeded.
 
-**Owns** `components/sessions/replay/reasoning-part.tsx`, `components/sessions/replay/compaction-card.tsx`, `lib/decode/compaction.ts`, plus documented amendments to `project-docs/opencode-data-model.md` and `test/fixtures/`
+**Owns** `components/sessions/replay/reasoning-part.tsx`, `components/sessions/replay/compaction-card.tsx`, `lib/decode/compaction.ts`, plus documented amendments to `project-docs/opencode-data-model.md` and `test/fixtures/`, tests, and the serialized renderer-load integration in OCL-053's `components/sessions/replay/turn-cards.tsx` (W8 integration amendment)
 
 **Reference** `.reference/cc-lens/components/sessions/replay/compaction-card.tsx` (Claude-Code semantics — read for layout only; opencode has **no pre-token count**)
 
@@ -1204,7 +1234,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Running-token chart across the session walking `step-finish` parts (input/output/cache stacked); sticky session sidebar with metadata, a turn index for jump-to-turn, and scroll-spy highlighting.
 
-**Owns** `components/sessions/replay/token-accumulation-chart.tsx`, `components/sessions/replay/session-sidebar.tsx`
+**Owns** `components/sessions/replay/token-accumulation-chart.tsx`, `components/sessions/replay/session-sidebar.tsx`, their tests, plus serialized layout/sidebar/chart integration in `app/sessions/[id]/page.tsx` and controlled virtual turn-jump support in `components/sessions/replay/turn-cards.tsx` with regression coverage (W8 integration amendment)
 
 **Reference** the same-named cc-lens files
 
@@ -1222,7 +1252,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Cost and duration on each assistant turn card, from `step-finish.cost` (provider-reported, labelled) and OCL-016's user-priced computation (labelled), shown side by side when they disagree.
 
-**Owns** `components/sessions/replay/turn-metrics.tsx`
+**Owns** `components/sessions/replay/turn-metrics.tsx`, its test, plus additive pricing plumbing in `lib/queries/replay.ts`, `app/api/sessions/[id]/replay/route.ts` and their tests, and serialized assistant-card integration in `components/sessions/replay/turn-cards.tsx` (W8 integration amendment). Per-turn user cost derives from that message's decoded provider/model/tokens with OCL-016 pricing; provider-reported step-finish cost remains separately labelled.
 
 **Acceptance criteria**
 
@@ -1564,7 +1594,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **Out of scope** Rendering actual diffs, and reading the `snapshot/` git objects — both are v2 (Annex B).
 
-**Owns** `components/sessions/file-timeline.tsx`, `app/api/sessions/[id]/files/route.ts`, plus documented additions to `lib/queries/tools.ts`, the data-model doc, and the fixture
+**Owns** `components/sessions/file-timeline.tsx`, `app/api/sessions/[id]/files/route.ts`, their tests, documented additions to `lib/queries/tools.ts`, the data-model doc, and the fixture, plus additive `SessionFilesData` / route aliases in `types/oc.ts`, typed mapping in `hooks/use-oc.ts`, and serialized loading/warning/error/timeline integration in `app/sessions/[id]/page.tsx` after the shared replay integration completes (W8 integration amendment)
 
 **Acceptance criteria**
 
@@ -1572,6 +1602,8 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 - [ ] The timeline is built from a ✅ verified source, and the PR names which.
 - [ ] A session that touched no files renders an empty state, not an empty list frame.
 - [ ] File paths display relative to the project worktree, with the absolute path on hover.
+
+**W8 test-harness amendment.** `test/fixtures/__tests__/build-fixture.test.ts` rebuilds the same checked-in fixture databases that route/query tests copy and read. Vitest worker parallelism therefore races destructive fixture replacement and makes the binding `pnpm test` command nondeterministic. W8 owns the narrow `vitest.config.ts` serialization needed to make the documented command reliable; this is infrastructure stabilization, not permission to rebuild fixtures from application code.
 
 ---
 
@@ -1697,7 +1729,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **In scope** `bin/cli.js` — `npx oc-lens` starts the server, picks a free port, opens the browser, and accepts `--port`, `--no-open`, `--db <path>`; Next standalone output; a `prepare-standalone` step; `files` in `package.json`; a clean startup message naming the DB it found and the row counts it sees.
 
-**Owns** `bin/**`, `next.config.ts` (output mode), `package.json` (bin/files/scripts)
+**Owns** `bin/**`, `next.config.ts` (standalone output/file-tracing mode), `package.json` (publishable metadata, exact Node >=22.5 engine, package-manager pin, bin/files/scripts), `pnpm-lock.yaml` only if package metadata changes require it, plus strict authoritative `OC_LENS_DB` override behavior in `lib/db/locate.ts` and its test (OCL-130 ownership amendment), and the narrow standalone-production timezone code-generation fix in `lib/queries/activity.ts` with regression coverage (OCL-130 verification amendment). A non-empty explicit `--db` path must never fall through to a different default database when missing. The package allowlist must exclude source tests, fixtures, `.claude`, agent instructions, and development configuration.
 
 **Reference** `.reference/cc-lens/bin/cli.js`, `bin/prepare-standalone.js`
 
@@ -1711,9 +1743,62 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 ---
 
+#### OCL-140 — Pricing integrity review remediation
+
+**Epic** E13 · **Size** M · **Depends on** OCL-130 · **Wave** W9R
+
+**In scope** Correct the confirmed review defects in calculated costs: malformed assistant pricing evidence must never produce a falsely complete priced total; agent attribution must follow message evidence rather than the session default; configured pricing must flow through session summaries, cost sorting, replay/export summaries, and exported turns; tools-only exports must preserve relevant feature-adoption warnings.
+
+**Owns** `lib/pricing/breakdown.ts`, `lib/pricing/__tests__/breakdown.test.ts`, `lib/queries/sessions.ts` and its tests, `app/api/sessions/route.ts` and its tests, `app/api/sessions/[id]/route.ts` and its test (session-detail pricing ownership amendment), `app/api/export/route.ts` and its tests, plus expectation-only corrections in `app/api/costs/route.test.ts` and `app/api/sessions/[id]/tree/route.test.ts` for the remediated message-agent and malformed-evidence contracts. This is a post-W9 review amendment and may add focused tests beside those owned modules.
+
+**Acceptance criteria**
+
+- [ ] Malformed pricing evidence yields an honest unpriced result rather than an understated priced total.
+- [ ] Per-agent costs are attributed from each assistant message's agent evidence.
+- [ ] Session API and export cost values use the active user pricing configuration, including cost sorting.
+- [ ] Export warnings match the corresponding live query warnings.
+
+---
+
+#### OCL-141 — Query and API honesty review remediation
+
+**Epic** E13 · **Size** M · **Depends on** OCL-130 · **Wave** W9R
+
+**In scope** Correct confirmed query/API review defects: project filtering for hour/day/token activity; literal `%` and `_` search semantics; unknown-tool warnings in live tool analytics; complete search-route coverage; explicit dynamic settings/search routes.
+
+**Owns** `lib/queries/activity.ts` and focused tests after OCL-130 releases its narrow production fix, `lib/queries/tools.ts` and focused tests, the narrow configured-MCP warning plumbing in `app/api/tools/route.ts` and its test, `app/api/search/route.ts` and its tests, `app/api/settings/route.ts` and its tests. No pricing or UI files.
+
+**Acceptance criteria**
+
+- [ ] All activity helpers honor `projectId` with exact fixture assertions.
+- [ ] Search treats SQL wildcard characters literally and has route coverage for slug, gibberish, cap, and performance behavior.
+- [ ] Unknown tool names surface deduplicated `unknown-tool` warnings.
+- [ ] Settings and search routes explicitly opt into dynamic execution.
+
+---
+
+#### OCL-142 — UI and accessibility review remediation
+
+**Epic** E13 · **Size** M · **Depends on** OCL-130 · **Wave** W9R
+
+**In scope** Correct confirmed runtime/UI review defects: honest overview dependency error states with retry; accessible interactive heatmap semantics; guarded global-search shortcut behavior around dialogs, composition, and handled events; honest pricing DB/schema states; keyboard-focusable tooltip triggers.
+
+**Owns** `app/overview-client.tsx`, `components/overview/activity-heatmap.tsx`, `components/charts/heatmap-grid.tsx` and its test (accessibility ownership amendment), `components/global-search.tsx`, `app/api/pricing/route.ts`, `app/settings/pricing/page.tsx`, `components/ui/stat-card.tsx`, `components/sessions/session-badges.tsx`, `components/overview/model-breakdown-donut.tsx`, `components/projects/project-card.tsx`, plus focused tests for those files.
+
+**Acceptance criteria**
+
+- [ ] Overview dependency failures cannot masquerade as valid empty analytics and offer retry.
+- [ ] Heatmap cells and tooltip triggers are keyboard and screen-reader reachable.
+- [ ] Cmd/Ctrl-K does not stack dialogs or fire during composition/handled events.
+- [ ] Pricing reports missing/schema-mismatch states honestly rather than as zero observed models.
+
+**W9R gate evidence (2026-08-01):** all three remediation tickets passed independent review, including a second pass that found and corrected invalid unknown-role/token pricing, conflated unknown-tool warning labels, and stale overview analytics. Exact `pnpm test` passes 501/501 tests across 104 files; full typecheck, lint, and diff checks pass. OCL-140, OCL-141, OCL-142, and `REVIEW` are green in the graph.
+
+---
+
 #### OCL-131 — README and documentation
 
-**Epic** E13 · **Size** S · **Depends on** OCL-130 · **Wave** W10
+**Epic** E13 · **Size** S · **Depends on** OCL-140, OCL-141, OCL-142 · **Wave** W10
 
 **In scope** README with what it is, why it exists (versus `opencode web` / `opencode stats`), install, usage, screenshots of every page, the **read-only guarantee**, the pricing-setup walkthrough (D3), the pinned opencode version, and **MIT attribution to cc-lens** as the design inspiration. Plus `CONTRIBUTING.md` pointing at this backlog and the data-model doc.
 
@@ -1726,11 +1811,13 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 - [ ] cc-lens is credited with a link and its MIT licence noted.
 - [ ] The pinned opencode version and what happens on a schema mismatch are documented.
 
+**Verification status (2026-08-01):** README, CONTRIBUTING, and the 15-route/30-asset ledger are implemented and reviewed, but 0/30 real PNGs exist. Fixture-backed capture is blocked because the sandbox rejects the required loopback server bind (`listen EPERM`), and the escalated retry was rejected after the execution-approval quota was exhausted until 2026-08-08 13:05 Europe/Paris. No placeholder or fabricated image may satisfy this criterion; OCL-131 remains open.
+
 ---
 
 #### OCL-132 — CI and release
 
-**Epic** E13 · **Size** S · **Depends on** OCL-130 · **Wave** W10
+**Epic** E13 · **Size** S · **Depends on** OCL-140, OCL-141, OCL-142 · **Wave** W10
 
 **In scope** GitHub Actions running `typecheck`, `lint`, `test`, `build` on Node 22 and 24; the fixture build step; a release workflow publishing to npm on tag; Dependabot.
 
@@ -1741,6 +1828,8 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 - [ ] CI is green on `main` and fails on a deliberately broken type.
 - [ ] The security tests from OCL-017 run in CI.
 - [ ] Release workflow dry-runs successfully.
+
+**Verification status (2026-08-01):** workflow YAML, package scanner, CI matrix, tag/manual isolation, and packaged-smoke logic are implemented and locally static-checked. GitHub-hosted `main` CI, the deliberate broken-type negative check, and `workflow_dispatch` dry run have not executed from this workspace, so OCL-132 remains open and must not be painted green until external evidence exists.
 
 ---
 

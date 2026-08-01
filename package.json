@@ -1,20 +1,48 @@
 {
   "name": "oc-lens",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "description": "Local, read-only analytics dashboard for opencode",
   "license": "MIT",
   "type": "module",
-  "engines": {
-    "node": ">=22"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ibrahimkobeissy/oc-lens.git"
   },
+  "homepage": "https://github.com/ibrahimkobeissy/oc-lens#readme",
+  "bugs": {
+    "url": "https://github.com/ibrahimkobeissy/oc-lens/issues"
+  },
+  "keywords": [
+    "opencode",
+    "analytics",
+    "dashboard",
+    "sqlite",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "packageManager": "pnpm@11.18.0",
+  "bin": {
+    "oc-lens": "bin/cli.js"
+  },
+  "files": [
+    "bin/cli.js",
+    "bin/cli-lib.js",
+    "bin/prepare-standalone.js",
+    ".next/standalone"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:dist": "next build && node bin/prepare-standalone.js",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "fixture": "tsx test/fixtures/build-fixture.ts"
+    "fixture": "tsx test/fixtures/build-fixture.ts",
+    "prepack": "pnpm build:dist"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.9",

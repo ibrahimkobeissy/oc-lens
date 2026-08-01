@@ -1,0 +1,207 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Build and inspect package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install supported npm and pinned pnpm
+        run: |
+          npm install --global npm@11.6.2 pnpm@11.18.0
+          node --version
+          npm --version
+          pnpm --version
+
+      - name: Validate release ref and package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_VERSION=$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            [[ "${GITHUB_REF_NAME#v}" == "${PACKAGE_VERSION}" ]]
+          else
+            echo "Manual invocation is verification-only for package version ${PACKAGE_VERSION}."
+          fi
+
+      - name: Install dependencies without cache
+        run: pnpm install --frozen-lockfile
+
+      - name: Build deterministic fixtures
+        run: pnpm fixture
+
+      - name: Verify source before packaging
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm exec vitest run test/security --reporter=verbose
+          pnpm test
+
+      - name: Build standalone distribution
+        run: pnpm build:dist
+
+      - name: Pack tarball without rebuilding
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/oc-lens-pack" "${RUNNER_TEMP}/oc-lens-unpacked"
+          npm pack --ignore-scripts --pack-destination "${RUNNER_TEMP}/oc-lens-pack"
+          PACKAGE_TGZ=$(find "${RUNNER_TEMP}/oc-lens-pack" -maxdepth 1 -name '*.tgz' -print -quit)
+          [[ -n "${PACKAGE_TGZ}" ]]
+          tar -xzf "${PACKAGE_TGZ}" -C "${RUNNER_TEMP}/oc-lens-unpacked"
+          echo "PACKAGE_TGZ=${PACKAGE_TGZ}" >> "${GITHUB_ENV}"
+          echo "PACKAGE_ROOT=${RUNNER_TEMP}/oc-lens-unpacked/package" >> "${GITHUB_ENV}"
+          du -h "${PACKAGE_TGZ}"
+
+      - name: Scan package for forbidden content
+        run: |
+          node .github/scripts/scan-package.test.mjs
+          node .github/scripts/scan-package.mjs "${PACKAGE_ROOT}"
+
+      - name: Clean-install and smoke-test packaged CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          SMOKE_DIR="${RUNNER_TEMP}/oc-lens-smoke"
+          SMOKE_LOG="${RUNNER_TEMP}/oc-lens-smoke.log"
+          SMOKE_PORT=$(node --input-type=module -e '
+            import net from "node:net";
+            const server = net.createServer();
+            server.listen(0, "127.0.0.1", () => {
+              const address = server.address();
+              if (!address || typeof address === "string") throw new Error("Could not allocate a loopback port");
+              process.stdout.write(String(address.port));
+              server.close();
+            });
+          ')
+          mkdir -p "${SMOKE_DIR}"
+          cd "${SMOKE_DIR}"
+          npm init --yes >/dev/null
+          npm install --ignore-scripts "${PACKAGE_TGZ}"
+          CLI_BIN="${SMOKE_DIR}/node_modules/.bin/oc-lens"
+          "${CLI_BIN}" --help
+          "${CLI_BIN}" --version
+          "${CLI_BIN}" --no-open --port "${SMOKE_PORT}" --db "${GITHUB_WORKSPACE}/test/fixtures/populated.db" >"${SMOKE_LOG}" 2>&1 &
+          CLI_PID=$!
+          cleanup() {
+            if kill -0 "${CLI_PID}" 2>/dev/null; then
+              kill -TERM "${CLI_PID}" 2>/dev/null || true
+              wait "${CLI_PID}" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
+          READY=false
+          for _ in {1..60}; do
+            if curl --silent --fail "http://127.0.0.1:${SMOKE_PORT}/api/settings" >"${RUNNER_TEMP}/oc-lens-settings.json"; then
+              READY=true
+              break
+            fi
+            if ! kill -0 "${CLI_PID}" 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if [[ "${READY}" != "true" ]]; then
+            cat "${SMOKE_LOG}"
+            exit 1
+          fi
+
+          curl --silent --fail "http://127.0.0.1:${SMOKE_PORT}/" >"${RUNNER_TEMP}/oc-lens-index.html"
+          STATIC_ASSET=$(node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const html = readFileSync(process.argv[1], "utf8");
+            const match = html.match(/(?:src|href)="(\/_next\/static\/[^"?]+)(?:\?[^\"]*)?"/);
+            if (!match) throw new Error("Rendered page did not reference a Next static asset");
+            process.stdout.write(match[1]);
+          ' "${RUNNER_TEMP}/oc-lens-index.html")
+          curl --silent --fail --output /dev/null "http://127.0.0.1:${SMOKE_PORT}${STATIC_ASSET}"
+          curl --silent --fail "http://127.0.0.1:${SMOKE_PORT}/api/stats?range=all&tz=UTC" >"${RUNNER_TEMP}/oc-lens-stats.json"
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const settings = JSON.parse(readFileSync(process.argv[1], "utf8"));
+            const stats = JSON.parse(readFileSync(process.argv[2], "utf8"));
+            if (!settings.data?.dbPath?.endsWith("test/fixtures/populated.db")) throw new Error("Packaged CLI did not use the requested fixture DB");
+            if (typeof settings.data?.schemaVersion !== "string") throw new Error("Packaged CLI settings response omitted schemaVersion");
+            if (!(stats.data?.totalSessions > 0)) throw new Error("Packaged CLI stats response did not contain fixture sessions");
+          ' "${RUNNER_TEMP}/oc-lens-settings.json" "${RUNNER_TEMP}/oc-lens-stats.json"
+          kill -TERM "${CLI_PID}"
+          set +e
+          wait "${CLI_PID}"
+          CLI_STATUS=$?
+          set -e
+          [[ "${CLI_STATUS}" -eq 143 ]]
+          if curl --silent --fail --max-time 2 "http://127.0.0.1:${SMOKE_PORT}/" >/dev/null 2>&1; then
+            echo "Packaged CLI left a listener running after SIGTERM"
+            exit 1
+          fi
+          trap - EXIT
+
+      - name: Dry-run result
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "Dry run complete; workflow_dispatch never publishes."
+
+      - name: Preserve verified tarball for tag publish
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-package
+          path: ${{ env.PACKAGE_TGZ }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish verified tag through npm OIDC
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install npm with trusted-publishing support
+        run: npm install --global npm@11.6.2
+
+      - name: Download verified tarball
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/oc-lens-publish
+
+      - name: Publish through npm trusted publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_TGZ=$(find "${RUNNER_TEMP}/oc-lens-publish" -maxdepth 1 -name '*.tgz' -print -quit)
+          [[ -n "${PACKAGE_TGZ}" ]]
+          npm publish "${PACKAGE_TGZ}" --access public

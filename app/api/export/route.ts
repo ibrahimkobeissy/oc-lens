@@ -9,7 +9,7 @@ import { decodeMessageData } from "@/lib/decode/message";
 import { decodePartData } from "@/lib/decode/part";
 import { decodeSessionModel, isPlaceholderTitle } from "@/lib/decode/session";
 import { mergeWarnings } from "@/lib/decode/warnings";
-import { costBreakdown } from "@/lib/pricing/breakdown";
+import { costBreakdown, costForMessageData } from "@/lib/pricing/breakdown";
 import { readPricing } from "@/lib/pricing/config";
 import { dailyActivity, dayOfWeek, hourOfDay, localDay } from "@/lib/queries/activity";
 import { getOverviewStats, versionHistory } from "@/lib/queries/projects";
@@ -22,9 +22,11 @@ import type {
   ExportManifestCounts,
   ExportResponse,
   ExportRouteResponse,
+  OcCost,
   OcTokens,
   OcWarning,
   OverviewStats,
+  PricingConfig,
   SessionSummary,
   StreakSummary,
   TodosResponse,
@@ -310,7 +312,8 @@ function toolsData(db: DatabaseSync, options: ExportOptions, servers: string[]):
   // OCL-015's part/version filters use an inclusive `to`; the export contract
   // is half-open, so subtract one millisecond at this adapter boundary.
   const range = { from: options.from, to: options.to === undefined ? undefined : options.to - 1 };
-  const tools = toolUsage(db, range);
+  const tools = toolUsage(db, range, servers);
+  const adoption = featureAdoption(db, servers, range);
   return {
     data: {
       tools: tools.data,
@@ -318,10 +321,15 @@ function toolsData(db: DatabaseSync, options: ExportOptions, servers: string[]):
       activity: toolActivity(db, range, options.timeZone).data,
       mcpServers: mcpUsage(db, servers, range).data,
       skills: skillUsage(db, range).data,
-      featureAdoption: featureAdoption(db, servers, range).data,
+      featureAdoption: adoption.data,
       versionHistory: versionHistory(db, range).data,
     },
-    warnings: tools.warnings,
+    warnings: [
+      ...tools.warnings,
+      ...adoption.warnings.filter(
+        (warning) => !tools.warnings.some((toolWarning) => toolWarning.code === warning.code),
+      ),
+    ],
   };
 }
 
@@ -371,6 +379,7 @@ function replaySummary(
   db: DatabaseSync,
   id: string,
   servers: string[],
+  sessionCosts: ReadonlyMap<string, OcCost>,
   warnings: OcWarning[][],
 ): { summary: SessionSummary; messages: Array<{ row: ReplayMessageRow; decoded: ReturnType<typeof decodeMessageData>["value"] }>; childIds: string[] } | null {
   const session = query<ReplaySessionRow>(db, `
@@ -445,7 +454,7 @@ function replaySummary(
       cacheRead: session.tokens_cache_read ?? 0,
       cacheWrite: session.tokens_cache_write ?? 0,
     },
-    cost: { amount: 0, priced: false },
+    cost: sessionCosts.get(session.id) ?? { amount: 0, priced: false },
     hasReasoning: flags.has_reasoning > 0,
     hasCompaction: false,
     usesMcp: toolNames.some((row) => resolveMcpTool(row.tool, servers) !== null),
@@ -459,10 +468,12 @@ function* streamReplay(
   db: DatabaseSync,
   id: string,
   servers: string[],
+  pricing: PricingConfig,
+  sessionCosts: ReadonlyMap<string, OcCost>,
   warnings: OcWarning[][],
   encoder: TextEncoder,
 ): Generator<Uint8Array> {
-  const replay = replaySummary(db, id, servers, warnings);
+  const replay = replaySummary(db, id, servers, sessionCosts, warnings);
   if (!replay) return;
   yield* boundedEncode(encoder, `{"session":${JSON.stringify(replay.summary)},"parentId":${JSON.stringify(replay.summary.parentId)},"childIds":${JSON.stringify(replay.childIds)},"turns":[`);
   const accumulation = zeroTokens();
@@ -480,7 +491,7 @@ function* streamReplay(
       timeCompleted: completed,
       durationMs: completed === null ? null : completed - created,
       tokens: message.decoded.tokens,
-      cost: { amount: 0, priced: false },
+      cost: costForMessageData(message.row.data, pricing),
     });
     yield* boundedEncode(encoder, `${turnIndex === 0 ? "" : ","}${turnPrefix.slice(0, -1)},"parts":[`);
 
@@ -520,13 +531,17 @@ function streamedResponse(
   const encoder = new TextEncoder();
   const warnings: OcWarning[][] = [];
   const selectedIds = new Set(ids);
+  const pricing = readPricing();
+  const sessionCosts = options.scopes.has("replay")
+    ? new Map(costBreakdown(db, pricing).bySession.map((entry) => [entry.sessionId, entry.cost]))
+    : new Map<string, OcCost>();
 
   async function* jsonChunks(): AsyncGenerator<Uint8Array> {
     const emit = (value: string): Uint8Array => encoder.encode(value);
     yield emit(`{"data":{"generatedAt":${generatedAt},"schemaVersion":${JSON.stringify(schemaVersion)},"rangeFrom":${options.from ?? "null"},"rangeTo":${options.to ?? "null"},"counts":${JSON.stringify(counts)}`);
 
     if (options.scopes.has("sessions")) {
-      const result = listSessions(db, { from: options.from, to: options.to });
+      const result = listSessions(db, { from: options.from, to: options.to }, pricing);
       warnings.push(result.warnings);
       yield emit(`,"sessions":${JSON.stringify(result.data)}`);
     }
@@ -556,7 +571,7 @@ function streamedResponse(
       let first = true;
       for (const id of ids) {
         if (!first) yield emit(",");
-        yield* streamReplay(db, id, servers, warnings, encoder);
+        yield* streamReplay(db, id, servers, pricing, sessionCosts, warnings, encoder);
         first = false;
       }
       yield emit("]");

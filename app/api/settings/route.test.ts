@@ -31,11 +31,12 @@ describe("GET /api/settings", () => {
   });
 
   it("returns a clean null config when no config exists", async () => {
-    const { GET } = await import("./route");
+    const { dynamic, GET } = await import("./route");
     const response = await GET();
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(dynamic).toBe("force-dynamic");
     expect(body.data).toMatchObject({
       dbPath: join(dir, "isolated.db"),
       opencodeVersion: "1.17.7",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Activity, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROUTES, ROUTE_GROUPS } from "@/lib/routes";
 import { useSidebar } from "@/components/layout/sidebar-context";
@@ -33,6 +33,12 @@ export function Sidebar() {
         collapsed ? "md:w-14" : "md:w-56",
       )}
     >
+      <div className={cn("flex h-16 items-center gap-3 border-b border-border px-3", collapsed && "justify-center px-0")}>
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+          <Activity aria-hidden="true" className="size-4" />
+        </div>
+        {!collapsed && <div className="min-w-0"><p className="font-display text-sm font-semibold tracking-tight">oc-lens</p><p className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">signal desk</p></div>}
+      </div>
       <nav className="flex-1 overflow-y-auto p-2">
         {ROUTE_GROUPS.map((group) => {
           const groupRoutes = ROUTES.filter((route) => route.group === group);
@@ -65,8 +71,8 @@ export function Sidebar() {
                     key={route.href}
                     href={route.href}
                     className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-muted",
-                      isActive ? "bg-muted font-medium text-foreground" : "text-muted-foreground",
+                      "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-200 hover:bg-accent hover:text-foreground",
+                      isActive ? "bg-primary/10 font-medium text-foreground" : "text-muted-foreground",
                     )}
                   >
                     <Icon className="size-4 shrink-0" />
@@ -82,7 +88,7 @@ export function Sidebar() {
         type="button"
         onClick={toggleCollapsed}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="flex items-center justify-center gap-2 border-t border-border p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="flex min-h-11 cursor-pointer items-center justify-center gap-2 border-t border-border p-2 text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
       >
         {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
       </button>

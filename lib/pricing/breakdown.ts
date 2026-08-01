@@ -12,10 +12,12 @@ interface SessionRow {
 interface MessageRow {
   session_id: string;
   time_created: number;
-  data: string;
+  data: string | null;
 }
 
 interface RawAssistantMessageData {
+  role?: unknown;
+  agent?: unknown;
   providerID?: unknown;
   modelID?: unknown;
   tokens?: {
@@ -28,18 +30,59 @@ interface RawAssistantMessageData {
 
 const dayFormatters = new Map<string, Intl.DateTimeFormat>();
 
-function numberOr0(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function tokensFrom(data: RawAssistantMessageData): OcTokens {
+function validToken(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function verifiedTokens(data: RawAssistantMessageData): OcTokens | null {
+  if (!isRecord(data.tokens) || !isRecord(data.tokens.cache)) return null;
+  const { input, output, reasoning } = data.tokens;
+  const { read, write } = data.tokens.cache;
+  if (!validToken(input) || !validToken(output) || !validToken(reasoning) || !validToken(read) || !validToken(write)) return null;
   return {
-    input: numberOr0(data.tokens?.input),
-    output: numberOr0(data.tokens?.output),
-    reasoning: numberOr0(data.tokens?.reasoning),
-    cacheRead: numberOr0(data.tokens?.cache?.read),
-    cacheWrite: numberOr0(data.tokens?.cache?.write),
+    input,
+    output,
+    reasoning,
+    cacheRead: read,
+    cacheWrite: write,
   };
+}
+
+type PricingEvidence =
+  | { kind: "ignore" }
+  | { kind: "invalid"; data: RawAssistantMessageData | null }
+  | { kind: "assistant"; data: RawAssistantMessageData; providerID: string; modelID: string; tokens: OcTokens };
+
+function pricingEvidence(raw: string | null): PricingEvidence {
+  let parsed: unknown;
+  try {
+    parsed = raw === null ? null : JSON.parse(raw);
+  } catch {
+    return { kind: "invalid", data: null };
+  }
+  if (!isRecord(parsed)) return { kind: "invalid", data: null };
+  const data = parsed as RawAssistantMessageData;
+  if (data.role === "user") return { kind: "ignore" };
+  const hasPricingFields = data.providerID !== undefined || data.modelID !== undefined || data.tokens !== undefined;
+  if (data.role !== "assistant") return hasPricingFields ? { kind: "invalid", data } : { kind: "ignore" };
+  const providerID = typeof data.providerID === "string" ? data.providerID.trim() : "";
+  const modelID = typeof data.modelID === "string" ? data.modelID.trim() : "";
+  const tokens = verifiedTokens(data);
+  return providerID && modelID && tokens
+    ? { kind: "assistant", data, providerID, modelID, tokens }
+    : { kind: "invalid", data };
+}
+
+/** Prices one turn only when its raw payload proves an assistant role, model identity, and complete native token shape. */
+export function costForMessageData(raw: string | null, config: PricingConfig): OcCost {
+  const evidence = pricingEvidence(raw);
+  return evidence.kind === "assistant"
+    ? costFor(evidence.tokens, `${evidence.providerID}/${evidence.modelID}`, config)
+    : { amount: 0, priced: false };
 }
 
 /** `YYYY-MM-DD` for `epochMs` in `timeZone`, without pulling in a date library. */
@@ -99,23 +142,46 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
   const byDay = new Map<string, Bucket>();
   const bySession = new Map<string, Bucket>();
   const byAgent = new Map<string, Bucket>();
+  const forcedUnpricedModels = new Set<string>();
   const total: Bucket = { amount: 0, priced: true, hasEntries: false };
+
+  const addIncompleteEvidence = (message: MessageRow, data: RawAssistantMessageData | null): void => {
+    const session = sessionById.get(message.session_id);
+    const tokens = data === null ? null : verifiedTokens(data);
+    const providerID = typeof data?.providerID === "string" && data.providerID.trim() ? data.providerID.trim() : "unknown";
+    const modelID = typeof data?.modelID === "string" && data.modelID.trim() ? data.modelID.trim() : "unknown";
+    const key = `${providerID}/${modelID}`;
+    const modelEntry = byModelTokens.get(key) ?? { providerID, modelID, tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 } };
+    const knownTokens = tokens ?? { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 };
+    modelEntry.tokens.input += knownTokens.input;
+    modelEntry.tokens.output += knownTokens.output;
+    modelEntry.tokens.reasoning += knownTokens.reasoning;
+    modelEntry.tokens.cacheRead += knownTokens.cacheRead;
+    modelEntry.tokens.cacheWrite += knownTokens.cacheWrite;
+    byModelTokens.set(key, modelEntry);
+    forcedUnpricedModels.add(key);
+    const unpriced: OcCost = { amount: 0, priced: false };
+    total.priced = false;
+    total.hasEntries = true;
+    addToBucket(byProject, session?.project_id ?? "unknown", unpriced);
+    addToBucket(byDay, localDay(message.time_created, timeZone), unpriced);
+    addToBucket(bySession, message.session_id, unpriced);
+    const agent = data?.role === "assistant" && typeof data.agent === "string" && data.agent.trim().length > 0 ? data.agent.trim() : "unknown";
+    addToBucket(byAgent, agent, unpriced);
+  };
 
   const messages = query<MessageRow>(db, "SELECT session_id, time_created, data FROM message");
   for (const message of messages) {
     if ((range.from !== undefined && message.time_created < range.from) || (range.to !== undefined && message.time_created >= range.to)) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(message.data);
-    } catch {
+    const evidence = pricingEvidence(message.data);
+    if (evidence.kind === "ignore") continue;
+    if (evidence.kind === "invalid") {
+      addIncompleteEvidence(message, evidence.data);
       continue;
     }
-    if (typeof parsed !== "object" || parsed === null) continue;
-    const data = parsed as RawAssistantMessageData;
-    if (typeof data.providerID !== "string" || typeof data.modelID !== "string") continue;
 
-    const key = `${data.providerID}/${data.modelID}`;
-    const tokens = tokensFrom(data);
+    const { data, providerID, modelID, tokens } = evidence;
+    const key = `${providerID}/${modelID}`;
     const cost = costFor(tokens, key, config);
 
     total.amount += cost.amount;
@@ -123,8 +189,8 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
     total.hasEntries = true;
 
     const modelEntry = byModelTokens.get(key) ?? {
-      providerID: data.providerID,
-      modelID: data.modelID,
+      providerID,
+      modelID,
       tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
     };
     modelEntry.tokens.input += tokens.input;
@@ -138,7 +204,8 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
     addToBucket(byProject, session?.project_id ?? "unknown", cost);
     addToBucket(byDay, localDay(message.time_created, timeZone), cost);
     addToBucket(bySession, message.session_id, cost);
-    addToBucket(byAgent, session?.agent ?? "unknown", cost);
+    const agent = typeof data.agent === "string" && data.agent.trim().length > 0 ? data.agent : "unknown";
+    addToBucket(byAgent, agent, cost);
   }
 
   return {
@@ -148,7 +215,7 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
       providerID: m.providerID,
       modelID: m.modelID,
       tokens: m.tokens,
-      cost: costFor(m.tokens, key, config),
+      cost: forcedUnpricedModels.has(key) ? { amount: 0, priced: false } : costFor(m.tokens, key, config),
     })),
     byProject: bucketsToCostArray(byProject, "projectId"),
     byDay: bucketsToCostArray(byDay, "date"),

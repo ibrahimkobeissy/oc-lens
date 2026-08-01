@@ -13,6 +13,7 @@ import type {
   ProjectDetail,
   ProjectSummary,
   SessionDetail,
+  SessionFilesData,
   SessionListResponse,
   SessionReplay,
   SettingsResponse,
@@ -52,6 +53,8 @@ export type OcRoute =
   | `/api/sessions/${string}/replay${Query}`
   | `/api/sessions/${string}/tree`
   | `/api/sessions/${string}/tree${Query}`
+  | `/api/sessions/${string}/files`
+  | `/api/sessions/${string}/files${Query}`
   | `/api/projects/${string}`
   | `/api/projects/${string}${Query}`;
 
@@ -68,6 +71,8 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
         ? SubagentNode[]
         : WithoutQuery<R> extends `/api/sessions/${string}/tree`
           ? SubagentNode
+        : WithoutQuery<R> extends `/api/sessions/${string}/files`
+          ? SessionFilesData
       : WithoutQuery<R> extends `/api/sessions/${string}/replay`
         ? SessionReplay
         : WithoutQuery<R> extends `/api/sessions/${string}`

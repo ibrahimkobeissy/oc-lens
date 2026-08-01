@@ -108,7 +108,7 @@ export function BreakdownDonut({
               {slice.members ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="min-w-0 cursor-help truncate underline decoration-dotted underline-offset-2">{slice.label}</span>
+                    <button type="button" className="min-w-0 cursor-help truncate rounded-sm text-left underline decoration-dotted underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{slice.label}</button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-80">
                     <p>Contains: {slice.members.join(", ")}</p>

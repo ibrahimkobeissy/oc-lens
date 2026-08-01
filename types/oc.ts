@@ -95,7 +95,7 @@ export interface OcTokens {
  */
 export type PartType = "text" | "reasoning" | "step-start" | "step-finish" | "tool" | "unknown";
 
-export type ToolStatus = "completed" | "error" | "pending" | "running";
+export type ToolStatus = "completed" | "error" | "pending" | "running" | "unknown";
 
 /** Any `message.data.role` outside `user`/`assistant` decodes to `'unknown'` rather than throwing (data-model §4). */
 export type MessageRole = "user" | "assistant" | "unknown";
@@ -419,6 +419,12 @@ export interface FileChangeSummary {
   partId: string; // part.id
 }
 
+/** GET /api/sessions/[id]/files payload (OCL-103 verified tool-call fallback). */
+export interface SessionFilesData {
+  changes: FileChangeSummary[];
+  projectWorktree: string | null; // project.worktree, used only to render relative paths with the absolute path retained as evidence
+}
+
 export interface CostBreakdown {
   totalCost: OcCost;
   storedCostComparison: number; // derived: sum of session.cost / message.data.cost — provider-reported, labelled separately per D3
@@ -677,6 +683,7 @@ export type ActivityRouteResponse = OcResponse<ActivityStats>;
 export type SessionsRouteResponse = OcResponse<SessionListResponse>;
 export type SessionRouteResponse = OcResponse<SessionDetail>;
 export type SessionReplayRouteResponse = OcResponse<SessionReplay>;
+export type SessionFilesRouteResponse = OcResponse<SessionFilesData>;
 /** OCL-100: one requested session and its recursive descendants. */
 export type SubagentTreeRouteResponse = OcResponse<SubagentNode>;
 /** OCL-100: unpaginated trees for every root session that spawned descendants. */

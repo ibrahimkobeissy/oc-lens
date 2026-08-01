@@ -2,6 +2,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createFullSchemaDb, makeTempDir } from "@/lib/db/__tests__/test-db";
+import { withFixture } from "@/test/fixtures";
+import { PROVIDER_MODELS } from "@/test/fixtures/manifest";
 import type { PricingConfig } from "@/types/oc";
 import { costBreakdown } from "../breakdown";
 
@@ -20,12 +22,14 @@ describe("costBreakdown", () => {
       INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES
         ('msg_p1', 'ses_1', 1704067200000, 1704067200000, '${JSON.stringify({
           role: "assistant",
+          agent: "build",
           providerID: "opencode",
           modelID: "priced-model",
           tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
         })}'),
         ('msg_p2', 'ses_2', 1704067200000, 1704067200000, '${JSON.stringify({
           role: "assistant",
+          agent: "message-plan",
           providerID: "opencode",
           modelID: "unpriced-model",
           tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
@@ -68,7 +72,7 @@ describe("costBreakdown", () => {
     expect(projA?.cost).toEqual({ amount: 0, priced: false });
 
     const agentBuild = result.byAgent.find((a) => a.agent === "build");
-    const agentPlan = result.byAgent.find((a) => a.agent === "plan");
+    const agentPlan = result.byAgent.find((a) => a.agent === "message-plan");
     expect(agentBuild?.cost.amount).toBeCloseTo(5, 6);
     expect(agentPlan?.cost).toEqual({ amount: 0, priced: false });
 
@@ -77,5 +81,97 @@ describe("costBreakdown", () => {
     expect(result.byDay[0]?.cost).toEqual({ amount: 0, priced: false });
 
     expect(result.bySession.find((s) => s.sessionId === "ses_1")?.cost.amount).toBeCloseTo(5, 6);
+  });
+
+  it("attributes costs from message agent evidence rather than the session default", () => {
+    const config: PricingConfig = {
+      version: 1,
+      prices: {
+        "opencode/priced-model": { inputPerMTok: 5, outputPerMTok: 5, cacheReadPerMTok: 5, cacheWritePerMTok: 5, currency: "USD" },
+        "opencode/unpriced-model": { inputPerMTok: 7, outputPerMTok: 7, cacheReadPerMTok: 7, cacheWritePerMTok: 7, currency: "USD" },
+      },
+      updatedAt: 1,
+    };
+    const result = costBreakdown(db, config);
+    expect(result.byAgent).toEqual([
+      { agent: "build", cost: { amount: 5, priced: true } },
+      { agent: "message-plan", cost: { amount: 7, priced: true } },
+    ]);
+    expect(result.byAgent.some((entry) => entry.agent === "plan")).toBe(false);
+  });
+
+  it("rejects an unknown-role payload even when model and token fields look priceable", () => {
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('unknown-role', 'ses_1', 1704067200001, 1704067200001, ?)")
+      .run(JSON.stringify({
+        role: "future-role",
+        agent: "build",
+        providerID: "opencode",
+        modelID: "priced-model",
+        tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      }));
+    const rate = { inputPerMTok: 5, outputPerMTok: 5, cacheReadPerMTok: 5, cacheWritePerMTok: 5, currency: "USD" as const };
+    const result = costBreakdown(db, { version: 1, prices: { "opencode/priced-model": rate, "opencode/unpriced-model": rate }, updatedAt: 1 });
+
+    expect(result.totalCost).toEqual({ amount: 0, priced: false });
+    expect(result.byModel.find((entry) => entry.modelID === "priced-model")?.cost).toEqual({ amount: 0, priced: false });
+    expect(result.bySession.find((entry) => entry.sessionId === "ses_1")?.cost).toEqual({ amount: 0, priced: false });
+    expect(result.byAgent.find((entry) => entry.agent === "unknown")?.cost).toEqual({ amount: 0, priced: false });
+  });
+
+  it("rejects an assistant payload whose native token shape is incomplete", () => {
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('bad-tokens', 'ses_1', 1704067200001, 1704067200001, ?)")
+      .run(JSON.stringify({
+        role: "assistant",
+        agent: "build",
+        providerID: "opencode",
+        modelID: "priced-model",
+        tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0 } },
+      }));
+    const rate = { inputPerMTok: 5, outputPerMTok: 5, cacheReadPerMTok: 5, cacheWritePerMTok: 5, currency: "USD" as const };
+    const result = costBreakdown(db, { version: 1, prices: { "opencode/priced-model": rate, "opencode/unpriced-model": rate }, updatedAt: 1 });
+
+    expect(result.totalCost).toEqual({ amount: 0, priced: false });
+    expect(result.byModel.find((entry) => entry.modelID === "priced-model")?.cost).toEqual({ amount: 0, priced: false });
+    expect(result.bySession.find((entry) => entry.sessionId === "ses_1")?.cost).toEqual({ amount: 0, priced: false });
+    expect(result.byAgent.find((entry) => entry.agent === "build")?.cost).toEqual({ amount: 0, priced: false });
+  });
+
+  it("marks fixture totals unpriced when malformed assistant evidence hides exact aggregate usage", () => {
+    withFixture((fixture) => {
+      const flatRate = { inputPerMTok: 1, outputPerMTok: 1, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" as const };
+      const config: PricingConfig = {
+        version: 1,
+        prices: Object.fromEntries([
+          ...PROVIDER_MODELS.map((model) => [`${model.providerID}/${model.modelID}`, flatRate]),
+          ["unknown/unknown", flatRate],
+        ]),
+        updatedAt: 1,
+      };
+      const sessionTotals = fixture.prepare(`
+        SELECT SUM(tokens_input + tokens_output + tokens_cache_read + tokens_cache_write) / 1000000.0 AS amount
+        FROM session
+      `).get() as { amount: number };
+      const validMessageTotals = fixture.prepare(`
+        SELECT SUM(
+          COALESCE(json_extract(data, '$.tokens.input'), 0) +
+          COALESCE(json_extract(data, '$.tokens.output'), 0) +
+          COALESCE(json_extract(data, '$.tokens.cache.read'), 0) +
+          COALESCE(json_extract(data, '$.tokens.cache.write'), 0)
+        ) / 1000000.0 AS amount
+        FROM message
+        WHERE json_valid(data) AND json_extract(data, '$.role') = 'assistant'
+      `).get() as { amount: number };
+
+      expect(sessionTotals.amount).toBeCloseTo(4.857402, 6);
+      expect(validMessageTotals.amount).toBeCloseTo(4.853064, 6);
+      expect(sessionTotals.amount - validMessageTotals.amount).toBeCloseTo(0.004338, 6);
+
+      const result = costBreakdown(fixture, config);
+      expect(result.totalCost).toEqual({ amount: 0, priced: false });
+      expect(result.bySession.find((entry) => entry.sessionId === "ses_0000")?.cost).toEqual({ amount: 0, priced: false });
+      expect(result.byAgent.find((entry) => entry.agent === "build")?.cost.amount).toBeCloseTo(2.950962, 6);
+      expect(result.byAgent.find((entry) => entry.agent === "plan")?.cost.amount).toBeCloseTo(1.902102, 6);
+      expect(result.byAgent.find((entry) => entry.agent === "unknown")?.cost).toEqual({ amount: 0, priced: false });
+    });
   });
 });

@@ -11,6 +11,10 @@ function envelope<T>(data: T): OcResponse<T> {
   return { data, meta: { generatedAt: Date.now(), schemaVersion, warnings: [] } };
 }
 
+function errorResponse(code: string, message: string, status: number): NextResponse<OcResponse<PricingSettingsResponse>> {
+  return NextResponse.json({ error: { code, message } }, { status });
+}
+
 /**
  * Neither handler below accepts a filesystem path in any form — `readPricing`/
  * `writePricing` are always called with no path override here, so the module
@@ -19,7 +23,12 @@ function envelope<T>(data: T): OcResponse<T> {
 export async function GET(): Promise<NextResponse<OcResponse<PricingSettingsResponse>>> {
   const config = readPricing();
   const connectResult = getConnection();
-  const pricableModels = connectResult.ok ? listPricableModels(connectResult.db, config) : [];
+  if (!connectResult.ok) {
+    return connectResult.reason === "not-found"
+      ? errorResponse("database_not_found", "No opencode database was found. Check the database location in Settings.", 404)
+      : errorResponse("schema_mismatch", "The opencode database schema is not supported by this version of oc-lens.", 409);
+  }
+  const pricableModels = listPricableModels(connectResult.db, config);
   return NextResponse.json(envelope({ ...config, pricableModels }));
 }
 

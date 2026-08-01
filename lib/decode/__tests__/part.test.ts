@@ -80,6 +80,36 @@ describe("decodePartData", () => {
     });
   });
 
+  it("preserves a tool failure recorded in state.error when state.output is absent", () => {
+    const { value, warnings } = decodePartData(JSON.stringify({
+      type: "tool",
+      tool: "bash",
+      callID: "failed-call",
+      state: { status: "error", input: {}, error: "Permission denied" },
+    }));
+
+    expect(warnings).toEqual([]);
+    expect(value).toMatchObject({ type: "tool", status: "error", output: "Permission denied" });
+  });
+
+  it("decodes missing and future tool statuses as one explicit unknown bucket", () => {
+    const raws = [
+      JSON.stringify({ type: "tool", tool: "bash", callID: "missing", state: { input: {} } }),
+      JSON.stringify({ type: "tool", tool: "bash", callID: "future", state: { status: "paused", input: {} } }),
+    ];
+    const decoded = decodeParts(raws);
+
+    expect(decoded.values).toEqual([
+      expect.objectContaining({ type: "tool", status: "unknown" }),
+      expect.objectContaining({ type: "tool", status: "unknown" }),
+    ]);
+    expect(decoded.warnings).toEqual([{
+      code: "unknown-tool-status",
+      message: "Tool parts had an unrecognised or missing state.status; rendered as unknown",
+      count: 2,
+    }]);
+  });
+
   it("an unknown part type decodes to the unknown variant with a warning, never throwing", () => {
     const raw = JSON.stringify({ type: "patch", files: [] });
     const { value, warnings } = decodePartData(raw);

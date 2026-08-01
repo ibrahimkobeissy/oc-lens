@@ -52,6 +52,24 @@ describe("OCL-015 tool queries", () => {
     expect(toolUsage(db).data[0]).toMatchObject({ p50DurationMs: -10, p95DurationMs: -10 }); db.close();
   });
 
+  it("surfaces unknown tool names instead of silently categorising them as other", () => {
+    const db = new DatabaseSync(":memory:"); db.exec(FIXTURE_SCHEMA_SQL);
+    db.prepare("INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated) VALUES ('s', 'global', 's', '/', 's', '1', 1, 2)").run();
+    const insert = db.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, 'm', 's', 1, 1, ?)");
+    const data = JSON.stringify({ type: "tool", tool: "future_tool", callID: "c", state: { status: "completed", input: {} } });
+    insert.run("p1", data); insert.run("p2", data);
+    insert.run("p3", JSON.stringify({ type: "tool", tool: "another_tool", callID: "d", state: { status: "completed", input: {} } }));
+
+    const result = toolUsage(db);
+
+    expect(result.data.find((row) => row.tool === "future_tool")).toMatchObject({ category: "other", totalCalls: 2 });
+    expect(result.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "unknown-tool", message: expect.stringContaining('"future_tool"'), count: 2 }),
+      expect.objectContaining({ code: "unknown-tool", message: expect.stringContaining('"another_tool"'), count: 1 }),
+    ]));
+    db.close();
+  });
+
   it("reports feature adoption as finite fractions", () => withFixture((db) => {
     const result = featureAdoption(db, servers).data;
     for (const row of Object.values(result)) {

@@ -1,11 +1,13 @@
 import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetConnectionForTests, type ConnectResult } from "@/lib/db/connection";
 import { cleanupTempDir, createFullSchemaDb, makeTempDir } from "@/lib/db/__tests__/test-db";
+import { resetPricingForTests, writePricing } from "@/lib/pricing/config";
 import { POPULATED_DB_PATH } from "@/test/fixtures";
+import { PROVIDER_MODELS } from "@/test/fixtures/manifest";
 import { GET as getSession } from "./[id]/route";
 import { GET as listSessions } from "./route";
 
@@ -71,6 +73,15 @@ beforeAll(() => {
   );
   process.env.XDG_CONFIG_HOME = configHome;
   useDb(populatedCopy);
+});
+
+beforeEach(() => {
+  resetPricingForTests({ configHome });
+  useDb(populatedCopy);
+});
+
+afterEach(() => {
+  resetPricingForTests({ configHome });
 });
 
 afterAll(() => {
@@ -172,6 +183,27 @@ describe("GET /api/sessions", () => {
     expect(second.body.data?.totalCount).toBe(120);
   });
 
+  it("uses active fixture pricing for exact session costs and numeric cost sorting", async () => {
+    const flatRate = { inputPerMTok: 1, outputPerMTok: 1, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" as const };
+    writePricing({
+      version: 1,
+      prices: Object.fromEntries([
+        ...PROVIDER_MODELS.map((model) => [`${model.providerID}/${model.modelID}`, flatRate]),
+        ["unknown/unknown", flatRate],
+      ]),
+      updatedAt: 1,
+    }, { configHome });
+
+    const highest = await list("?sort=cost&order=desc&limit=1");
+    expect(highest.body.data?.sessions[0]).toMatchObject({
+      id: "ses_0010",
+      cost: { amount: 0.061312, priced: true },
+    });
+
+    const malformed = await list("?search=ses_0000&limit=1");
+    expect(malformed.body.data?.sessions[0]?.cost).toEqual({ amount: 0, priced: false });
+  });
+
   it.each([
     "?archived=yes",
     "?from=10&to=9",
@@ -226,6 +258,19 @@ describe("GET /api/sessions/[id]", () => {
     expect(response.status).toBe(200);
     expect((body.data as unknown as { id: string }).id).toBe("ses_0000");
     expect((body.data as unknown as { childIds: string[] }).childIds).toEqual(["ses_0035", "ses_0036", "ses_0038"]);
+  });
+
+  it("uses active pricing in the session detail summary", async () => {
+    const flatRate = { inputPerMTok: 1, outputPerMTok: 1, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" as const };
+    writePricing({
+      version: 1,
+      prices: Object.fromEntries(PROVIDER_MODELS.map((model) => [`${model.providerID}/${model.modelID}`, flatRate])),
+      updatedAt: 1,
+    }, { configHome });
+
+    const { response, body } = await detail("ses_0010");
+    expect(response.status).toBe(200);
+    expect((body.data as unknown as { cost: { amount: number; priced: boolean } }).cost).toEqual({ amount: 0.061312, priced: true });
   });
 
   it("distinguishes a missing session from a missing database", async () => {

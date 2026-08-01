@@ -43,6 +43,7 @@ describe("OCL-033 model breakdown", () => {
 
     expect(populated).toContain("var(--chart-1)");
     expect(populated).toContain("Contains: provider/model-7, provider/model-8, provider/model-9");
+    expect(populated).toContain('<button type="button"');
     expect(populated).toContain("unknown");
     expect(empty).toContain("No model breakdown data");
   });

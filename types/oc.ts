@@ -537,6 +537,7 @@ export interface SessionDetail extends SessionSummary {
 export interface ProjectDetail extends ProjectSummary {
   sessions: SessionSummary[];
   dailyActivity: DailyActivity[];
+  modelBreakdown: ModelUsage[]; // derived from project-scoped message.data.providerID/modelID, never session.model
   /** `workspace.branch` values for this project. Present only when `workspace` has rows for it; omitted entirely (not `null`, not `[]`) when the table is empty — data-model §1. */
   branches?: string[];
 }
@@ -676,6 +677,10 @@ export type ActivityRouteResponse = OcResponse<ActivityStats>;
 export type SessionsRouteResponse = OcResponse<SessionListResponse>;
 export type SessionRouteResponse = OcResponse<SessionDetail>;
 export type SessionReplayRouteResponse = OcResponse<SessionReplay>;
+/** OCL-100: one requested session and its recursive descendants. */
+export type SubagentTreeRouteResponse = OcResponse<SubagentNode>;
+/** OCL-100: unpaginated trees for every root session that spawned descendants. */
+export type SubagentRootsRouteResponse = OcResponse<SubagentNode[]>;
 export type ProjectsRouteResponse = OcResponse<ProjectSummary[]>;
 export type ProjectRouteResponse = OcResponse<ProjectDetail>;
 export type ToolsRouteResponse = OcResponse<ToolsStats>;

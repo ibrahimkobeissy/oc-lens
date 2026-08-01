@@ -56,7 +56,7 @@ export const ROUTES: OcRoute[] = [
   { href: "/todos", label: "Todos", icon: ListTodo, group: "todos", enabled: true },
   { href: "/costs", label: "Costs", icon: DollarSign, group: "costs", enabled: true },
   { href: "/agents", label: "Agents", icon: Bot, group: "agents", enabled: true },
-  { href: "/agents/tree", label: "Subagent Tree", icon: GitBranch, group: "agents", enabled: false },
+  { href: "/agents/tree", label: "Subagent Tree", icon: GitBranch, group: "agents", enabled: true },
   { href: "/export", label: "Export", icon: Download, group: "export", enabled: true },
   { href: "/settings", label: "Settings", icon: Settings, group: "settings", enabled: true },
   { href: "/settings/pricing", label: "Pricing", icon: DollarSign, group: "settings", enabled: true },

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { getConnection, query } from "@/lib/db/connection";
+import { mergeWarnings } from "@/lib/decode/warnings";
 import { schemaVersion } from "@/lib/db/schema-guard";
+import { costBreakdown } from "@/lib/pricing/breakdown";
+import { readPricing } from "@/lib/pricing/config";
 import { dailyActivity } from "@/lib/queries/activity";
-import { listProjects } from "@/lib/queries/projects";
+import { listProjects, projectModelBreakdown } from "@/lib/queries/projects";
 import { listSessions } from "@/lib/queries/sessions";
 import type { ProjectDetail, ProjectRouteResponse } from "@/types/oc";
 
@@ -32,9 +35,20 @@ function validProjectId(value: string): boolean {
   return value.length > 0 && value.length <= MAX_PROJECT_ID_LENGTH && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
-export async function GET(_request: Request, context: RouteContext): Promise<NextResponse<ProjectRouteResponse>> {
+function validTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function GET(request: Request, context: RouteContext): Promise<NextResponse<ProjectRouteResponse>> {
   const { id } = await context.params;
   if (!validProjectId(id)) return errorResponse("invalid_project_id", "The project id is invalid.", 400);
+  const timeZone = new URL(request.url).searchParams.get("tz") ?? "UTC";
+  if (!validTimeZone(timeZone)) return errorResponse("invalid_timezone", "tz must be a valid IANA timezone.", 400);
 
   try {
     const connection = getConnection();
@@ -57,7 +71,11 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
     const summary = listProjects(connection.db, { projectId: id }, sessions).data.find((project) => project.id === id);
     if (!summary) return errorResponse("project_not_found", `Project ${id} was not found.`, 404);
 
-    const activity = dailyActivity(connection.db, { projectId: id, timeZone: "UTC" });
+    const activity = dailyActivity(connection.db, { projectId: id, timeZone });
+    const pricing = readPricing();
+    const costs = costBreakdown(connection.db, pricing, timeZone);
+    const projectCost = costs.byProject.find((entry) => entry.projectId === id)?.cost ?? { amount: 0, priced: false };
+    const models = projectModelBreakdown(connection.db, id, pricing);
     const hasWorkspace = query<TableRow>(
       connection.db,
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'workspace'",
@@ -71,8 +89,10 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
       : [];
     const data: ProjectDetail = {
       ...summary,
+      cost: projectCost,
       sessions: sessions.data,
       dailyActivity: activity.data,
+      modelBreakdown: models.data,
       ...(workspaceRows.length > 0
         ? {
             branches: [...new Set(
@@ -86,9 +106,15 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
 
     return NextResponse.json({
       data,
-      // Both aggregates decode the same project part rows. The session warning
-      // stream is canonical so malformed rows are not counted twice.
-      meta: { generatedAt: Date.now(), schemaVersion, warnings: sessions.warnings },
+      meta: {
+        generatedAt: Date.now(),
+        schemaVersion,
+        warnings: mergeWarnings([
+          sessions.warnings,
+          activity.warnings,
+          models.warnings.filter((warning) => !sessions.warnings.some((sessionWarning) => sessionWarning.code === warning.code)),
+        ]),
+      },
     });
   } catch {
     return errorResponse("project_failed", "The project could not be read from the opencode database.", 500);

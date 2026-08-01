@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { FIXTURE_SCHEMA_SQL } from "@/test/fixtures/schema";
 import { dailyActivity } from "../activity";
+import { projectModelBreakdown } from "../projects";
 import { projectDisplayName } from "../sessions";
+import type { PricingConfig } from "@/types/oc";
 
 describe("OCL-060 project activity scope", () => {
   it("uses the frozen name, basename, global, then id display-name fallback", () => {
@@ -44,6 +46,50 @@ describe("OCL-060 project activity scope", () => {
     expect(dailyActivity(db, { projectId: "alpha", timeZone: "UTC" }).data).toEqual([
       { date: "2026-08-01", sessionCount: 1, messageCount: 1, toolCallCount: 1 },
     ]);
+    db.close();
+  });
+
+  it("derives project models from message evidence across switches, unknowns, and pricing states", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    db.exec(`
+      INSERT INTO project (id, worktree, name) VALUES ('alpha', '/alpha', 'alpha'), ('beta', '/beta', 'beta');
+      INSERT INTO session (id, project_id, slug, directory, title, version, model, time_created, time_updated)
+      VALUES ('ses-alpha', 'alpha', 'alpha', '/', 'alpha', '1', '{"id":"wrong-session-model","providerID":"session-provider","variant":"default"}', 1, 2),
+             ('ses-beta', 'beta', 'beta', '/', 'beta', '1', NULL, 1, 2);
+    `);
+    const insert = db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?)");
+    insert.run("a-1", "ses-alpha", 10, 10, JSON.stringify({ role: "assistant", providerID: "provider-a", modelID: "model-a", tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } }));
+    insert.run("a-2", "ses-alpha", 11, 11, JSON.stringify({ role: "assistant", providerID: "provider-a", modelID: "model-a", tokens: { input: 0, output: 500_000, reasoning: 0, cache: { read: 0, write: 0 } } }));
+    insert.run("b-1", "ses-alpha", 12, 12, JSON.stringify({ role: "assistant", providerID: "provider-b", modelID: "model-b", tokens: { input: 250_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } }));
+    insert.run("unknown", "ses-alpha", 13, 13, JSON.stringify({ role: "user", time: { created: 13 } }));
+    insert.run("outside", "ses-beta", 14, 14, JSON.stringify({ role: "assistant", providerID: "provider-z", modelID: "outside", tokens: { input: 9_000_000 } }));
+
+    const partial: PricingConfig = {
+      version: 1,
+      updatedAt: 1,
+      prices: {
+        "provider-a/model-a": { inputPerMTok: 2, outputPerMTok: 4, cacheReadPerMTok: 0, cacheWritePerMTok: 0, currency: "USD" },
+      },
+    };
+    const result = projectModelBreakdown(db, "alpha", partial);
+
+    expect(result.data.map((model) => `${model.providerID}/${model.modelID}`)).toEqual(["provider-a/model-a", "provider-b/model-b", "unknown/unknown"]);
+    expect(result.data.find((model) => model.modelID === "model-a")).toMatchObject({ sessionCount: 1, messageCount: 2, cost: { amount: 4, priced: true } });
+    expect(result.data.find((model) => model.modelID === "model-b")?.cost).toEqual({ amount: 0, priced: false });
+    expect(result.data.find((model) => model.modelID === "unknown")?.cost).toEqual({ amount: 0, priced: false });
+    expect(result.data.some((model) => model.modelID === "wrong-session-model" || model.modelID === "outside")).toBe(false);
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "unknown-message-model", count: 1 }));
+
+    const fullyPriced = projectModelBreakdown(db, "alpha", {
+      ...partial,
+      prices: {
+        ...partial.prices,
+        "provider-b/model-b": { inputPerMTok: 8, outputPerMTok: 0, cacheReadPerMTok: 0, cacheWritePerMTok: 0, currency: "USD" },
+      },
+    });
+    expect(fullyPriced.data.filter((model) => model.modelID !== "unknown").every((model) => model.cost.priced)).toBe(true);
+    expect(projectModelBreakdown(db, "alpha", { version: 1, updatedAt: 1, prices: {} }).data.every((model) => !model.cost.priced)).toBe(true);
     db.close();
   });
 });

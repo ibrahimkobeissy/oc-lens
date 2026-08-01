@@ -32,6 +32,7 @@ describe("ROUTES", () => {
       "/todos",
       "/costs",
       "/agents",
+      "/agents/tree",
       "/export",
       "/settings",
       "/settings/pricing",

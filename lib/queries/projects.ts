@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import { query } from "@/lib/db/connection";
 import { decodeMessageData } from "@/lib/decode/message";
-import { mergeWarnings } from "@/lib/decode/warnings";
-import type { ModelUsage, OcTokens, OverviewStats, ProjectSummary, SessionSummary, VersionRecord } from "@/types/oc";
+import { mergeWarnings, warning } from "@/lib/decode/warnings";
+import { costFor } from "@/lib/pricing/cost";
+import type { ModelUsage, OcTokens, OverviewStats, PricingConfig, ProjectSummary, SessionSummary, VersionRecord } from "@/types/oc";
 import { dailyActivity, dailyTokens, hourOfDay, localDay } from "./activity";
 import { listSessions, projectDisplayName, type QueryResult } from "./sessions";
 
@@ -16,6 +17,55 @@ function zeroTokens(): OcTokens { return { input: 0, output: 0, reasoning: 0, ca
 function addTokens(target: OcTokens, source: OcTokens): void {
   target.input += source.input; target.output += source.output; target.reasoning += source.reasoning;
   target.cacheRead += source.cacheRead; target.cacheWrite += source.cacheWrite;
+}
+
+/** Project-scoped model analytics from message evidence, including model switches within one session. */
+export function projectModelBreakdown(db: DatabaseSync, projectId: string, pricing: PricingConfig): QueryResult<ModelUsage[]> {
+  const messages = query<MessageRow>(db, `
+    SELECT m.session_id, m.time_created, m.data
+    FROM message m
+    JOIN session s ON s.id = m.session_id
+    WHERE s.project_id = ?
+    ORDER BY m.time_created, m.id
+  `, [projectId]);
+  const models = new Map<string, ModelUsage>();
+  const sessionsByModel = new Map<string, Set<string>>();
+  const warningGroups = [];
+  let unknownCount = 0;
+
+  for (const message of messages) {
+    const decoded = decodeMessageData(message.data);
+    warningGroups.push(decoded.warnings);
+    const known = decoded.value.providerID !== null && decoded.value.modelID !== null;
+    const providerID = known ? decoded.value.providerID! : "unknown";
+    const modelID = known ? decoded.value.modelID! : "unknown";
+    if (!known) unknownCount += 1;
+    const key = `${providerID}/${modelID}`;
+    const entry = models.get(key) ?? {
+      providerID,
+      modelID,
+      sessionCount: 0,
+      messageCount: 0,
+      tokens: zeroTokens(),
+      cost: { amount: 0, priced: false },
+    };
+    entry.messageCount += 1;
+    if (decoded.value.tokens !== null) addTokens(entry.tokens, decoded.value.tokens);
+    models.set(key, entry);
+    const sessionIds = sessionsByModel.get(key) ?? new Set<string>();
+    sessionIds.add(message.session_id);
+    sessionsByModel.set(key, sessionIds);
+  }
+
+  if (unknownCount > 0) warningGroups.push([warning("unknown-message-model", "Messages had no complete provider/model identity", unknownCount)]);
+  for (const [key, entry] of models) {
+    entry.sessionCount = sessionsByModel.get(key)?.size ?? 0;
+    entry.cost = key === "unknown/unknown" ? { amount: 0, priced: false } : costFor(entry.tokens, key, pricing);
+  }
+  return {
+    data: [...models.values()].sort((left, right) => right.messageCount - left.messageCount || `${left.providerID}/${left.modelID}`.localeCompare(`${right.providerID}/${right.modelID}`)),
+    warnings: mergeWarnings(warningGroups),
+  };
 }
 
 export function listProjects(db: DatabaseSync, filter: Parameters<typeof listSessions>[1] = {}, preloaded?: QueryResult<SessionSummary[]>): QueryResult<ProjectSummary[]> {

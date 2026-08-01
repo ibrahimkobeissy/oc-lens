@@ -232,7 +232,20 @@ graph LR
   T120 --> T121
   T021 --> T121
 
-  T032 --> PAGES["Later pages: 053-057 062 081 100 103 112"]
+  subgraph W7["Wave W7 — replay, project detail, subagents"]
+    T053["OCL-053 replay shell"]
+    T062["OCL-062 project detail"]
+    T100["OCL-100 subagent tree"]
+  end
+
+  T052 --> T053
+  T021 --> T053
+  T061 --> T062
+  T060 --> T062
+  T015 --> T100
+  T053 --> T100
+
+  T032 --> PAGES["Remaining pages: 054-057 081 103 112"]
   T033 --> PAGES
   T034 --> PAGES
   T035 --> PAGES
@@ -248,12 +261,15 @@ graph LR
   T102 --> PAGES
   T111 --> PAGES
   T121 --> PAGES
+  T053 --> PAGES
+  T062 --> PAGES
+  T100 --> PAGES
   PAGES --> T130["OCL-130 CLI + packaging"]
   T130 --> T131["OCL-131 README"]
   T130 --> T132["OCL-132 CI + release"]
 
   classDef done fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#14532d;
-  class T001,T002,T003,T010,T011,T012,T013,T014,T015,T016,T017,T020,T021,T022,T023,T024,T030,T031,T032,T033,T034,T035,T040,T041,T042,T050,T051,T052,T060,T061,T070,T071,T072,T073,T074,T075,T076,T080,T090,T091,T092,T101,T102,T110,T111,T112,T120,T121,API done;
+  class T001,T002,T003,T010,T011,T012,T013,T014,T015,T016,T017,T020,T021,T022,T023,T024,T030,T031,T032,T033,T034,T035,T040,T041,T042,T050,T051,T052,T053,T060,T061,T062,T070,T071,T072,T073,T074,T075,T076,T080,T090,T091,T092,T100,T101,T102,T110,T111,T112,T120,T121,API done;
 ```
 
 ### 4.2 Critical path
@@ -1125,7 +1141,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** Tool rendering (054), reasoning/compaction cards (055), charts (056), cost (057) — each registers a renderer.
 
-**Owns** `app/sessions/[id]/page.tsx`, `components/sessions/replay/turn-cards.tsx`, `components/sessions/replay/assistant-markdown.tsx`, `components/sessions/replay/part-registry.ts`
+**Owns** `app/sessions/[id]/page.tsx`, `components/sessions/replay/turn-cards.tsx`, `components/sessions/replay/assistant-markdown.tsx`, `components/sessions/replay/part-registry.ts`, plus the narrow `package.json` / `pnpm-lock.yaml` dependency additions required by the mandated `react-markdown`, `remark-gfm`, syntax-highlighting, and windowing implementation (OCL-053 ownership amendment; no unrelated dependency changes)
 
 **Reference** `.reference/cc-lens/components/sessions/replay/turn-cards.tsx`, `assistant-markdown.tsx`
 
@@ -1262,7 +1278,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** `/projects/[id]`: header with aggregates, session list scoped to the project, usage-over-time and model-breakdown charts reusing OCL-032/033 components.
 
-**Owns** `app/projects/[id]/page.tsx`, `components/projects/project-detail.tsx`
+**Owns** `app/projects/[id]/page.tsx`, `components/projects/project-detail.tsx`, their tests, plus: the narrow validated `?tz=<IANA>` amendment and regression coverage in `app/api/projects/[id]/route.ts` / its test so the reused OCL-032 local-calendar chart receives viewer-local buckets; additive project-detail `modelBreakdown` typing in `types/oc.ts`; and project-scoped message-model aggregation with pricing in `lib/queries/projects.ts` plus its regression test (OCL-062 ownership amendments). Project model analytics must use message `providerID` / `modelID`, never `session.model`, and the detail's project cost must compose the D3 `byProject` result.
 
 **Acceptance criteria**
 
@@ -1488,7 +1504,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **In scope** `GET /api/sessions/[id]/tree`; a tree view on the session replay page showing parent → children with each child's agent, model, duration, tokens, cost, and tool count; click to open that subagent's replay; a roll-up of "total including subagents" versus "this session alone"; a standalone `/agents/tree` entry point listing root sessions that spawned subagents.
 
-**Owns** `app/api/sessions/[id]/tree/route.ts`, `components/sessions/subagent-tree.tsx`, `app/agents/tree/page.tsx`
+**Owns** `app/api/sessions/[id]/tree/route.ts`, its test, `app/api/sessions/tree/route.ts`, its test, `components/sessions/subagent-tree.tsx`, its test, `app/agents/tree/page.tsx`; additive `SubagentNode` route aliases in `types/oc.ts` and typed tree mappings in `hooks/use-oc.ts`; narrow `/agents/tree` enablement in `lib/routes.ts` and its expectation in `lib/routes.test.ts`; and narrow tree-panel integration in OCL-053's completed `app/sessions/[id]/page.tsx` (OCL-100 ownership amendment). The static `/api/sessions/tree` endpoint is the unpaginated root-discovery contract for sessions that actually spawned descendants; the standalone page must not infer roots from the paginated session-list endpoint.
 
 **Acceptance criteria**
 

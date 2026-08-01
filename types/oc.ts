@@ -540,6 +540,7 @@ export interface TodoRollup {
 
 export interface SessionTodos {
   sessionId: string; // todo.session_id
+  projectId: string; // session.project_id — OCL-080 amendment required for the project filter
   todos: OcTodo[]; // ordered by todo.position
   rollup: TodoRollup;
 }
@@ -581,6 +582,28 @@ export interface SettingsResponse {
   config: RedactedConfig | null; // derived: null when no opencode.jsonc was found
 }
 
+/** A secret-free summary of one live opencode HTTP endpoint. */
+export interface LiveEndpointHealth {
+  available: boolean; // derived: the configured opencode server returned a successful HTTP response
+  items: Array<{
+    name: string; // derived: public MCP/LSP identifier only; response values are never forwarded verbatim
+    status: string; // derived: allowlisted lifecycle state, or the literal 'unknown'
+  }>;
+  itemCount: number | null; // derived: array/object size when the response has a collection shape
+}
+
+/** Optional `opencode serve` health; no raw upstream response is exposed. */
+export interface HealthResponse {
+  state: "disabled" | "running" | "not-running"; // derived: configuration and GET availability
+  baseUrl: string | null; // derived: credential-free configured origin
+  timeoutMs: number; // derived: bounded OC_LENS_OPENCODE_TIMEOUT_MS
+  checkedAt: number; // derived: epoch ms, server clock at completion
+  mcp: LiveEndpointHealth; // derived: GET /mcp
+  lsp: LiveEndpointHealth; // derived: GET /lsp
+  agent: LiveEndpointHealth; // derived: GET /agent; names are intentionally not exposed
+  config: LiveEndpointHealth; // derived: GET /config; body is intentionally not exposed
+}
+
 export interface ExportManifestCounts {
   sessions: number;
   messages: number;
@@ -615,4 +638,5 @@ export type ToolsRouteResponse = OcResponse<ToolsStats>;
 export type TodosRouteResponse = OcResponse<TodosResponse>;
 export type CostsRouteResponse = OcResponse<CostBreakdown>;
 export type SettingsRouteResponse = OcResponse<SettingsResponse>;
+export type HealthRouteResponse = OcResponse<HealthResponse>;
 export type ExportRouteResponse = OcResponse<ExportResponse>;

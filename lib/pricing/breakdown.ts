@@ -26,6 +26,8 @@ interface RawAssistantMessageData {
   };
 }
 
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function numberOr0(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
@@ -42,27 +44,34 @@ function tokensFrom(data: RawAssistantMessageData): OcTokens {
 
 /** `YYYY-MM-DD` for `epochMs` in `timeZone`, without pulling in a date library. */
 function localDay(epochMs: number, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
-    new Date(epochMs),
-  );
+  let formatter = dayFormatters.get(timeZone);
+  if (!formatter) { formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }); dayFormatters.set(timeZone, formatter); }
+  return formatter.format(new Date(epochMs));
 }
 
 /**
- * A rollup bucket's running cost. `priced` is tracked explicitly rather than
- * inferred from `amount > 0` — a bucket can be genuinely priced with a $0
- * amount (priced model, zero usage) or unpriced with a nonzero-looking total
- * from other priced entries merged in, so amount alone can't tell you which.
+ * A rollup bucket's running cost. `priced` stays true only when every
+ * contributing model is priced; `hasEntries` distinguishes an honestly
+ * priced zero-usage bucket from an empty aggregate.
  */
 interface Bucket {
   amount: number;
   priced: boolean;
+  hasEntries: boolean;
 }
 
 function addToBucket(map: Map<string, Bucket>, key: string, cost: OcCost): void {
-  const existing = map.get(key) ?? { amount: 0, priced: false };
+  const existing = map.get(key) ?? { amount: 0, priced: true, hasEntries: false };
   existing.amount += cost.amount;
-  existing.priced = existing.priced || cost.priced;
+  existing.priced = existing.priced && cost.priced;
+  existing.hasEntries = true;
   map.set(key, existing);
+}
+
+function completeCost(bucket: Bucket): OcCost {
+  return bucket.hasEntries && bucket.priced
+    ? { amount: bucket.amount, priced: true }
+    : { amount: 0, priced: false };
 }
 
 function bucketsToCostArray<K extends string>(
@@ -71,7 +80,7 @@ function bucketsToCostArray<K extends string>(
 ): Array<Record<K, string> & { cost: OcCost }> {
   return Array.from(map.entries()).map(([key, bucket]) => ({
     [keyField]: key,
-    cost: { amount: bucket.amount, priced: bucket.priced },
+    cost: completeCost(bucket),
   })) as Array<Record<K, string> & { cost: OcCost }>;
 }
 
@@ -81,7 +90,7 @@ function bucketsToCostArray<K extends string>(
  * `byDay` bucketing (default UTC) — same IANA-zone convention the rest of the
  * product's time-series queries use.
  */
-export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone = "UTC"): CostBreakdown {
+export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone = "UTC", range: { from?: number; to?: number } = {}): CostBreakdown {
   const sessions = query<SessionRow>(db, "SELECT id, project_id, agent FROM session");
   const sessionById = new Map(sessions.map((s) => [s.id, s]));
 
@@ -90,10 +99,11 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
   const byDay = new Map<string, Bucket>();
   const bySession = new Map<string, Bucket>();
   const byAgent = new Map<string, Bucket>();
-  const total: Bucket = { amount: 0, priced: false };
+  const total: Bucket = { amount: 0, priced: true, hasEntries: false };
 
   const messages = query<MessageRow>(db, "SELECT session_id, time_created, data FROM message");
   for (const message of messages) {
+    if ((range.from !== undefined && message.time_created < range.from) || (range.to !== undefined && message.time_created >= range.to)) continue;
     let parsed: unknown;
     try {
       parsed = JSON.parse(message.data);
@@ -109,7 +119,8 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
     const cost = costFor(tokens, key, config);
 
     total.amount += cost.amount;
-    total.priced = total.priced || cost.priced;
+    total.priced = total.priced && cost.priced;
+    total.hasEntries = true;
 
     const modelEntry = byModelTokens.get(key) ?? {
       providerID: data.providerID,
@@ -131,7 +142,7 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
   }
 
   return {
-    totalCost: { amount: total.amount, priced: total.priced },
+    totalCost: completeCost(total),
     storedCostComparison: storedCostComparison(db),
     byModel: Array.from(byModelTokens.entries()).map(([key, m]) => ({
       providerID: m.providerID,

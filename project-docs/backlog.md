@@ -121,7 +121,7 @@ graph LR
   T130 --> T132["OCL-132 CI + release"]
 
   classDef done fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#14532d;
-  class T001,T002,T003,T010,T011,T012,T013,T016,T017,T020,T021,T071 done;
+  class T001,T002,T003,T010,T011,T012,T013,T014,T015,T016,T017,T020,T021,T022,T023,T024,T030,T040,T050,T052,T060,T070,T071,T080,T091,T110,T112,T120 done;
 ```
 
 ### 4.2 Critical path
@@ -684,7 +684,7 @@ Author `types/oc.ts` containing, at minimum:
 
 - Full-text search inside message bodies — a v2 idea; note it in Annex B.
 
-**Owns** `components/global-search.tsx`, `app/api/search/route.ts`
+**Owns** `components/global-search.tsx`, `app/api/search/route.ts`, plus narrow post-wave integration amendments to `components/layout/app-shell.tsx` and `components/layout/top-bar.tsx`
 
 **Reference** `.reference/cc-lens/components/global-search.tsx`
 
@@ -705,7 +705,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** Per-page shortcuts beyond prev/next.
 
-**Owns** `components/keyboard-nav-provider.tsx`, `hooks/use-global-keyboard-nav.ts`
+**Owns** `components/keyboard-nav-provider.tsx`, `hooks/use-global-keyboard-nav.ts`, plus the narrow post-wave provider mount in `components/layout/app-shell.tsx`
 
 **Reference** `.reference/cc-lens/components/use-global-keyboard-nav.ts`
 
@@ -734,7 +734,7 @@ Author `types/oc.ts` containing, at minimum:
 
 - Page content.
 
-**Owns** `lib/swr.ts`, `hooks/use-oc.ts`, `components/states/onboarding.tsx`, `components/states/schema-mismatch.tsx`, `components/states/warnings-banner.tsx`
+**Owns** `lib/swr.ts`, `hooks/use-oc.ts`, `components/states/onboarding.tsx`, `components/states/schema-mismatch.tsx`, `components/states/warnings-banner.tsx`, `package.json`, `pnpm-lock.yaml` (SWR dependency only; maintainer-approved operational amendment)
 
 **Acceptance criteria**
 
@@ -758,7 +758,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** New query logic — this route composes; it does not compute.
 
-**Owns** `app/api/stats/route.ts`, its test
+**Owns** `app/api/stats/route.ts`, its test, plus narrow range-composition amendments to `lib/queries/projects.ts` and `lib/pricing/breakdown.ts`
 
 **Acceptance criteria**
 
@@ -874,7 +874,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Compose `dailyActivity`, `hourOfDay`, `dayOfWeek`, `streaks` behind `?range=` and `?tz=`.
 
-**Owns** `app/api/activity/route.ts`, its test
+**Owns** `app/api/activity/route.ts`, its test, plus the narrow range-composition amendment to `lib/queries/activity.ts`
 
 **Acceptance criteria**
 
@@ -1096,7 +1096,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** Git branch data — `workspace` is empty on the dev machine (data-model §1). **Do not fabricate branches.** If `workspace` has rows, expose them; otherwise omit the field entirely rather than shipping an empty panel.
 
-**Owns** `app/api/projects/route.ts`, `app/api/projects/[id]/route.ts`, their tests
+**Owns** `app/api/projects/route.ts`, `app/api/projects/[id]/route.ts`, their tests, plus narrow project-scoping and display-name corrections in `lib/queries/activity.ts`, `lib/queries/sessions.ts`, and `lib/queries/__tests__/ocl060-project-activity.test.ts`
 
 **Acceptance criteria**
 
@@ -1150,7 +1150,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Compose `toolUsage`, `toolErrors`, `mcpUsage`, `skillUsage`, `featureAdoption`, `versionHistory` behind `?range=`.
 
-**Owns** `app/api/tools/route.ts`, its test
+**Owns** `app/api/tools/route.ts`, its test, plus narrow range-composition amendments to `lib/queries/tools.ts`, `lib/queries/projects.ts`, and `lib/queries/__tests__/ocl070-range.test.ts`
 
 **Acceptance criteria**
 
@@ -1262,7 +1262,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** **Any edit affordance.** Todos render as read-only status indicators — not interactive checkboxes (D2).
 
-**Owns** `app/api/todos/route.ts`, `app/todos/page.tsx`, `components/todos/**`
+**Owns** `app/api/todos/route.ts`, `app/api/todos/route.test.ts`, `app/todos/page.tsx`, `components/todos/**`; amendment: `lib/queries/todos.ts` and the additive `SessionTodos.projectId` field in `types/oc.ts` are required to share the read model with export and satisfy the project filter; existing consumers remain compatible.
 
 **Acceptance criteria**
 
@@ -1486,7 +1486,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **Out of scope** The SSE event stream and any live-session view — Annex B. Nothing in the product may *depend* on the server being up (D1).
 
-**Owns** `lib/http/opencode-client.ts`, `app/api/health/route.ts`, `components/settings/health-panel.tsx`
+**Owns** `lib/http/opencode-client.ts`, `lib/http/opencode-client.test.ts`, `app/api/health/route.ts`, `components/settings/health-panel.tsx`, plus documented narrow amendments to `types/oc.ts` and `hooks/use-oc.ts`
 
 **Acceptance criteria**
 

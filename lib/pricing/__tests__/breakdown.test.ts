@@ -55,7 +55,7 @@ describe("costBreakdown", () => {
 
     const result = costBreakdown(db, config, "UTC");
 
-    expect(result.totalCost).toEqual({ amount: 5, priced: true });
+    expect(result.totalCost).toEqual({ amount: 0, priced: false });
 
     const priced = result.byModel.find((m) => m.modelID === "priced-model");
     const unpriced = result.byModel.find((m) => m.modelID === "unpriced-model");
@@ -74,6 +74,7 @@ describe("costBreakdown", () => {
 
     expect(result.byDay).toHaveLength(1);
     expect(result.byDay[0]?.date).toBe("2024-01-01");
+    expect(result.byDay[0]?.cost).toEqual({ amount: 0, priced: false });
 
     expect(result.bySession.find((s) => s.sessionId === "ses_1")?.cost.amount).toBeCloseTo(5, 6);
   });

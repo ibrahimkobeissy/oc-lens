@@ -49,17 +49,17 @@ export const ROUTE_GROUPS = [
 
 export const ROUTES: OcRoute[] = [
   { href: "/", label: "Overview", icon: LayoutDashboard, group: "overview", enabled: true },
-  { href: "/activity", label: "Activity", icon: Activity, group: "activity", enabled: false },
-  { href: "/sessions", label: "Sessions", icon: MessagesSquare, group: "sessions", enabled: false },
-  { href: "/projects", label: "Projects", icon: FolderKanban, group: "projects", enabled: false },
-  { href: "/tools", label: "Tools", icon: Wrench, group: "tools", enabled: false },
-  { href: "/todos", label: "Todos", icon: ListTodo, group: "todos", enabled: false },
-  { href: "/costs", label: "Costs", icon: DollarSign, group: "costs", enabled: false },
-  { href: "/agents", label: "Agents", icon: Bot, group: "agents", enabled: false },
+  { href: "/activity", label: "Activity", icon: Activity, group: "activity", enabled: true },
+  { href: "/sessions", label: "Sessions", icon: MessagesSquare, group: "sessions", enabled: true },
+  { href: "/projects", label: "Projects", icon: FolderKanban, group: "projects", enabled: true },
+  { href: "/tools", label: "Tools", icon: Wrench, group: "tools", enabled: true },
+  { href: "/todos", label: "Todos", icon: ListTodo, group: "todos", enabled: true },
+  { href: "/costs", label: "Costs", icon: DollarSign, group: "costs", enabled: true },
+  { href: "/agents", label: "Agents", icon: Bot, group: "agents", enabled: true },
   { href: "/agents/tree", label: "Subagent Tree", icon: GitBranch, group: "agents", enabled: false },
-  { href: "/export", label: "Export", icon: Download, group: "export", enabled: false },
-  { href: "/settings", label: "Settings", icon: Settings, group: "settings", enabled: false },
-  { href: "/settings/pricing", label: "Pricing", icon: DollarSign, group: "settings", enabled: false },
+  { href: "/export", label: "Export", icon: Download, group: "export", enabled: true },
+  { href: "/settings", label: "Settings", icon: Settings, group: "settings", enabled: true },
+  { href: "/settings/pricing", label: "Pricing", icon: DollarSign, group: "settings", enabled: true },
   { href: "/style-guide", label: "Style Guide", icon: Palette, group: "dev", enabled: true },
 ];
 

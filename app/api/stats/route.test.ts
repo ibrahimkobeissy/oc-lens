@@ -43,6 +43,7 @@ describe("OCL-030 GET /api/stats", () => {
     expect(allResponse.status).toBe(200);
     expect(all.data).toMatchObject({ totalSessions: 120, totalCost: { priced: false }, unknownAgentCount: 10, unknownModelCount: 10 });
     expect(all.data).toHaveProperty("dailyActivity");
+    expect(all.data).toHaveProperty("dailyTokens");
     expect(all.data).toHaveProperty("hourOfDay");
     expect(all.data).toHaveProperty("costBreakdown");
     expect(elapsed).toBeLessThan(400);
@@ -64,6 +65,7 @@ describe("OCL-030 GET /api/stats", () => {
     expect(body.data.totalCost).toEqual({ amount: 0, priced: false });
     expect(body.data.modelBreakdown).toEqual([]);
     expect(body.data.projectBreakdown).toEqual([]);
+    expect(body.data.dailyTokens).toEqual([]);
   });
 
   it("counts in-range messages from sessions that started before the range", async () => {

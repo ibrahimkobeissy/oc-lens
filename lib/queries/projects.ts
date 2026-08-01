@@ -3,7 +3,7 @@ import { query } from "@/lib/db/connection";
 import { decodeMessageData } from "@/lib/decode/message";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import type { ModelUsage, OcTokens, OverviewStats, ProjectSummary, SessionSummary, VersionRecord } from "@/types/oc";
-import { dailyActivity, hourOfDay, localDay } from "./activity";
+import { dailyActivity, dailyTokens, hourOfDay, localDay } from "./activity";
 import { listSessions, projectDisplayName, type QueryResult } from "./sessions";
 
 interface ProjectRow { id: string; name: string | null; worktree: string | null }
@@ -55,7 +55,7 @@ export function versionHistory(db: DatabaseSync, range: { from?: number; to?: nu
 }
 
 export function getOverviewStats(db: DatabaseSync, timeZone = "UTC", now = Date.now(), range: { from?: number; to?: number } = {}): QueryResult<OverviewStats> {
-  const sessions = listSessions(db, range); const projects = listProjects(db, range, sessions); const daily = dailyActivity(db, { ...range, timeZone }); const hours = hourOfDay(db, { ...range, timeZone });
+  const sessions = listSessions(db, range); const projects = listProjects(db, range, sessions); const daily = dailyActivity(db, { ...range, timeZone }); const tokensByDay = dailyTokens(db, { ...range, timeZone }); const hours = hourOfDay(db, { ...range, timeZone });
   const messages = query<MessageRow>(db, "SELECT session_id, time_created, data FROM message").filter((message) =>
     (range.from === undefined || message.time_created >= range.from) &&
     (range.to === undefined || message.time_created < range.to));
@@ -102,6 +102,6 @@ export function getOverviewStats(db: DatabaseSync, timeZone = "UTC", now = Date.
     unknownAgentCount: sessions.data.filter((s) => s.agent === null).length, unknownModelCount: sessions.data.filter((s) => s.model === null).length,
     modelBreakdown: Array.from(modelMap.values()).sort((a, b) => b.messageCount - a.messageCount),
     projectBreakdown: projects.data.map((project) => ({ ...project, messageCount: projectMessageCounts.get(project.id) ?? 0 })),
-    dailyActivity: daily.data, hourOfDay: hours.data, costBreakdown: emptyBreakdown,
+    dailyActivity: daily.data, dailyTokens: tokensByDay.data, hourOfDay: hours.data, costBreakdown: emptyBreakdown,
   }, warnings: mergeWarnings(warningGroups) };
 }

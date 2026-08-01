@@ -109,19 +109,151 @@ graph LR
     T020 --> T022
   end
 
-  T014 --> API["API routes: 030 040 050 052 060 070 080 091 110 120"]
-  T015 --> API
-  T016 --> API
-  T021 --> PAGES["Pages: 031-035 041-042 051 053-057 061-062 072-076 081 090 092 111-112 121 100-103"]
-  T024 --> PAGES
-  API --> PAGES
-  T071 --> API
+  subgraph AR["API routes"]
+    T030["OCL-030 stats API"]
+    T040["OCL-040 activity API"]
+    T050["OCL-050 sessions API"]
+    T052["OCL-052 replay API"]
+    T060["OCL-060 projects API"]
+    T070["OCL-070 tools API"]
+    T080["OCL-080 todos API + page"]
+    T091["OCL-091 costs API"]
+    T110["OCL-110 redacted config API"]
+    T112["OCL-112 optional health API"]
+    T120["OCL-120 streamed export API"]
+  end
+
+  T014 --> T030
+  T015 --> T030
+  T016 --> T030
+  T014 --> T040
+  T014 --> T050
+  T012 --> T052
+  T015 --> T052
+  T014 --> T060
+  T015 --> T070
+  T071 --> T070
+  T014 --> T080
+  T021 --> T080
+  T024 --> T080
+  T014 --> T091
+  T015 --> T091
+  T016 --> T091
+  T011 --> T110
+  T010 --> T112
+  T024 --> T112
+  T014 --> T120
+  T015 --> T120
+
+  T030 --> API["API routes complete"]
+  T040 --> API
+  T050 --> API
+  T052 --> API
+  T060 --> API
+  T070 --> API
+  T080 --> API
+  T091 --> API
+  T110 --> API
+  T112 --> API
+  T120 --> API
+  subgraph W6["Wave W6 — pages and visualizations"]
+    T031["OCL-031 overview shell"]
+    T032["OCL-032 usage charts"]
+    T033["OCL-033 model/project breakdowns"]
+    T034["OCL-034 recent sessions"]
+    T035["OCL-035 storage panel"]
+    T041["OCL-041 activity page"]
+    T042["OCL-042 streak card"]
+    T051["OCL-051 sessions page"]
+    T061["OCL-061 projects page"]
+    T072["OCL-072 tools ranking"]
+    T073["OCL-073 MCP panel"]
+    T074["OCL-074 error analytics"]
+    T075["OCL-075 adoption table"]
+    T076["OCL-076 version history"]
+    T090["OCL-090 pricing settings"]
+    T092["OCL-092 costs page"]
+    T101["OCL-101 agent analytics"]
+    T102["OCL-102 skill analytics"]
+    T111["OCL-111 settings page"]
+    T121["OCL-121 export page"]
+  end
+
+  T021 --> T031
+  T024 --> T031
+  T030 --> T031
+  T021 --> T032
+  T030 --> T032
+  T031 --> T032
+  T021 --> T033
+  T030 --> T033
+  T031 --> T033
+  T021 --> T034
+  T030 --> T034
+  T031 --> T034
+  T011 --> T035
+  T031 --> T035
+  T021 --> T041
+  T024 --> T041
+  T040 --> T041
+  T040 --> T042
+  T041 --> T042
+  T021 --> T051
+  T024 --> T051
+  T050 --> T051
+  T021 --> T061
+  T024 --> T061
+  T060 --> T061
+  T021 --> T072
+  T070 --> T072
+  T070 --> T073
+  T071 --> T073
+  T072 --> T073
+  T070 --> T074
+  T071 --> T074
+  T072 --> T074
+  T070 --> T075
+  T072 --> T075
+  T014 --> T076
+  T072 --> T076
+  T016 --> T090
+  T020 --> T090
+  T021 --> T090
+  T021 --> T092
+  T091 --> T092
+  T090 --> T092
+  T015 --> T101
+  T021 --> T101
+  T015 --> T102
+  T071 --> T102
+  T021 --> T102
+  T110 --> T111
+  T021 --> T111
+  T120 --> T121
+  T021 --> T121
+
+  T032 --> PAGES["Later pages: 053-057 062 081 100 103 112"]
+  T033 --> PAGES
+  T034 --> PAGES
+  T035 --> PAGES
+  T042 --> PAGES
+  T051 --> PAGES
+  T061 --> PAGES
+  T073 --> PAGES
+  T074 --> PAGES
+  T075 --> PAGES
+  T076 --> PAGES
+  T092 --> PAGES
+  T101 --> PAGES
+  T102 --> PAGES
+  T111 --> PAGES
+  T121 --> PAGES
   PAGES --> T130["OCL-130 CLI + packaging"]
   T130 --> T131["OCL-131 README"]
   T130 --> T132["OCL-132 CI + release"]
 
   classDef done fill:#bbf7d0,stroke:#16a34a,stroke-width:2px,color:#14532d;
-  class T001,T002,T003,T010,T011,T012,T013,T014,T015,T016,T017,T020,T021,T022,T023,T024,T030,T040,T050,T052,T060,T070,T071,T080,T091,T110,T112,T120 done;
+  class T001,T002,T003,T010,T011,T012,T013,T014,T015,T016,T017,T020,T021,T022,T023,T024,T030,T031,T032,T033,T034,T035,T040,T041,T042,T050,T051,T052,T060,T061,T070,T071,T072,T073,T074,T075,T076,T080,T090,T091,T092,T101,T102,T110,T111,T112,T120,T121,API done;
 ```
 
 ### 4.2 Critical path
@@ -778,7 +910,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** The charts (OCL-032/033) and the table (OCL-034) — this ticket lays out the grid and leaves labelled slots.
 
-**Owns** `app/page.tsx`, `app/overview-client.tsx`, `components/overview/stat-grid.tsx`
+**Owns** `app/page.tsx`, `app/overview-client.tsx`, `components/overview/stat-grid.tsx`, `components/overview/stat-grid.test.tsx`
 
 **Reference** `.reference/cc-lens/app/page.tsx`, `app/overview-client.tsx`
 
@@ -798,7 +930,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Tokens/messages-per-day line or area chart with a metric toggle; hour-of-day bar chart; GitHub-style activity heatmap with a day tooltip and a click-through to filtered sessions.
 
-**Owns** `components/overview/usage-over-time-chart.tsx`, `components/overview/peak-hours-chart.tsx`, `components/overview/activity-heatmap.tsx`
+**Owns** `components/overview/usage-over-time-chart.tsx`, `components/overview/peak-hours-chart.tsx`, `components/overview/activity-heatmap.tsx`, their colocated tests, plus the additive `OverviewStats.dailyTokens` amendment in `types/oc.ts`, `lib/queries/projects.ts`, the OCL-030 route regression test, and the narrow chart integration in `app/overview-client.tsx`
 
 **Reference** the same-named files under `.reference/cc-lens/components/overview/`
 
@@ -817,7 +949,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Model-breakdown donut (from `message.data.modelID/providerID`, **not** `session.model`), project-activity donut, and a token-breakdown-by-model panel showing input/output/reasoning/cache-read/cache-write.
 
-**Owns** `components/overview/model-breakdown-donut.tsx`, `components/overview/project-activity-donut.tsx`, `components/overview/token-breakdown-panel.tsx`
+**Owns** `components/overview/model-breakdown-donut.tsx`, `components/overview/project-activity-donut.tsx`, `components/overview/token-breakdown-panel.tsx`, their colocated tests, plus the narrow overview integration in `app/overview-client.tsx`
 
 **Acceptance criteria**
 
@@ -834,7 +966,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Last 10 sessions: title (with placeholder fallback), project, agent, model, when, duration, messages, tokens, cost; row links to `/sessions/[id]`.
 
-**Owns** `components/overview/recent-sessions-table.tsx`
+**Owns** `components/overview/recent-sessions-table.tsx`, its colocated test, plus the narrow overview integration in `app/overview-client.tsx`
 
 **Reference** `.reference/cc-lens/components/overview/conversation-table.tsx`
 
@@ -854,7 +986,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** Any cleanup action — read-only (D2).
 
-**Owns** `app/api/storage/route.ts`, `components/overview/storage-panel.tsx`
+**Owns** `app/api/storage/route.ts`, its test, `components/overview/storage-panel.tsx`, its test; approved narrow amendments to `types/oc.ts`, `hooks/use-oc.ts`, and `app/overview-client.tsx`
 
 **Acceptance criteria**
 
@@ -888,7 +1020,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** `/activity`: daily-activity multi-series chart (messages / sessions / tool calls, toggleable), hour-of-day chart, day-of-week chart, range selector.
 
-**Owns** `app/activity/page.tsx`, `components/activity/daily-activity-chart.tsx`, `components/activity/day-of-week-chart.tsx`
+**Owns** `app/activity/page.tsx`, `components/activity/daily-activity-chart.tsx`, `components/activity/day-of-week-chart.tsx`, plus the narrow `/activity` navigation enablement in `lib/routes.ts`
 
 **Reference** `.reference/cc-lens/app/activity/page.tsx`
 
@@ -906,7 +1038,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Current streak, longest streak (with its date range), most active day, total active days, first session date.
 
-**Owns** `components/activity/streak-card.tsx`
+**Owns** `components/activity/streak-card.tsx`, its colocated test; approved integration amendment: `app/activity/page.tsx`
 
 **Reference** `.reference/cc-lens/components/activity/streak-card.tsx`
 
@@ -945,7 +1077,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** `/sessions`: table with date, project, agent, model, duration, messages, tool calls, tokens, cost; badges for has-reasoning / has-compaction / uses-MCP / is-subagent / has-errors / archived; filter bar; sort; pagination; deep-linkable filter state in the URL.
 
-**Owns** `app/sessions/page.tsx`, `components/sessions/session-table.tsx`, `components/sessions/session-badges.tsx`, `components/sessions/session-filters.tsx`
+**Owns** `app/sessions/page.tsx`, `components/sessions/session-table.tsx`, `components/sessions/session-badges.tsx`, `components/sessions/session-filters.tsx`, `components/sessions/session-view.test.tsx`, plus the approved narrow `SessionSummary.errorCount` amendment in `types/oc.ts`, `lib/queries/sessions.ts`, `lib/queries/replay.ts`, `app/api/export/route.ts`, the OCL-050 route regression test, and the narrow `/sessions` navigation enablement in `lib/routes.ts`
 
 **Reference** `.reference/cc-lens/app/sessions/page.tsx`, `components/sessions/session-table.tsx`, `session-badges.tsx`
 
@@ -1112,7 +1244,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** `/projects`: cards with sessions, messages, tokens, cost, last active, worktree path; sort and search.
 
-**Owns** `app/projects/page.tsx`, `components/projects/project-card.tsx`
+**Owns** `app/projects/page.tsx`, its colocated test, `components/projects/project-card.tsx`, plus the narrow `/projects` navigation enablement in `lib/routes.ts`
 
 **Reference** `.reference/cc-lens/app/projects/page.tsx`, `components/projects/project-card.tsx`
 
@@ -1164,7 +1296,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** `/tools`: horizontal bar ranking of calls per tool coloured by category, a category rollup, and p50/p95 duration per tool.
 
-**Owns** `app/tools/page.tsx`, `components/tools/tool-ranking-chart.tsx`, `components/tools/tool-duration-table.tsx`
+**Owns** `app/tools/page.tsx`, `components/tools/tool-ranking-chart.tsx`, `components/tools/tool-duration-table.tsx`, `components/tools/ocl072.test.tsx`, plus the narrow `/tools` navigation enablement in `lib/routes.ts`
 
 **Reference** `.reference/cc-lens/components/tools/tool-ranking-chart.tsx`
 
@@ -1182,7 +1314,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Calls grouped by resolved MCP server, per-tool breakdown within each, error rate per server, and an explicit "unresolved MCP-shaped tools" bucket.
 
-**Owns** `components/tools/mcp-server-panel.tsx`
+**Owns** `components/tools/mcp-server-panel.tsx`, its colocated test, plus the narrow integration in `app/tools/page.tsx`
 
 **Reference** `.reference/cc-lens/components/tools/mcp-server-panel.tsx`
 
@@ -1202,7 +1334,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** Total errors and error rate; errors by tool; errors by derived category (OCL-071); a recent-errors list with message, tool, session link, and timestamp; error-rate-over-time.
 
-**Owns** `components/tools/tool-error-panel.tsx`, `components/tools/error-category-chart.tsx`
+**Owns** `components/tools/tool-error-panel.tsx`, `components/tools/error-category-chart.tsx`, their colocated tests, plus additive `ToolActivityPoint`/`ToolsStats.activity` amendments in `types/oc.ts`, `lib/queries/tools.ts`, `lib/queries/__tests__/ocl074-tool-activity.test.ts`, `app/api/tools/route.ts`, `app/api/export/route.ts`, and the narrow tools-page integration
 
 **Acceptance criteria**
 
@@ -1221,7 +1353,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** **Web search** — opencode has no web-search tool; do not show a permanently-zero row. **Git commits** — inferring from `bash` text is guesswork; omit it.
 
-**Owns** `components/tools/feature-adoption-table.tsx`
+**Owns** `components/tools/feature-adoption-table.tsx`, its colocated test, plus the narrow tools-page integration
 
 **Reference** `.reference/cc-lens/components/tools/feature-adoption-table.tsx`
 
@@ -1239,7 +1371,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **In scope** `session.version` grouped: version, first seen, last seen, session count, message count.
 
-**Owns** `components/tools/version-history-table.tsx`
+**Owns** `components/tools/version-history-table.tsx`, its colocated test, plus the narrow tools-page integration
 
 **Acceptance criteria**
 
@@ -1262,7 +1394,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** **Any edit affordance.** Todos render as read-only status indicators — not interactive checkboxes (D2).
 
-**Owns** `app/api/todos/route.ts`, `app/api/todos/route.test.ts`, `app/todos/page.tsx`, `components/todos/**`; amendment: `lib/queries/todos.ts` and the additive `SessionTodos.projectId` field in `types/oc.ts` are required to share the read model with export and satisfy the project filter; existing consumers remain compatible.
+**Owns** `app/api/todos/route.ts`, `app/api/todos/route.test.ts`, `app/todos/page.tsx`, `components/todos/**`; amendment: `lib/queries/todos.ts` and the additive `SessionTodos.projectId` field in `types/oc.ts` are required to share the read model with export and satisfy the project filter; existing consumers remain compatible. Post-page integration enables `/todos` in `lib/routes.ts`.
 
 **Acceptance criteria**
 
@@ -1293,7 +1425,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** Any bundled or fetched price list (D3). Currency conversion — USD only in v1, with the field labelled.
 
-**Owns** `app/settings/pricing/page.tsx`, `components/pricing/**`
+**Owns** `app/settings/pricing/page.tsx`, `components/pricing/**`, plus approved additive pricing response amendments in `types/oc.ts`, `app/api/pricing/route.ts`, and `hooks/use-oc.ts`, and enabling the existing Settings/Pricing registry entries in `lib/routes.ts`
 
 **Acceptance criteria**
 
@@ -1329,7 +1461,7 @@ Author `types/oc.ts` containing, at minimum:
 
 **Out of scope** Budgets, alerts, and forecasting — Annex B.
 
-**Owns** `app/costs/page.tsx`, `components/costs/**`
+**Owns** `app/costs/page.tsx`, `components/costs/**`, plus the approved `/costs` enabled-flag amendment in `lib/routes.ts`
 
 **Reference** `.reference/cc-lens/app/costs/page.tsx`, `components/costs/`
 
@@ -1373,7 +1505,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **In scope** `GET /api/agents` + `/agents`: per-agent sessions, messages, tokens, cost, tool mix, error rate, avg session length; an agent-over-time chart; and an **agent-switch timeline** from `session_message` type `agent-switched`.
 
-**Owns** `app/api/agents/route.ts`, `app/agents/page.tsx`, `components/agents/**`
+**Owns** `app/api/agents/route.ts`, `app/agents/page.tsx`, `components/agents/**`, plus additive agent response types in `types/oc.ts`, the typed `/api/agents` mapping in `hooks/use-oc.ts`, UTC message-agent activity and honest all-or-unpriced agent cost aggregation in `lib/queries/agents.ts` with unique regression tests, and narrow `/agents` enablement in `lib/routes.ts` with its registry expectation in `lib/routes.test.ts`; existing consumers remain compatible.
 
 **Acceptance criteria**
 
@@ -1389,7 +1521,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **In scope** `GET /api/skills` + a `/tools` section (or `/skills` page): which skills fired, how often, in which sessions, with what success rate and duration. Skill name is extracted from the `skill` tool's `state.input` — **verify the exact key against the fixture and record it in the data-model doc.**
 
-**Owns** `app/api/skills/route.ts`, `components/tools/skill-ranking-chart.tsx`
+**Owns** `app/api/skills/route.ts`, `components/tools/skill-ranking-chart.tsx`, their colocated tests; approved narrow amendments to `types/oc.ts`, `hooks/use-oc.ts`, `lib/queries/tools.ts`, its regression tests, `project-docs/opencode-data-model.md`, and the `/tools` integration in `app/tools/page.tsx`
 
 **Reference** `.reference/cc-lens/components/tools/skill-ranking-chart.tsx` (chart shape only)
 
@@ -1468,7 +1600,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **Out of scope** Installed-skills listing — opencode has no listing endpoint or fixed skills directory; pair the *observed* skills from OCL-102 instead and say so on the page.
 
-**Owns** `app/settings/page.tsx`, `components/settings/**`
+**Owns** `app/settings/page.tsx`, `app/settings/page.test.tsx`, `components/settings/**`
 
 **Acceptance criteria**
 
@@ -1526,7 +1658,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **In scope** `/export`: scope checkboxes, date-range picker (adds `calendar` + `react-day-picker`), live preview counts, download as JSON or as a ZIP bundle (`jszip`) with one file per dataset plus a manifest.
 
-**Owns** `app/export/page.tsx`, `components/export/**`, `components/ui/calendar.tsx`, `package.json` (`jszip`, `react-day-picker`)
+**Owns** `app/export/page.tsx`, `components/export/**`, `components/ui/calendar.tsx`, `package.json` (`jszip`, `react-day-picker`), `pnpm-lock.yaml`, plus the approved narrow `/export` navigation enablement and current enabled-route assertion in `lib/routes.ts` / `lib/routes.test.ts`
 
 **Reference** `.reference/cc-lens/app/export/page.tsx`
 

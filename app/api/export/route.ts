@@ -15,7 +15,7 @@ import { dailyActivity, dayOfWeek, hourOfDay, localDay } from "@/lib/queries/act
 import { getOverviewStats, versionHistory } from "@/lib/queries/projects";
 import { listSessions, projectDisplayName } from "@/lib/queries/sessions";
 import { readTodos } from "@/lib/queries/todos";
-import { featureAdoption, mcpUsage, skillUsage, toolErrors, toolUsage } from "@/lib/queries/tools";
+import { featureAdoption, mcpUsage, skillUsage, toolActivity, toolErrors, toolUsage } from "@/lib/queries/tools";
 import { resolveMcpTool } from "@/lib/tools/mcp";
 import type {
   ActivityStats,
@@ -95,6 +95,7 @@ interface ReplayPartRow {
 
 interface PartFlagsRow {
   tool_count: number;
+  error_count: number;
   has_reasoning: number;
   uses_task: number;
   uses_webfetch: number;
@@ -314,6 +315,7 @@ function toolsData(db: DatabaseSync, options: ExportOptions, servers: string[]):
     data: {
       tools: tools.data,
       errors: toolErrors(db, range).data,
+      activity: toolActivity(db, range, options.timeZone).data,
       mcpServers: mcpUsage(db, servers, range).data,
       skills: skillUsage(db, range).data,
       featureAdoption: featureAdoption(db, servers, range).data,
@@ -399,11 +401,12 @@ function replaySummary(
   const flags = query<PartFlagsRow>(db, `
     SELECT
       COALESCE(SUM(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' THEN 1 ELSE 0 END), 0) AS tool_count,
+      COALESCE(SUM(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.state.status') = 'error' THEN 1 ELSE 0 END), 0) AS error_count,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'reasoning' THEN 1 ELSE 0 END), 0) AS has_reasoning,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.tool') = 'task' THEN 1 ELSE 0 END), 0) AS uses_task,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.tool') = 'webfetch' THEN 1 ELSE 0 END), 0) AS uses_webfetch
     FROM part WHERE session_id = ?
-  `, [id])[0] ?? { tool_count: 0, has_reasoning: 0, uses_task: 0, uses_webfetch: 0 };
+  `, [id])[0] ?? { tool_count: 0, error_count: 0, has_reasoning: 0, uses_task: 0, uses_webfetch: 0 };
   const toolNames = query<ToolNameRow>(db, `
     SELECT DISTINCT json_extract(data, '$.tool') AS tool FROM part
     WHERE session_id = ? AND json_valid(data) AND json_extract(data, '$.type') = 'tool'
@@ -434,6 +437,7 @@ function replaySummary(
       assistant: messages.filter((message) => message.decoded.role === "assistant").length,
     },
     toolCallCount: flags.tool_count,
+    errorCount: flags.error_count,
     tokens: {
       input: session.tokens_input ?? 0,
       output: session.tokens_output ?? 0,

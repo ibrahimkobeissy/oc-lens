@@ -4,7 +4,8 @@ import { decodeMessageData } from "@/lib/decode/message";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { query } from "@/lib/db/connection";
 import { categorizeTool, categorizeToolError, resolveMcpTool } from "@/lib/tools";
-import type { FeatureAdoption, FeatureAdoptionRow, McpServerSummary, OcPartToolData, OcWarning, SkillSummary, ToolErrorSummary, ToolSummary } from "@/types/oc";
+import type { FeatureAdoption, FeatureAdoptionRow, McpServerSummary, OcPartToolData, OcWarning, SkillSummary, ToolActivityPoint, ToolErrorSummary, ToolSummary } from "@/types/oc";
+import { localDay } from "./activity";
 
 export interface PartQueryFilter {
   from?: number;
@@ -90,6 +91,19 @@ export function toolErrors(db: DatabaseSync, filter: PartQueryFilter = {}): Quer
   }).sort((a, b) => b.timeCreated - a.timeCreated || a.partId.localeCompare(b.partId)), warnings };
 }
 
+export function toolActivity(db: DatabaseSync, filter: PartQueryFilter = {}, timeZone = "UTC"): QueryResult<ToolActivityPoint[]> {
+  const { calls, warnings } = toolRows(db, filter);
+  const days = new Map<string, ToolActivityPoint>();
+  for (const call of calls) {
+    const date = localDay(call.time_created, timeZone);
+    const point = days.get(date) ?? { date, totalCalls: 0, errorCount: 0 };
+    point.totalCalls += 1;
+    if (call.tool.status === "error") point.errorCount += 1;
+    days.set(date, point);
+  }
+  return { data: [...days.values()].sort((left, right) => left.date.localeCompare(right.date)), warnings };
+}
+
 export function mcpUsage(db: DatabaseSync, servers: string[], filter: PartQueryFilter = {}): QueryResult<McpServerSummary[]> {
   const { calls, warnings } = toolRows(db, filter);
   const grouped = new Map<string, Array<{ tool: string; error: boolean }>>();
@@ -104,14 +118,31 @@ export function mcpUsage(db: DatabaseSync, servers: string[], filter: PartQueryF
 function skillName(input: unknown): string {
   if (typeof input !== "object" || input === null) return "unknown";
   const value = (input as Record<string, unknown>).name;
-  return typeof value === "string" && value.length > 0 ? value : "unknown";
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : "unknown";
 }
 
 export function skillUsage(db: DatabaseSync, filter: PartQueryFilter = {}): QueryResult<SkillSummary[]> {
   const { calls, warnings } = toolRows(db, filter);
-  const skills = calls.filter((r) => r.tool.tool === "skill");
-  const names = new Set(skills.map((r) => skillName(r.tool.input)));
-  return { data: Array.from(names, (skill) => { const rows = skills.filter((r) => skillName(r.tool.input) === skill); return { skill, totalCalls: rows.length, sessionCount: new Set(rows.map((r) => r.session_id)).size, errorCount: rows.filter((r) => r.tool.status === "error").length }; }).sort((a, b) => b.totalCalls - a.totalCalls || a.skill.localeCompare(b.skill)), warnings };
+  const grouped = new Map<string, Array<(typeof calls)[number]>>();
+  for (const call of calls) {
+    if (call.tool.tool !== "skill") continue;
+    const name = skillName(call.tool.input);
+    grouped.set(name, [...(grouped.get(name) ?? []), call]);
+  }
+  const data = Array.from(grouped, ([skill, rows]) => {
+    const durations = rows.flatMap((row) => row.tool.timeStart === null || row.tool.timeEnd === null
+      ? []
+      : [row.tool.timeEnd - row.tool.timeStart]).sort((left, right) => left - right);
+    return {
+      skill,
+      totalCalls: rows.length,
+      sessionCount: new Set(rows.map((row) => row.session_id)).size,
+      errorCount: rows.filter((row) => row.tool.status === "error").length,
+      p50DurationMs: percentile(durations, 0.5),
+      p95DurationMs: percentile(durations, 0.95),
+    } satisfies SkillSummary;
+  }).sort((left, right) => right.totalCalls - left.totalCalls || left.skill.localeCompare(right.skill));
+  return { data, warnings };
 }
 
 interface SessionFeatureRow { id: string; parent_id: string | null; time_created: number }

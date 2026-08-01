@@ -42,6 +42,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { StatCard } from "@/components/ui/stat-card";
+import { LineChartCard } from "@/components/charts/line-chart-card";
+import { BarChartCard } from "@/components/charts/bar-chart-card";
+import { AreaChartCard } from "@/components/charts/area-chart-card";
+import { DonutChartCard } from "@/components/charts/donut-chart-card";
+import { HeatmapGrid, type HeatmapCell } from "@/components/charts/heatmap-grid";
+import { EmptyState } from "@/components/states/empty-state";
+import { ErrorState } from "@/components/states/error-state";
+import { ChartSkeleton } from "@/components/states/chart-skeleton";
+import { TableSkeleton } from "@/components/states/table-skeleton";
 
 function hexToRgb(hex: string): [number, number, number] | null {
   const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
@@ -426,6 +436,116 @@ function PrimitivesShowcase() {
   );
 }
 
+const SAMPLE_TIME_SERIES = [
+  { date: "Mon", sessions: 4, tokens: 1200 },
+  { date: "Tue", sessions: 7, tokens: 2400 },
+  { date: "Wed", sessions: 3, tokens: 900 },
+  { date: "Thu", sessions: 9, tokens: 3100 },
+  { date: "Fri", sessions: 6, tokens: 1800 },
+  { date: "Sat", sessions: 2, tokens: 500 },
+  { date: "Sun", sessions: 5, tokens: 1600 },
+];
+
+const SAMPLE_DONUT = [
+  { key: "claude", label: "claude-sonnet-5", value: 42 },
+  { key: "deepseek", label: "deepseek-v4", value: 28 },
+  { key: "gpt", label: "gpt-5", value: 15 },
+  { key: "other", label: "other", value: 8 },
+];
+
+/** Deterministic sample values (no Math.random — would mismatch between SSR and client hydration). */
+function buildSampleHeatmap(): HeatmapCell[][] {
+  const weeks: HeatmapCell[][] = [];
+  for (let w = 0; w < 12; w++) {
+    const week: HeatmapCell[] = [];
+    for (let d = 0; d < 7; d++) {
+      const index = w * 7 + d;
+      const value = index % 11 === 0 ? 0 : (index * 13) % 9;
+      week.push({ label: `Week ${w + 1}, day ${d + 1}`, value });
+    }
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+/**
+ * OCL-021's chart primitives, stat cards, and empty/error/loading states,
+ * shown with representative sample data. Re-themed by the page's real toggle
+ * (ThemeToggleDemo above), same as PrimitivesShowcase.
+ */
+function ChartsShowcase() {
+  const heatmapWeeks = buildSampleHeatmap();
+
+  return (
+    <div className="space-y-10 rounded-lg border border-border bg-surface p-6 text-surface-foreground">
+      <h2 className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+        Chart primitives &amp; stat cards (OCL-021)
+      </h2>
+
+      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <StatCard
+          label="Sessions"
+          value={128}
+          delta={{ value: 12, direction: "up", label: "vs last week" }}
+          tooltip="Total sessions in range"
+        />
+        <StatCard label="Tokens" value={482391} subLabel="input + output" />
+        <StatCard label="Estimated cost" value="not priced" tooltip="No prices entered yet — see Settings" />
+        <StatCard label="Avg session length" value={840} formatValue={(v) => `${Math.round(v / 60)}m`} />
+      </section>
+
+      <section className="space-y-3">
+        <LineChartCard
+          title="Sessions over time"
+          data={SAMPLE_TIME_SERIES}
+          xKey="date"
+          series={[{ key: "sessions", label: "Sessions" }]}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <BarChartCard
+          title="Tokens per day"
+          data={SAMPLE_TIME_SERIES}
+          xKey="date"
+          series={[{ key: "tokens", label: "Tokens" }]}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <AreaChartCard
+          title="Sessions vs tokens (stacked)"
+          data={SAMPLE_TIME_SERIES}
+          xKey="date"
+          series={[
+            { key: "sessions", label: "Sessions" },
+            { key: "tokens", label: "Tokens" },
+          ]}
+        />
+      </section>
+
+      <section className="grid gap-6 md:grid-cols-2">
+        <DonutChartCard title="Model breakdown" data={SAMPLE_DONUT} />
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-foreground">Activity heatmap</h3>
+          <HeatmapGrid weeks={heatmapWeeks} />
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-medium text-foreground">Empty / error / loading states</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <LineChartCard title="Empty line chart" data={[]} xKey="date" series={[{ key: "sessions", label: "Sessions" }]} />
+          <EmptyState title="No sessions yet" description="Start a session in opencode and refresh." />
+          <ErrorState message="Could not reach the opencode database." />
+          <ChartSkeleton height={160} />
+          <TableSkeleton rows={4} columns={3} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ThemeToggleDemo() {
   const { theme, toggleTheme, mounted } = useTheme();
   return (
@@ -462,6 +582,8 @@ export default function StyleGuidePage() {
           </section>
 
           <PrimitivesShowcase />
+
+          <ChartsShowcase />
 
           <section className="space-y-1 font-mono text-xs text-muted-foreground">
             <p>Typography: --font-sans for body text; --font-mono (via .font-mono / .tabular-nums) for numerals, costs, token counts, and IDs.</p>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Moon, Search, Sun } from "lucide-react";
+import { Activity, Moon, Search, Sun } from "lucide-react";
 import { matchRouteTrail } from "@/lib/routes";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ function Breadcrumbs() {
   if (trail.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-muted-foreground">
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
       {trail.map((route, i) => {
         const isLast = i === trail.length - 1;
         return (
@@ -71,10 +71,15 @@ export function TopBar() {
   return (
     <header
       data-slot="top-bar"
-      className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4"
+      className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface/90 px-4 shadow-[0_1px_0_rgba(30,64,175,0.05)] backdrop-blur sm:px-6"
     >
       <Breadcrumbs />
       <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1.5 text-[11px] text-muted-foreground lg:flex" title="oc-lens never writes to the opencode database">
+          <span className="signal-dot size-1.5 rounded-full bg-warning" aria-hidden="true" />
+          <Activity aria-hidden="true" className="size-3.5 text-primary" />
+          <span className="font-mono uppercase tracking-[0.12em]">read-only signal</span>
+        </div>
         <CommandPaletteAffordance />
         <ThemeToggleButton />
       </div>

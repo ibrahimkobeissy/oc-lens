@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getConnection } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
+import { readPricing } from "@/lib/pricing/config";
 import { getSession } from "@/lib/queries/sessions";
 import type { OcErrorEnvelope, SessionRouteResponse } from "@/types/oc";
 
@@ -29,7 +30,7 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
       return errorResponse("schema_mismatch", "The opencode database schema is not supported by this version of oc-lens.", 409);
     }
 
-    const result = getSession(connection.db, id);
+    const result = getSession(connection.db, id, readPricing());
     if (!result.data) return errorResponse("session_not_found", `Session "${id}" was not found.`, 404);
     return NextResponse.json({
       data: result.data,

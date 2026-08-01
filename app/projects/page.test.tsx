@@ -67,6 +67,7 @@ describe("OCL-061 ProjectCard", () => {
     expect(markup).toContain("not priced");
     expect(markup).toContain("No activity");
     expect(markup).toContain("Worktree: /a/very/long/path/to/the/global/worktree");
+    expect(markup).toContain('<button type="button"');
     expect(markup).toContain("direction:rtl");
   });
 });

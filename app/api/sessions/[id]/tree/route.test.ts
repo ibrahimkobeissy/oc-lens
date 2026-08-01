@@ -72,13 +72,12 @@ describe("GET /api/sessions/[id]/tree", () => {
     expect(response.status).toBe(200);
     if (!("data" in body)) throw new Error("expected subagent tree envelope");
     expect(body.data.children.map((child) => child.sessionId)).toEqual(["ses_0035", "ses_0036", "ses_0038"]);
-    expect(body.data.cost.amount).toBeCloseTo(0.46344, 9);
-    expect(body.data.cost.priced).toBe(true);
+    expect(body.data.cost).toEqual({ amount: 0, priced: false });
     expect(body.data.children.map((child) => child.cost.priced)).toEqual([true, true, true]);
     const rollup = inclusiveSubagentRollup(body.data);
     expect(rollup.tokens).toEqual({ input: 377_114, output: 60_747, reasoning: 10_172, cacheRead: 130_482, cacheWrite: 20_497 });
     expect(rollup.toolCallCount).toBe(284);
-    expect(rollup.cost.amount).toBeCloseTo(0.584502, 9);
+    expect(rollup.cost).toEqual({ amount: 0, priced: false });
   });
 
   it("keeps a partially priced inclusive tree wholly unpriced", async () => {

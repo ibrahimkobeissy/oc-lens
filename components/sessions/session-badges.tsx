@@ -36,9 +36,11 @@ export function SessionBadges({ session }: { session: SessionSummary }) {
           return (
             <Tooltip key={badge.key}>
               <TooltipTrigger asChild>
-                <Badge variant={badge.tone} aria-label={`${badge.label}: ${badge.evidence}`} className="cursor-help">
-                  <Icon aria-hidden="true" />{badge.label}
-                </Badge>
+                <button type="button" aria-label={`${badge.label}: ${badge.evidence}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Badge variant={badge.tone} className="cursor-help">
+                    <Icon aria-hidden="true" />{badge.label}
+                  </Badge>
+                </button>
               </TooltipTrigger>
               <TooltipContent><p>{badge.evidence}</p></TooltipContent>
             </Tooltip>

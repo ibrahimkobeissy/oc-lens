@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { resetConnectionForTests, type ConnectResult } from "@/lib/db/connection";
 import { cleanupTempDir, createFullSchemaDb, makeTempDir } from "@/lib/db/__tests__/test-db";
+import { resetPricingForTests, writePricing } from "@/lib/pricing/config";
 import { addDenylistedSecretRows, FORBIDDEN_SERIALIZED_FIELD } from "@/test/security/export-secret-fixture";
 import { POPULATED_DB_PATH } from "@/test/fixtures";
 import type { ExportResponse, ExportRouteResponse } from "@/types/oc";
@@ -176,6 +177,78 @@ describe("OCL-120 GET /api/export", () => {
     expect(exported).toHaveProperty("activity");
     expect(exported).not.toHaveProperty("sessions");
     expect(exported).not.toHaveProperty("tools");
+  });
+
+  it("applies active pricing consistently to exported sessions, replay summaries, and turns", async () => {
+    const pricedPath = join(dir, "priced-export.db");
+    createFullSchemaDb(pricedPath);
+    const pricedDb = new DatabaseSync(pricedPath);
+    const at = Date.UTC(2026, 0, 1);
+    pricedDb.exec("DELETE FROM part; DELETE FROM message;");
+    pricedDb.prepare("UPDATE session SET time_created = ?, time_updated = ?, tokens_input = 1000000 WHERE id = 'ses_1'").run(at, at + 1);
+    pricedDb.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('priced-turn', 'ses_1', ?, ?, ?)")
+      .run(at, at + 1, JSON.stringify({
+        role: "assistant",
+        agent: "build",
+        providerID: "provider",
+        modelID: "model",
+        time: { created: at, completed: at + 1 },
+        tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      }));
+    pricedDb.close();
+    writePricing({
+      version: 1,
+      prices: {
+        "provider/model": { inputPerMTok: 2, outputPerMTok: 3, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" },
+      },
+      updatedAt: 1,
+    }, { configHome });
+    useDb(pricedPath);
+
+    try {
+      const exported = data((await parsed("?scope=sessions,replay")).body);
+      expect(exported.sessions?.[0]?.cost).toEqual({ amount: 2, priced: true });
+      expect(exported.replays?.[0]?.session.cost).toEqual({ amount: 2, priced: true });
+      expect(exported.replays?.[0]?.turns[0]?.cost).toEqual({ amount: 2, priced: true });
+
+      const invalidDb = new DatabaseSync(pricedPath);
+      const insert = invalidDb.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 'ses_1', ?, ?, ?)");
+      insert.run("unknown-role", at + 2, at + 2, JSON.stringify({
+        role: "future-role",
+        agent: "build",
+        providerID: "provider",
+        modelID: "model",
+        tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      }));
+      insert.run("bad-tokens", at + 3, at + 3, JSON.stringify({
+        role: "assistant",
+        agent: "build",
+        providerID: "provider",
+        modelID: "model",
+        tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0 } },
+      }));
+      invalidDb.close();
+      useDb(pricedPath);
+
+      const guarded = data((await parsed("?scope=sessions,replay")).body);
+      expect(guarded.sessions?.[0]?.cost).toEqual({ amount: 0, priced: false });
+      expect(guarded.replays?.[0]?.session.cost).toEqual({ amount: 0, priced: false });
+      expect(guarded.replays?.[0]?.turns.map((turn) => turn.cost)).toEqual([
+        { amount: 2, priced: true },
+        { amount: 0, priced: false },
+        { amount: 0, priced: false },
+      ]);
+    } finally {
+      resetPricingForTests({ configHome });
+      useDb(populatedCopy);
+    }
+  });
+
+  it("preserves feature-adoption message warnings in a tools-only export", async () => {
+    useDb(populatedCopy);
+    const exported = await parsed("?scope=tools");
+    if (!("data" in exported.body)) throw new Error("Expected successful export response");
+    expect(exported.body.meta.warnings).toContainEqual(expect.objectContaining({ code: "malformed-message-data", count: 1 }));
   });
 
   it("returns a valid empty streamed export", async () => {

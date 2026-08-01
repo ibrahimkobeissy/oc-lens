@@ -20,26 +20,26 @@
  */
 
 :root {
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  --background: #f6f7f6;
-  --foreground: #12140f;
+  --background: #f4f7fb;
+  --foreground: #14213d;
 
   /* Elevated panel surface (cards, popovers, menus). `--card`/`--popover` alias
      `--surface` — shadcn's component templates (OCL-003) reference those exact
      names, so both must resolve without OCL-003 needing to touch this file. */
   --surface: #ffffff;
-  --surface-foreground: #12140f;
+  --surface-foreground: #14213d;
   --card: var(--surface);
   --card-foreground: var(--surface-foreground);
   --popover: var(--surface);
   --popover-foreground: var(--surface-foreground);
 
-  --border: #e2e5e1;
-  --input: #d7dbd3;
+  --border: #dbe4f0;
+  --input: #cbd7e6;
 
-  --muted: #eef0ed;
-  --muted-foreground: #5b6058;
+  --muted: #e9eef6;
+  --muted-foreground: #52627a;
 
   /* The one restrained brand hue (D5) — primary actions, links, focus rings.
      Never reused as a chart colour. Kept as its own `--primary` slot, distinct
@@ -47,13 +47,13 @@
      `hover:bg-accent` to mean a neutral hover/highlight surface (its own
      long-standing convention), not the brand colour — aliasing them here would
      make every ghost/outline button hover flash full brand teal. */
-  --primary: #0f766e;
+  --primary: #1e40af;
   --primary-foreground: #ffffff;
   --ring: var(--primary);
 
   /* Neutral hover/highlight surface — shadcn's `--accent` slot. Same role as
      `--muted` one step more visible, so a hover state actually reads. */
-  --accent: #e7e9e4;
+  --accent: #e7edf7;
   --accent-foreground: var(--foreground);
 
   --secondary: var(--muted);
@@ -76,32 +76,33 @@
   --chart-7: #b91c1c; /* red */
   --chart-8: #4338ca; /* indigo */
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  --font-sans: "Fira Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Fira Code", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  --font-mono: "Fira Code", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 .dark {
-  --background: #0a0c0a;
-  --foreground: #eef1ec;
+  --background: #07111f;
+  --foreground: #e8eef8;
 
-  --surface: #141712;
-  --surface-foreground: #eef1ec;
+  --surface: #0d1b2a;
+  --surface-foreground: #e8eef8;
   --card: var(--surface);
   --card-foreground: var(--surface-foreground);
   --popover: var(--surface);
   --popover-foreground: var(--surface-foreground);
 
-  --border: #262b22;
-  --input: #262b22;
+  --border: #203653;
+  --input: #294564;
 
-  --muted: #1b1f18;
-  --muted-foreground: #98a091;
+  --muted: #10243a;
+  --muted-foreground: #9fb1c8;
 
-  --primary: #2dd4bf;
-  --primary-foreground: #08130a;
+  --primary: #60a5fa;
+  --primary-foreground: #07111f;
   --ring: var(--primary);
 
-  --accent: #1f241c;
+  --accent: #17304d;
   --accent-foreground: var(--foreground);
 
   --secondary: var(--muted);
@@ -127,22 +128,22 @@
 /* Explicit light override, usable at any nesting depth (e.g. a forced-theme
    preview panel on /style-guide) even under a `.dark` ancestor. Values match `:root`. */
 .light {
-  --background: #f6f7f6;
-  --foreground: #12140f;
+  --background: #f4f7fb;
+  --foreground: #14213d;
   --surface: #ffffff;
-  --surface-foreground: #12140f;
+  --surface-foreground: #14213d;
   --card: var(--surface);
   --card-foreground: var(--surface-foreground);
   --popover: var(--surface);
   --popover-foreground: var(--surface-foreground);
-  --border: #e2e5e1;
-  --input: #d7dbd3;
-  --muted: #eef0ed;
-  --muted-foreground: #5b6058;
-  --primary: #0f766e;
+  --border: #dbe4f0;
+  --input: #cbd7e6;
+  --muted: #e9eef6;
+  --muted-foreground: #52627a;
+  --primary: #1e40af;
   --primary-foreground: #ffffff;
   --ring: var(--primary);
-  --accent: #e7e9e4;
+  --accent: #e7edf7;
   --accent-foreground: var(--foreground);
   --secondary: var(--muted);
   --secondary-foreground: var(--foreground);
@@ -199,6 +200,7 @@
   --color-chart-8: var(--chart-8);
 
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -216,7 +218,7 @@
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.5;
-    letter-spacing: -0.006em;
+    letter-spacing: -0.002em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -225,5 +227,43 @@
   .tabular-nums {
     font-family: var(--font-mono);
     font-feature-settings: "tnum" 1;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 22%, transparent);
+    color: var(--foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* A quiet instrument-panel surface: the grid is atmospheric, not decorative data. */
+.app-main-surface {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--primary) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 5%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 32rem);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
+}
+
+.signal-dot {
+  animation: signal-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes signal-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 35%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

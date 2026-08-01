@@ -71,7 +71,9 @@ export function StatCard({ label, value, formatValue, delta, subLabel, tooltip }
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-3 w-3" aria-label={tooltip} />
+                <button type="button" aria-label={tooltip} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Info aria-hidden="true" className="h-3 w-3" />
+                </button>
               </TooltipTrigger>
               <TooltipContent>{tooltip}</TooltipContent>
             </Tooltip>

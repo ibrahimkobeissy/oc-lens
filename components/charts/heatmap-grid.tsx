@@ -31,28 +31,34 @@ export function HeatmapGrid({ weeks, emptyMessage = "No activity to show.", onCe
 
   return (
     <div className="w-full">
-      <div className="w-full overflow-x-auto" role="img" aria-label="Activity heatmap">
+      <div className="w-full overflow-x-auto" role="group" aria-label="Activity heatmap days">
         <div className="inline-grid grid-flow-col gap-1" style={{ minWidth: weeks.length * 14 }}>
           {weeks.map((week, weekIndex) => (
             <div key={weekIndex} className="grid grid-rows-7 gap-1">
-              {week.map((cell, dayIndex) => (
-                <button
-                  key={dayIndex}
-                  type="button"
-                  title={cell.value === null ? cell.label : `${cell.label}: ${cell.value}`}
-                  onClick={onCellClick ? () => onCellClick(cell) : undefined}
-                  disabled={!onCellClick || cell.value === null}
-                  className="h-3 w-3 rounded-sm border border-border/50 disabled:cursor-default"
-                  style={{
-                    background:
-                      cell.value === null
-                        ? "transparent"
-                        : cell.value === 0
-                          ? "var(--muted)"
-                          : `color-mix(in oklab, var(--accent) ${Math.round((cell.value / max) * 85 + 15)}%, var(--muted))`,
-                  }}
-                />
-              ))}
+              {week.map((cell, dayIndex) => {
+                const title = cell.value === null ? cell.label : `${cell.label}: ${cell.value}`;
+                const style = {
+                  background:
+                    cell.value === null
+                      ? "transparent"
+                      : cell.value === 0
+                        ? "var(--muted)"
+                        : `color-mix(in oklab, var(--accent) ${Math.round((cell.value / max) * 85 + 15)}%, var(--muted))`,
+                };
+                return onCellClick && cell.value !== null ? (
+                  <button
+                    key={dayIndex}
+                    type="button"
+                    aria-label={title}
+                    title={title}
+                    onClick={() => onCellClick(cell)}
+                    className="h-3 w-3 rounded-sm border border-border/50"
+                    style={style}
+                  />
+                ) : (
+                  <span key={dayIndex} aria-hidden="true" title={title} className="h-3 w-3 rounded-sm border border-border/50" style={style} />
+                );
+              })}
             </div>
           ))}
         </div>

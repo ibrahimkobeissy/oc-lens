@@ -6,8 +6,14 @@ import { schemaVersion } from "@/lib/db/schema-guard";
 import { listSessions, projectDisplayName } from "@/lib/queries/sessions";
 import type { OcResponse } from "@/types/oc";
 
+export const dynamic = "force-dynamic";
+
 const RESULT_LIMIT = 20;
 const MAX_QUERY_LENGTH = 200;
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
 
 export interface SearchSessionResult {
   id: string;
@@ -59,11 +65,11 @@ function searchDatabase(db: DatabaseSync, searchQuery: string): {
     worktree: string | null;
     session_count: number;
   }
-  const term = `%${normalizedQuery}%`;
+  const term = `%${escapeLike(normalizedQuery)}%`;
   const matchingProjects = query<ProjectSearchRow>(db, `
     SELECT p.id, p.name, p.worktree, COUNT(s.id) AS session_count
     FROM project p LEFT JOIN session s ON s.project_id = p.id
-    WHERE LOWER(p.id) LIKE ? OR LOWER(COALESCE(p.name, p.worktree, '')) LIKE ?
+    WHERE LOWER(p.id) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(p.name, p.worktree, '')) LIKE ? ESCAPE '\\'
     GROUP BY p.id, p.name, p.worktree
     ORDER BY COALESCE(p.name, p.worktree, p.id), p.id
   `, [term, term]);

@@ -4,7 +4,9 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { LONG_SESSION_MESSAGE_COUNT, MCP_SERVERS, withFixture } from "@/test/fixtures";
+import { PROVIDER_MODELS } from "@/test/fixtures/manifest";
 import { FIXTURE_SCHEMA_SQL } from "@/test/fixtures/schema";
+import type { PricingConfig } from "@/types/oc";
 import { getReplay, subagentTree } from "../replay";
 
 describe("OCL-015 replay queries", () => {
@@ -36,6 +38,29 @@ describe("OCL-015 replay queries", () => {
     const row = db.prepare("SELECT session_id FROM part WHERE data LIKE '%linear_docs_search%' LIMIT 1").get() as { session_id: string };
     const servers = Object.values(MCP_SERVERS).map((entry) => entry.server);
     expect(getReplay(db, row.session_id, servers).data?.session.usesMcp).toBe(true);
+  }));
+
+  it("prices each turn from that message's model and tokens only when pricing is supplied", () => withFixture((db) => {
+    const id = (db.prepare("SELECT id FROM session ORDER BY id LIMIT 1").get() as { id: string }).id;
+    const pricing: PricingConfig = {
+      version: 1,
+      updatedAt: 1,
+      prices: Object.fromEntries(PROVIDER_MODELS.map(({ providerID, modelID }) => [
+        `${providerID}/${modelID}`,
+        { inputPerMTok: 1, outputPerMTok: 2, cacheReadPerMTok: 3, cacheWritePerMTok: 4, currency: "USD" as const },
+      ])),
+    };
+    const withoutPricing = getReplay(db, id).data!;
+    const withPricing = getReplay(db, id, [], pricing).data!;
+    const pricedIndex = withPricing.turns.findIndex((turn) => turn.cost.priced);
+
+    expect(withoutPricing.turns.every((turn) => !turn.cost.priced)).toBe(true);
+    expect(pricedIndex).toBeGreaterThanOrEqual(0);
+    const pricedTurn = withPricing.turns[pricedIndex]!;
+    const usage = pricedTurn.tokens!;
+    expect(pricedTurn.cost.priced).toBe(true);
+    expect(pricedTurn.cost.amount).toBeCloseTo((usage.input + usage.output * 2 + usage.cacheRead * 3 + usage.cacheWrite * 4) / 1_000_000, 12);
+    expect(withPricing.turns.filter((turn) => turn.role === "user").every((turn) => !turn.cost.priced)).toBe(true);
   }));
 
   it("replays the 400-message fixture session in under 300ms", () => withFixture((db) => {

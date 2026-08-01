@@ -64,6 +64,28 @@ describe("OCL-014 session queries", () => {
       expect(performance.now() - start).toBeLessThan(150);
     });
   });
+
+  it("treats percent, underscore, and backslash as literal session-search text", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    db.prepare("INSERT INTO project (id, worktree, name) VALUES ('global', '/', NULL)").run();
+    const insert = db.prepare(`
+      INSERT INTO session (
+        id, project_id, slug, directory, title, version, cost,
+        tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write,
+        time_created, time_updated
+      ) VALUES (?, 'global', ?, '/', ?, '1', 0, 0, 0, 0, 0, 0, ?, ?)
+    `);
+    insert.run("percent", "percent", "literal % marker", 1, 1);
+    insert.run("underscore", "underscore", "literal _ marker", 2, 2);
+    insert.run("backslash", "backslash", "literal \\ marker", 3, 3);
+    insert.run("plain", "plain", "literal marker", 4, 4);
+
+    expect(listSessions(db, { search: "%" }).data.map((session) => session.id)).toEqual(["percent"]);
+    expect(listSessions(db, { search: "_" }).data.map((session) => session.id)).toEqual(["underscore"]);
+    expect(listSessions(db, { search: "\\" }).data.map((session) => session.id)).toEqual(["backslash"]);
+    db.close();
+  });
 });
 
 describe("OCL-014 project and overview queries", () => {
@@ -124,7 +146,9 @@ describe("OCL-014 timezone-aware activity", () => {
 
   it("returns complete hour/day buckets, token days, and streak metadata", () => {
     withFixture((db) => {
-      expect(hourOfDay(db, { timeZone: "Europe/Paris" }).data).toHaveLength(24);
+      const hours = hourOfDay(db, { timeZone: "Europe/Paris" }).data;
+      expect(hours).toHaveLength(24);
+      expect(hours.reduce((total, bucket) => total + bucket.count, 0)).toBe(120);
       expect(dayOfWeek(db, { timeZone: "Europe/Paris" }).data).toHaveLength(7);
       expect(dailyTokens(db, { timeZone: "Europe/Paris" }).data.length).toBeGreaterThan(0);
       expect(streaks(db, "Europe/Paris").data.totalActiveDays).toBeGreaterThan(0);

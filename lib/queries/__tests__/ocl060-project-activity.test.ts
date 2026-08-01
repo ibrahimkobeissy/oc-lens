@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import { FIXTURE_SCHEMA_SQL } from "@/test/fixtures/schema";
-import { dailyActivity } from "../activity";
+import { dailyActivity, dailyTokens, dayOfWeek, hourOfDay } from "../activity";
 import { projectModelBreakdown } from "../projects";
 import { projectDisplayName } from "../sessions";
 import type { PricingConfig } from "@/types/oc";
@@ -42,10 +42,19 @@ describe("OCL-060 project activity scope", () => {
         JSON.stringify({ type: "tool", tool: "read", callID: `call-${project}`, state: { status: "completed", input: {} } }),
       );
     }
+    db.prepare("UPDATE session SET tokens_input = 11, tokens_output = 7, tokens_cache_read = 5 WHERE id = 'ses-alpha'").run();
+    db.prepare("UPDATE session SET tokens_input = 999, tokens_output = 999 WHERE id = 'ses-beta'").run();
 
-    expect(dailyActivity(db, { projectId: "alpha", timeZone: "UTC" }).data).toEqual([
+    const range = { projectId: "alpha", timeZone: "UTC" };
+    expect(dailyActivity(db, range).data).toEqual([
       { date: "2026-08-01", sessionCount: 1, messageCount: 1, toolCallCount: 1 },
     ]);
+    expect(hourOfDay(db, range).data.filter((bucket) => bucket.count > 0)).toEqual([{ hour: 12, count: 1 }]);
+    expect(dayOfWeek(db, range).data.filter((bucket) => bucket.count > 0)).toEqual([{ day: 6, count: 1 }]);
+    expect(dailyTokens(db, range).data).toEqual([{
+      date: "2026-08-01",
+      tokens: { input: 11, output: 7, reasoning: 0, cacheRead: 5, cacheWrite: 0 },
+    }]);
     db.close();
   });
 

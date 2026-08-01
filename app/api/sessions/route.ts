@@ -6,6 +6,7 @@ import { redactConfig } from "@/lib/config/redact";
 import { getConnection, query } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
 import { decodePartData } from "@/lib/decode/part";
+import { readPricing } from "@/lib/pricing/config";
 import { listSessions } from "@/lib/queries/sessions";
 import type {
   OcErrorEnvelope,
@@ -314,7 +315,7 @@ export async function GET(request: Request): Promise<NextResponse<SessionsRouteR
       from: options.from,
       to: options.to,
       mcpServers,
-    });
+    }, readPricing());
     const warnings = result.warnings;
     let sessions = result.data;
 

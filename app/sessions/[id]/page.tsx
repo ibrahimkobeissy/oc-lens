@@ -1,9 +1,13 @@
 "use client";
 
+import { useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Archive, Bot, CalendarDays, FolderKanban, MessageSquare, Wrench } from "lucide-react";
 
-import { WindowedTurnStream } from "@/components/sessions/replay/turn-cards";
+import { FileTimeline } from "@/components/sessions/file-timeline";
+import { SessionSidebar } from "@/components/sessions/replay/session-sidebar";
+import { TokenAccumulationChart } from "@/components/sessions/replay/token-accumulation-chart";
+import { WindowedTurnStream, type WindowedTurnStreamHandle } from "@/components/sessions/replay/turn-cards";
 import { SubagentTree } from "@/components/sessions/subagent-tree";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
@@ -16,6 +20,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOc } from "@/hooks/use-oc";
 import { schemaVersion } from "@/lib/db/schema-guard";
 import { formatDuration, formatNumber } from "@/lib/format";
+import type { OcWarning } from "@/types/oc";
+
+/**
+ * Replay, tree, and file envelopes overlap in the rows they decode. Preserve
+ * the first message from the broadest scope (replay, then tree, then files)
+ * and the maximum observed count for each code; summing would double-count
+ * the same underlying evidence.
+ */
+export function dedupeReplayWarnings(...scopes: ReadonlyArray<readonly OcWarning[]>): OcWarning[] {
+  const byCode = new Map<string, OcWarning>();
+  for (const warnings of scopes) {
+    for (const warning of warnings) {
+      const existing = byCode.get(warning.code);
+      if (!existing) byCode.set(warning.code, { ...warning });
+      else if (warning.count > existing.count) byCode.set(warning.code, { ...existing, count: warning.count });
+    }
+  }
+  return [...byCode.values()].sort((left, right) => left.code.localeCompare(right.code));
+}
 
 function LoadingReplay() {
   return <div className="space-y-5 p-4 sm:p-6" aria-label="Loading session replay" role="status"><Skeleton className="h-24 rounded-lg" /><div className="grid gap-3 sm:grid-cols-3"><Skeleton className="h-20 rounded-lg" /><Skeleton className="h-20 rounded-lg" /><Skeleton className="h-20 rounded-lg" /></div><Skeleton className="h-[32rem] rounded-lg" /></div>;
@@ -27,8 +50,12 @@ export default function SessionReplayPage() {
   const id = params.id;
   const route = `/api/sessions/${encodeURIComponent(id)}/replay` as const;
   const treeRoute = `/api/sessions/${encodeURIComponent(id)}/tree` as const;
+  const filesRoute = `/api/sessions/${encodeURIComponent(id)}/files` as const;
   const replay = useOc(route, { polling: false });
   const tree = useOc(treeRoute, { enabled: (replay.data?.data.childIds.length ?? 0) > 0, polling: false });
+  const files = useOc(filesRoute, { enabled: replay.data !== undefined && replay.error === undefined, polling: false });
+  const turnStreamRef = useRef<WindowedTurnStreamHandle>(null);
+  const jumpToTurn = useCallback((index: number) => turnStreamRef.current?.scrollToTurn(index), []);
 
   if (replay.isLoading || (!replay.data && !replay.error)) return <LoadingReplay />;
   if (replay.error?.isDatabaseNotFound) return <Onboarding />;
@@ -39,10 +66,10 @@ export default function SessionReplayPage() {
   const data = replay.data.data;
   const session = data.session;
   const model = session.model ? `${session.model.providerID}/${session.model.id}${session.model.variant ? ` · ${session.model.variant}` : ""}` : "unknown model";
+  const warnings = dedupeReplayWarnings(replay.data.meta.warnings, tree.data?.meta.warnings ?? [], files.data?.meta.warnings ?? []);
   return <div className="space-y-5 p-4 sm:p-6">
     <header className="space-y-3"><div><p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Session replay</p><h1 className="mt-1 break-words text-2xl font-semibold tracking-tight">{session.title}</h1></div><div className="flex flex-wrap gap-2"><Badge variant="outline"><FolderKanban />{session.projectDisplayName}</Badge><Badge variant="outline"><Bot />{session.agent ?? "unknown agent"}</Badge><Badge variant="outline">{model}</Badge><Badge variant="outline">v{session.version}</Badge>{session.timeArchived !== null ? <Badge variant="secondary"><Archive />Archived</Badge> : null}</div></header>
-    <WarningsBanner warnings={replay.data.meta.warnings} />
-    {tree.data ? <WarningsBanner warnings={tree.data.meta.warnings} /> : null}
+    <WarningsBanner warnings={warnings} />
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Card><CardContent><p className="flex items-center gap-2 text-xs text-muted-foreground"><MessageSquare className="size-4" />Turns</p><p className="mt-2 font-mono text-2xl font-semibold">{formatNumber(data.turns.length)}</p></CardContent></Card>
       <Card><CardContent><p className="flex items-center gap-2 text-xs text-muted-foreground"><Wrench className="size-4" />Tool calls</p><p className="mt-2 font-mono text-2xl font-semibold">{formatNumber(session.toolCallCount)}</p></CardContent></Card>
@@ -52,6 +79,10 @@ export default function SessionReplayPage() {
     {tree.isLoading ? <Skeleton className="h-80 rounded-lg" /> : null}
     {tree.error ? <ErrorState title="Subagent tree could not be loaded" message={tree.error.message} onRetry={() => void tree.mutate()} /> : null}
     {tree.data ? <SubagentTree node={tree.data.data} /> : null}
-    {data.turns.length === 0 ? <EmptyState title="No replay turns" description="This session has no recorded messages to replay." /> : <WindowedTurnStream turns={data.turns} targetPartId={searchParams.get("part")} />}
+    {files.isLoading ? <div role="status" aria-label="Loading file timeline"><Skeleton className="h-48 rounded-lg" /></div> : null}
+    {files.error ? <ErrorState title="File timeline could not be loaded" message={files.error.message} onRetry={() => void files.mutate()} /> : null}
+    {files.data ? <FileTimeline changes={files.data.data.changes} projectWorktree={files.data.data.projectWorktree} /> : null}
+    <TokenAccumulationChart replay={data} />
+    {data.turns.length === 0 ? <EmptyState title="No replay turns" description="This session has no recorded messages to replay." /> : <div className="flex min-w-0 flex-col gap-4 lg:flex-row"><SessionSidebar replay={data} onTurnJump={jumpToTurn} /><div className="min-w-0 flex-1"><WindowedTurnStream ref={turnStreamRef} turns={data.turns} targetPartId={searchParams.get("part")} /></div></div>}
   </div>;
 }

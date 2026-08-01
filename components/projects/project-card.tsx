@@ -48,12 +48,13 @@ export function ProjectCard({ project }: { project: ProjectSummary }) {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <p
+              <button
+                type="button"
                 className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-left font-mono text-xs text-muted-foreground [direction:rtl]"
                 aria-label={`Worktree: ${project.worktree}`}
               >
                 <span className="[direction:ltr]">{project.worktree || "No worktree recorded"}</span>
-              </p>
+              </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-[min(32rem,calc(100vw-2rem))] break-all font-mono text-xs">
               {project.worktree || "No worktree recorded"}

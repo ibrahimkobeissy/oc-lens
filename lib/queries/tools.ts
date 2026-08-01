@@ -3,8 +3,8 @@ import { decodePartData } from "@/lib/decode";
 import { decodeMessageData } from "@/lib/decode/message";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { query } from "@/lib/db/connection";
-import { categorizeTool, categorizeToolError, resolveMcpTool } from "@/lib/tools";
-import type { FeatureAdoption, FeatureAdoptionRow, McpServerSummary, OcPartToolData, OcWarning, SkillSummary, ToolActivityPoint, ToolErrorSummary, ToolSummary } from "@/types/oc";
+import { categorizeTool, categorizeToolsBatch, categorizeToolError, resolveMcpTool } from "@/lib/tools";
+import type { FeatureAdoption, FeatureAdoptionRow, FileChangeSummary, McpServerSummary, OcPartToolData, OcWarning, SkillSummary, ToolActivityPoint, ToolErrorSummary, ToolSummary } from "@/types/oc";
 import { localDay } from "./activity";
 
 export interface PartQueryFilter {
@@ -64,8 +64,11 @@ function errorMessage(row: PartRow & { tool: OcPartToolData }): string {
   return "Unknown tool error";
 }
 
-export function toolUsage(db: DatabaseSync, filter: PartQueryFilter = {}): QueryResult<ToolSummary[]> {
+export function toolUsage(db: DatabaseSync, filter: PartQueryFilter = {}, mcpServers: readonly string[] = []): QueryResult<ToolSummary[]> {
   const { calls, warnings } = toolRows(db, filter);
+  const categorization = categorizeToolsBatch(calls
+    .map((call) => call.tool.tool)
+    .filter((name) => resolveMcpTool(name, [...mcpServers]) === null));
   const grouped = new Map<string, Array<(typeof calls)[number]>>();
   for (const call of calls) grouped.set(call.tool.tool, [...(grouped.get(call.tool.tool) ?? []), call]);
   const data = Array.from(grouped, ([tool, rows]) => {
@@ -80,7 +83,9 @@ export function toolUsage(db: DatabaseSync, filter: PartQueryFilter = {}): Query
       firstSeen: Math.min(...rows.map((r) => r.time_created)), lastSeen: Math.max(...rows.map((r) => r.time_created)),
     } satisfies ToolSummary;
   }).sort((a, b) => b.totalCalls - a.totalCalls || a.tool.localeCompare(b.tool));
-  return { data, warnings };
+  // Keep name-specific unknown-tool warnings distinct. mergeWarnings groups by
+  // code and would otherwise attribute every unknown call to the first name.
+  return { data, warnings: [...warnings, ...categorization.warnings] };
 }
 
 export function toolErrors(db: DatabaseSync, filter: PartQueryFilter = {}): QueryResult<ToolErrorSummary[]> {
@@ -143,6 +148,80 @@ export function skillUsage(db: DatabaseSync, filter: PartQueryFilter = {}): Quer
     } satisfies SkillSummary;
   }).sort((left, right) => right.totalCalls - left.totalCalls || left.skill.localeCompare(right.skill));
   return { data, warnings };
+}
+
+const FILE_MUTATION_TOOLS = new Set(["write", "edit", "patch"]);
+
+function stringField(value: unknown, key: string): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" && field.trim().length > 0 ? field : null;
+}
+
+function absoluteFilePath(value: string): boolean {
+  return value.startsWith("/") || value.startsWith("\\\\") || /^[A-Za-z]:[\\/]/.test(value);
+}
+
+function verifiedFilePath(row: PartRow & { tool: OcPartToolData }): string | null {
+  const inputPath = stringField(row.tool.input, "filePath");
+  let metadataPath: string | null = null;
+  try {
+    const raw: unknown = JSON.parse(row.data);
+    if (typeof raw === "object" && raw !== null) {
+      const state = (raw as Record<string, unknown>).state;
+      if (typeof state === "object" && state !== null) {
+        metadataPath = stringField((state as Record<string, unknown>).metadata, "filepath");
+      }
+    }
+  } catch {
+    // decodePartData already emitted the malformed-part warning.
+  }
+  if (metadataPath && absoluteFilePath(metadataPath)) return metadataPath;
+  if (inputPath && absoluteFilePath(inputPath)) return inputPath;
+  return metadataPath ?? inputPath;
+}
+
+/** OCL-103 fallback: ordered file touches from verified write/edit/patch tool-call fields, never unverified patch parts. */
+export function fileChanges(db: DatabaseSync, sessionId: string): QueryResult<FileChangeSummary[]> {
+  const { calls, warnings } = toolRows(db, { sessionId });
+  let missingPathCount = 0;
+  const data = calls.flatMap((row): FileChangeSummary[] => {
+    if (!FILE_MUTATION_TOOLS.has(row.tool.tool) || row.tool.status !== "completed") return [];
+    const filePath = verifiedFilePath(row);
+    if (filePath === null) missingPathCount += 1;
+    return filePath === null ? [] : [{ sessionId: row.session_id, filePath, tool: row.tool.tool, timeCreated: row.time_created, partId: row.id }];
+  }).sort((left, right) => left.timeCreated - right.timeCreated || left.partId.localeCompare(right.partId));
+  const missingWarnings: OcWarning[] = missingPathCount === 0 ? [] : [{
+    code: "missing-file-path",
+    message: "A completed write, edit, or patch tool call had no verified file path and was omitted from the file timeline.",
+    count: missingPathCount,
+  }];
+  return { data, warnings: mergeWarnings([warnings, missingWarnings]) };
+}
+
+export interface FileTouchRollup {
+  filePath: string;
+  touchCount: number;
+  sessionCount: number;
+  lastTouched: number;
+}
+
+/** Pure rollup for a caller-provided project-scoped change set. */
+export function filesMostTouched(changes: readonly FileChangeSummary[]): FileTouchRollup[] {
+  const grouped = new Map<string, { touchCount: number; sessions: Set<string>; lastTouched: number }>();
+  for (const change of changes) {
+    const current = grouped.get(change.filePath) ?? { touchCount: 0, sessions: new Set<string>(), lastTouched: change.timeCreated };
+    current.touchCount += 1;
+    current.sessions.add(change.sessionId);
+    current.lastTouched = Math.max(current.lastTouched, change.timeCreated);
+    grouped.set(change.filePath, current);
+  }
+  return [...grouped].map(([filePath, value]) => ({
+    filePath,
+    touchCount: value.touchCount,
+    sessionCount: value.sessions.size,
+    lastTouched: value.lastTouched,
+  })).sort((left, right) => right.touchCount - left.touchCount || right.lastTouched - left.lastTouched || left.filePath.localeCompare(right.filePath));
 }
 
 interface SessionFeatureRow { id: string; parent_id: string | null; time_created: number }

@@ -28,9 +28,12 @@ export function localDay(epochMs: number, timeZone: string): string {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-function localHour(epochMs: number, timeZone: string): number {
-  let formatter = hourFormatters.get(timeZone);
-  if (!formatter) { formatter = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", hourCycle: "h23" }); hourFormatters.set(timeZone, formatter); }
+function localHour(epochMs: number, zoneName: string): number {
+  let formatter = hourFormatters.get(zoneName);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", { timeZone: zoneName, hour: "2-digit", hourCycle: "h23" });
+    hourFormatters.set(zoneName, formatter);
+  }
   const value = formatter.format(epochMs);
   return Number(value);
 }
@@ -81,7 +84,11 @@ export function dailyActivity(db: DatabaseSync, range: TimeRange = {}): QueryRes
 export function hourOfDay(db: DatabaseSync, range: TimeRange = {}): QueryResult<HourBucket[]> {
   const timeZone = zone(range);
   const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
-  query<SessionTimeRow>(db, "SELECT id, time_created FROM session").filter((r) => inRange(r.time_created, range)).forEach((row) => {
+  query<SessionTimeRow>(
+    db,
+    `SELECT id, time_created FROM session${range.projectId === undefined ? "" : " WHERE project_id = ?"}`,
+    range.projectId === undefined ? [] : [range.projectId],
+  ).filter((r) => inRange(r.time_created, range)).forEach((row) => {
     const hour = localHour(row.time_created, timeZone);
     const bucket = buckets[hour]; if (bucket) bucket.count += 1;
   });
@@ -91,7 +98,11 @@ export function hourOfDay(db: DatabaseSync, range: TimeRange = {}): QueryResult<
 export function dayOfWeek(db: DatabaseSync, range: TimeRange = {}): QueryResult<DayOfWeekBucket[]> {
   const timeZone = zone(range);
   const buckets = Array.from({ length: 7 }, (_, day) => ({ day, count: 0 }));
-  query<SessionTimeRow>(db, "SELECT id, time_created FROM session").filter((r) => inRange(r.time_created, range)).forEach((row) => {
+  query<SessionTimeRow>(
+    db,
+    `SELECT id, time_created FROM session${range.projectId === undefined ? "" : " WHERE project_id = ?"}`,
+    range.projectId === undefined ? [] : [range.projectId],
+  ).filter((r) => inRange(r.time_created, range)).forEach((row) => {
     const date = localDay(row.time_created, timeZone);
     const day = new Date(`${date}T12:00:00Z`).getUTCDay();
     const bucket = buckets[day]; if (bucket) bucket.count += 1;
@@ -102,7 +113,11 @@ export function dayOfWeek(db: DatabaseSync, range: TimeRange = {}): QueryResult<
 export function dailyTokens(db: DatabaseSync, range: TimeRange = {}): QueryResult<Array<{ date: string; tokens: OcTokens }>> {
   const timeZone = zone(range);
   const buckets = new Map<string, OcTokens>();
-  query<TokenRow>(db, "SELECT id, time_created, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write FROM session")
+  query<TokenRow>(
+    db,
+    `SELECT id, time_created, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write FROM session${range.projectId === undefined ? "" : " WHERE project_id = ?"}`,
+    range.projectId === undefined ? [] : [range.projectId],
+  )
     .filter((r) => inRange(r.time_created, range)).forEach((row) => {
       const date = localDay(row.time_created, timeZone);
       const tokens = buckets.get(date) ?? { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 };

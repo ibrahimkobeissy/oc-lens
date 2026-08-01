@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as connectionModule from "@/lib/db/connection";
 import { resetConnectionForTests } from "@/lib/db/connection";
 import { cleanupTempDir, makeTempDir } from "@/lib/db/__tests__/test-db";
+import { writePricing } from "@/lib/pricing/config";
 import { LONG_SESSION_MESSAGE_COUNT, POPULATED_DB_PATH } from "@/test/fixtures";
+import { PROVIDER_MODELS } from "@/test/fixtures/manifest";
 import { EMPTY_DB_PATH } from "@/test/fixtures/paths";
-import type { SessionReplayRouteResponse } from "@/types/oc";
+import type { PricingConfig, SessionReplayRouteResponse } from "@/types/oc";
 
 import { dynamic, GET } from "./route";
 
@@ -97,6 +99,28 @@ describe("GET /api/sessions/[id]/replay", () => {
 
     expect(payload.data.turns.flatMap((turn) => turn.parts).some((part) => part.data.type === "unknown")).toBe(true);
     expect(payload.meta.warnings.some((warning) => warning.code.includes("unknown"))).toBe(true);
+  });
+
+  it("reads user pricing server-side and returns per-turn calculated costs", async () => {
+    const pricing: PricingConfig = {
+      version: 1,
+      updatedAt: 1,
+      prices: Object.fromEntries(PROVIDER_MODELS.map(({ providerID, modelID }) => [
+        `${providerID}/${modelID}`,
+        { inputPerMTok: 1, outputPerMTok: 2, cacheReadPerMTok: 3, cacheWritePerMTok: 4, currency: "USD" as const },
+      ])),
+    };
+    writePricing(pricing, { configHome: process.env.XDG_CONFIG_HOME });
+    const db = new DatabaseSync(populatedCopy, { readOnly: true });
+    const id = (db.prepare("SELECT id FROM session ORDER BY id LIMIT 1").get() as { id: string }).id;
+    db.close();
+
+    const payload = await body(await GET(new Request("http://localhost/replay"), context(id)));
+    if (!("data" in payload)) throw new Error("expected replay envelope");
+    const priced = payload.data.turns.find((turn) => turn.cost.priced);
+    expect(priced?.tokens).not.toBeNull();
+    expect(priced?.cost.amount).toBeGreaterThan(0);
+    expect(payload.data.turns.filter((turn) => turn.role === "user").every((turn) => !turn.cost.priced)).toBe(true);
   });
 
   it("returns a 404 envelope for a missing session", async () => {

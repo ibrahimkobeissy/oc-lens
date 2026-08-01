@@ -60,7 +60,7 @@ export async function GET(request: Request): Promise<NextResponse<ToolsRouteResp
     const config = readOpencodeConfig({ projectWorktrees: worktrees });
     const servers = config ? redactConfig(config).mcpServers.map((server) => server.name) : [];
 
-    const tools = toolUsage(connection.db, filter);
+    const tools = toolUsage(connection.db, filter, servers);
     const errors = toolErrors(connection.db, filter);
     const activity = toolActivity(connection.db, filter);
     const mcpServers = mcpUsage(connection.db, servers, filter);

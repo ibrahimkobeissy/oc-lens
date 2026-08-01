@@ -29,6 +29,7 @@ export function locateDb(options: LocateOptions = {}): LocateResult {
     if (existsSync(env.OC_LENS_DB)) {
       return { found: true, path: env.OC_LENS_DB };
     }
+    return { found: false, searched };
   }
 
   if (env.XDG_DATA_HOME) {

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { apiRouteFromParams, filterValuesFromParams, nextPageParams, previousPageParams } from "@/app/sessions/page";
-import { sessionBadgeEvidence } from "./session-badges";
+import { SessionBadges, sessionBadgeEvidence } from "./session-badges";
 import { sessionTotalTokens } from "./session-table";
 import type { SessionSummary } from "@/types/oc";
 
@@ -51,6 +52,10 @@ describe("OCL-051 session view contracts", () => {
     expect(evidence.map((badge) => badge.key)).toEqual(["reasoning", "compaction", "mcp", "subagent", "errors", "archived"]);
     expect(evidence.find((badge) => badge.key === "errors")?.evidence).toBe("3 tool calls failed.");
     expect(evidence.every((badge) => badge.evidence.length > 10)).toBe(true);
+
+    const markup = renderToStaticMarkup(<SessionBadges session={session()} />);
+    expect(markup).toContain('<button type="button"');
+    expect(markup).toContain('aria-label="Reasoning: At least one reasoning part was recorded."');
   });
 
   it("totals every reported token class and keeps the table horizontally scrollable at 360px", () => {

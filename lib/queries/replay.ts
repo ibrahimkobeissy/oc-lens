@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import { query } from "@/lib/db/connection";
 import { decodeMessageData, decodePartData, decodeSessionModel, isPlaceholderTitle, mergeWarnings } from "@/lib/decode";
+import { costFor } from "@/lib/pricing/cost";
 import { resolveMcpTool } from "@/lib/tools";
-import type { OcCost, OcTokens, OcWarning, ReplayPart, ReplayTurn, SessionReplay, SessionSummary, SubagentNode } from "@/types/oc";
+import type { OcCost, OcTokens, OcWarning, PricingConfig, ReplayPart, ReplayTurn, SessionReplay, SessionSummary, SubagentNode } from "@/types/oc";
 
 export interface ReplayQueryResult<T> { data: T; warnings: OcWarning[] }
 
@@ -57,7 +58,7 @@ function summary(db: DatabaseSync, session: SessionRow, messages: MessageRow[], 
   }, warnings: decodedModel.warnings };
 }
 
-export function getReplay(db: DatabaseSync, sessionId: string, mcpServers: string[] = []): ReplayQueryResult<SessionReplay | null> {
+export function getReplay(db: DatabaseSync, sessionId: string, mcpServers: string[] = [], pricing?: PricingConfig): ReplayQueryResult<SessionReplay | null> {
   const session = loadSession(db, sessionId);
   if (!session) return { data: null, warnings: [] };
   const messages = query<MessageRow>(db, "SELECT id, session_id, time_created, data FROM message WHERE session_id = ? ORDER BY time_created, id", [sessionId]);
@@ -70,7 +71,11 @@ export function getReplay(db: DatabaseSync, sessionId: string, mcpServers: strin
     const replayParts: ReplayPart[] = (byMessage.get(message.id) ?? []).map((part) => { const result = decodePartData(part.data); warnings.push(...result.warnings); return { id: part.id, data: result.value }; });
     const created = decoded.value.timeCreated ?? message.time_created;
     const completed = decoded.value.timeCompleted;
-    return { messageId: message.id, role: decoded.value.role, agent: decoded.value.agent, timeCreated: created, timeCompleted: completed, durationMs: completed === null ? null : completed - created, tokens: decoded.value.tokens, cost: UNPRICED, parts: replayParts };
+    const messageTokens = decoded.value.tokens;
+    const cost = pricing && messageTokens && decoded.value.providerID && decoded.value.modelID
+      ? costFor(messageTokens, `${decoded.value.providerID}/${decoded.value.modelID}`, pricing)
+      : UNPRICED;
+    return { messageId: message.id, role: decoded.value.role, agent: decoded.value.agent, timeCreated: created, timeCompleted: completed, durationMs: completed === null ? null : completed - created, tokens: messageTokens, cost, parts: replayParts };
   });
   const accumulation = zeroTokens();
   const tokenAccumulation = turns.map((turn, atTurnIndex) => {

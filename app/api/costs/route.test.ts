@@ -112,7 +112,7 @@ describe("OCL-091 GET /api/costs", () => {
     });
     expect(data.byProject).toEqual([{ projectId: "global", cost: { amount: 0, priced: false } }]);
     expect(data.bySession.find((row) => row.sessionId === "ses_1")?.cost).toEqual({ amount: 11.25, priced: true });
-    expect(data.byAgent.find((row) => row.agent === "build")?.cost).toEqual({ amount: 11.25, priced: true });
+    expect(data.byAgent.find((row) => row.agent === "build")).toBeUndefined();
     expect(data.byAgent.find((row) => row.agent === "unknown")?.cost).toEqual({ amount: 0, priced: false });
     expect(data.byDay).toEqual([
       { date: "2024-01-01", cost: { amount: 11.25, priced: true } },

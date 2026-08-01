@@ -7,9 +7,12 @@ import { useSWRConfig } from "swr";
 import { PricingEditor } from "@/components/pricing/pricing-editor";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
+import { Onboarding } from "@/components/states/onboarding";
+import { SchemaMismatch } from "@/components/states/schema-mismatch";
 import { TableSkeleton } from "@/components/states/table-skeleton";
 import { WarningsBanner } from "@/components/states/warnings-banner";
 import { useOc } from "@/hooks/use-oc";
+import { schemaVersion } from "@/lib/db/schema-guard";
 import type { OcEnvelope, PricingConfig, PricingSettingsResponse } from "@/types/oc";
 
 interface PutBody {
@@ -58,6 +61,9 @@ export default function PricingSettingsPage() {
       throw error;
     }
   }
+
+  if (pricing.error?.isDatabaseNotFound) return <Onboarding />;
+  if (pricing.error?.isSchemaMismatch) return <SchemaMismatch schemaVersion={schemaVersion} message={pricing.error.message} />;
 
   return (
     <div className="space-y-5 p-4 sm:p-6">

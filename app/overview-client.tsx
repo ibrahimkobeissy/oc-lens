@@ -81,7 +81,7 @@ export function OverviewClient() {
         </label>
       </header>
 
-      {stats.data && <WarningsBanner warnings={stats.data.meta.warnings} />}
+      {stats.data && !stats.error && <WarningsBanner warnings={stats.data.meta.warnings} />}
       {stats.isLoading ? (
         <StatGridSkeleton />
       ) : stats.error ? (
@@ -98,17 +98,29 @@ export function OverviewClient() {
 
       <StoragePanel />
 
-      {stats.data && stats.data.data.totalSessions > 0 && (
+      {stats.data && !stats.error && stats.data.data.totalSessions > 0 && (
         <>
           <UsageOverTimeChart activity={stats.data.data.dailyActivity} dailyTokens={stats.data.data.dailyTokens} />
           <div className="grid min-w-0 gap-4 lg:grid-cols-2">
             <PeakHoursChart hours={stats.data.data.hourOfDay} />
-            {yearActivity.isLoading ? <Skeleton className="h-96 rounded-lg" /> : <ActivityHeatmap activity={yearActivity.data?.data.dailyActivity ?? []} timeZone={timeZone} now={yearActivity.data?.meta.generatedAt ?? stats.data.meta.generatedAt} />}
+            {yearActivity.isLoading ? (
+              <Skeleton className="h-96 rounded-lg" />
+            ) : yearActivity.error ? (
+              <ErrorState title="Activity heatmap could not be loaded" message={yearActivity.error.message} onRetry={() => void yearActivity.mutate()} />
+            ) : (
+              <ActivityHeatmap activity={yearActivity.data?.data.dailyActivity ?? []} timeZone={timeZone} now={yearActivity.data?.meta.generatedAt ?? stats.data.meta.generatedAt} />
+            )}
             <ModelBreakdownDonut stats={stats.data.data} />
             <ProjectActivityDonut stats={stats.data.data} />
           </div>
           <TokenBreakdownPanel stats={stats.data.data} />
-          {recentSessions.isLoading ? <TableSkeleton rows={10} columns={8} /> : <RecentSessionsTable sessions={recentSessions.data?.data.sessions ?? []} />}
+          {recentSessions.isLoading ? (
+            <TableSkeleton rows={10} columns={8} />
+          ) : recentSessions.error ? (
+            <ErrorState title="Recent sessions could not be loaded" message={recentSessions.error.message} onRetry={() => void recentSessions.mutate()} />
+          ) : (
+            <RecentSessionsTable sessions={recentSessions.data?.data.sessions ?? []} />
+          )}
         </>
       )}
     </div>

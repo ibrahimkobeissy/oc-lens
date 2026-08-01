@@ -95,6 +95,26 @@ function ShowingCount({ shown, total }: { shown: number; total: number }) {
   return <span className="ml-2 font-normal normal-case">showing {shown} of {total}</span>;
 }
 
+interface SearchShortcutEvent {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  defaultPrevented: boolean;
+  isComposing: boolean;
+  repeat: boolean;
+}
+
+export function shouldHandleSearchShortcut(event: SearchShortcutEvent, searchOpen: boolean, dialogOpen: boolean): boolean {
+  return (
+    !event.defaultPrevented &&
+    !event.isComposing &&
+    !event.repeat &&
+    (searchOpen || !dialogOpen) &&
+    (event.metaKey || event.ctrlKey) &&
+    event.key.toLowerCase() === "k"
+  );
+}
+
 export function GlobalSearch() {
   const router = useRouter();
   const openRef = useRef(false);
@@ -116,7 +136,10 @@ export function GlobalSearch() {
 
   useEffect(() => {
     function handleKeyboardShortcut(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      const dialogOpen = document.querySelector(
+        "dialog[open], [role='dialog'][data-state='open'], [role='alertdialog'][data-state='open'], [role='dialog'][aria-modal='true'], [role='alertdialog'][aria-modal='true']",
+      ) !== null;
+      if (shouldHandleSearchShortcut(event, openRef.current, dialogOpen)) {
         event.preventDefault();
         changeOpen(!openRef.current);
       }

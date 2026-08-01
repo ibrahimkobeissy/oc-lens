@@ -18,6 +18,7 @@ import type {
   SettingsResponse,
   SkillSummary,
   StorageBreakdown,
+  SubagentNode,
   TodosResponse,
   ToolsStats,
 } from "@/types/oc";
@@ -28,6 +29,7 @@ type StaticRoute =
   | "/api/stats"
   | "/api/activity"
   | "/api/sessions"
+  | "/api/sessions/tree"
   | "/api/projects"
   | "/api/tools"
   | "/api/skills"
@@ -48,6 +50,8 @@ export type OcRoute =
   | `/api/sessions/${string}${Query}`
   | `/api/sessions/${string}/replay`
   | `/api/sessions/${string}/replay${Query}`
+  | `/api/sessions/${string}/tree`
+  | `/api/sessions/${string}/tree${Query}`
   | `/api/projects/${string}`
   | `/api/projects/${string}${Query}`;
 
@@ -60,6 +64,10 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
     ? ActivityStats
     : WithoutQuery<R> extends "/api/sessions"
       ? SessionListResponse
+      : WithoutQuery<R> extends "/api/sessions/tree"
+        ? SubagentNode[]
+        : WithoutQuery<R> extends `/api/sessions/${string}/tree`
+          ? SubagentNode
       : WithoutQuery<R> extends `/api/sessions/${string}/replay`
         ? SessionReplay
         : WithoutQuery<R> extends `/api/sessions/${string}`

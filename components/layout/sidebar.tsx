@@ -71,8 +71,8 @@ export function Sidebar() {
                     key={route.href}
                     href={route.href}
                     className={cn(
-                      "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-200 hover:bg-accent hover:text-foreground",
-                      isActive ? "bg-primary/10 font-medium text-foreground" : "text-muted-foreground",
+                      "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-200 before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full hover:bg-accent hover:text-foreground",
+                      isActive ? "bg-primary/10 font-medium text-foreground before:bg-primary" : "text-muted-foreground before:bg-transparent",
                     )}
                   >
                     <Icon className="size-4 shrink-0" />

@@ -75,7 +75,7 @@ export function TopBar() {
     >
       <Breadcrumbs />
       <div className="flex items-center gap-2">
-        <div className="hidden items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1.5 text-[11px] text-muted-foreground lg:flex" title="oc-lens never writes to the opencode database">
+        <div className="hidden items-center gap-2 rounded-full border border-warning/30 bg-warning/5 px-3 py-1.5 text-[11px] text-muted-foreground lg:flex" title="oc-lens never writes to the opencode database" aria-label="Read-only signal: oc-lens never writes to the opencode database">
           <span className="signal-dot size-1.5 rounded-full bg-warning" aria-hidden="true" />
           <Activity aria-hidden="true" className="size-3.5 text-primary" />
           <span className="font-mono uppercase tracking-[0.12em]">read-only signal</span>

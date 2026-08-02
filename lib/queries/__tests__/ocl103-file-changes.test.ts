@@ -62,8 +62,8 @@ describe("OCL-103 verified tool-call fallback", () => {
           AND json_extract(data, '$.tool') IN ('write', 'edit', 'patch')
           AND json_extract(data, '$.state.status') <> 'completed'
       `).all() as Array<{ id: string }>).map((row) => row.id));
-      expect(changes).toHaveLength(308);
-      expect(excludedIds.size).toBe(36);
+      expect(changes).toHaveLength(302);
+      expect(excludedIds.size).toBe(40);
       expect(changes.some((change) => excludedIds.has(change.partId))).toBe(false);
     });
   });

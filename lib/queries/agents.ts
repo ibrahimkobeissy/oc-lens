@@ -29,6 +29,8 @@ function included(session: SessionRow, filter: PartQueryFilter): boolean {
 export function agentUsage(db: DatabaseSync, filter: PartQueryFilter = {}, pricing: PricingConfig = EMPTY_PRICING): QueryResult<AgentSummary[]> {
   const sessions = query<SessionRow>(db, "SELECT id, agent, project_id, time_created, time_updated FROM session").filter((s) => included(s, filter));
   const sessionIds = new Set(sessions.map((s) => s.id));
+  // O(1) lookup instead of a linear scan per message (code-review-2026-08-02.md M3).
+  const sessionById = new Map(sessions.map((s) => [s.id, s]));
   const messages = query<MessageRow>(db, "SELECT id, session_id, time_created, data FROM message").filter((m) => sessionIds.has(m.session_id));
   const parts = query<PartRow>(db, "SELECT message_id, session_id, data FROM part").filter((p) => sessionIds.has(p.session_id));
   const buckets = new Map<string, Bucket>();
@@ -42,7 +44,7 @@ export function agentUsage(db: DatabaseSync, filter: PartQueryFilter = {}, prici
   for (const message of messages) {
     const decoded = decodeMessageData(message.data); warnings.push(...decoded.warnings);
     const name = decoded.value.agent ?? "unknown"; agentByMessage.set(message.id, name); const b = get(name); b.messageCount++; b.sessions.add(message.session_id);
-    const session = sessions.find((item) => item.id === message.session_id);
+    const session = sessionById.get(message.session_id);
     if (session && !b.durationSessions.has(session.id) && session.time_updated >= session.time_created) { b.durations.push(session.time_updated - session.time_created); b.durationSessions.add(session.id); }
     if (decoded.value.tokens) {
       addTokens(b.tokens, decoded.value.tokens);

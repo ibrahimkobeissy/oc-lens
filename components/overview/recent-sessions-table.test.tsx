@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { RecentSessionsTable, recentSessions } from "./recent-sessions-table";
+import { filterSessionsByRecency, RecentSessionsTable, recentSessions } from "./recent-sessions-table";
 import type { SessionSummary } from "@/types/oc";
 
 function session(index: number, overrides: Partial<SessionSummary> = {}): SessionSummary {
@@ -25,7 +25,7 @@ describe("OCL-034 RecentSessionsTable", () => {
 
   it("renders every required column, detail links, full title tooltip, and honest unknown/unpriced values", () => {
     const fallbackTitle = "First user prompt used in place of the generated placeholder title and deliberately long enough to truncate";
-    const html = renderToStaticMarkup(<RecentSessionsTable sessions={[session(1, { title: fallbackTitle, agent: null, model: null })]} />);
+    const html = renderToStaticMarkup(<RecentSessionsTable initialFilter="all" sessions={[session(1, { title: fallbackTitle, agent: null, model: null })]} />);
     for (const heading of ["Session", "Project", "Agent", "Model", "When", "Duration", "Messages", "Tokens", "Cost"]) expect(html).toContain(`>${heading}<`);
     expect(html).toContain('href="/sessions/ses_1"');
     expect(html).toContain(`title="${fallbackTitle}"`);
@@ -35,11 +35,29 @@ describe("OCL-034 RecentSessionsTable", () => {
   });
 
   it("owns a horizontal scroll container and renders an explanatory empty state", () => {
-    const populated = renderToStaticMarkup(<RecentSessionsTable sessions={[session(1)]} />);
+    const populated = renderToStaticMarkup(<RecentSessionsTable initialFilter="all" sessions={[session(1)]} />);
     expect(populated).toContain("overflow-x-auto");
     expect(populated).toContain("min-w-[1040px]");
     const empty = renderToStaticMarkup(<RecentSessionsTable sessions={[]} />);
     expect(empty).toContain("No sessions in this range");
     expect(empty).toContain("Choose a wider range");
+  });
+
+  it("defaults to the Recent (7d) quick filter, so old fixture-style sessions don't appear until All is selected", () => {
+    const html = renderToStaticMarkup(<RecentSessionsTable sessions={[session(1)]} />);
+    expect(html).toContain("No sessions in this range");
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Recent \(7d\)</);
+  });
+
+  it("filterSessionsByRecency keeps only sessions within the chosen window, and returns everything for 'all'", () => {
+    const now = 10 * 24 * 60 * 60 * 1_000;
+    const sessions = [
+      session(1, { id: "ses_recent_hour", timeCreated: now - 60 * 60 * 1_000 }),
+      session(2, { id: "ses_recent_day", timeCreated: now - 3 * 24 * 60 * 60 * 1_000 }),
+      session(3, { id: "ses_old", timeCreated: now - 30 * 24 * 60 * 60 * 1_000 }),
+    ];
+    expect(filterSessionsByRecency(sessions, "24h", now).map((s) => s.id)).toEqual(["ses_recent_hour"]);
+    expect(filterSessionsByRecency(sessions, "7d", now).map((s) => s.id)).toEqual(["ses_recent_hour", "ses_recent_day"]);
+    expect(filterSessionsByRecency(sessions, "all", now).map((s) => s.id)).toEqual(["ses_recent_hour", "ses_recent_day", "ses_old"]);
   });
 });

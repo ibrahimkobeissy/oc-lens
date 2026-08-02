@@ -78,7 +78,7 @@ Until every model involved has a price, affected totals say **not priced** or id
 
 ## Screenshots
 
-The complete 15-route, 30-asset ledger is in [docs/screenshots/README.md](docs/screenshots/README.md). The PNGs are currently pending because this environment cannot bind the fixture-backed loopback server and the required execution escalation is unavailable; the entries below deliberately remain broken until real captures replace them. No placeholder or fabricated image is committed.
+The complete 15-route, 30-asset ledger is in [docs/screenshots/README.md](docs/screenshots/README.md), captured against the deterministic fixture database with documentation-only pricing — never a personal opencode database or real pricing configuration.
 
 | Page | Light | Dark |
 | --- | --- | --- |

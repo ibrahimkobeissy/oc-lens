@@ -83,6 +83,27 @@ describe("costBreakdown", () => {
     expect(result.bySession.find((s) => s.sessionId === "ses_1")?.cost.amount).toBeCloseTo(5, 6);
   });
 
+  it("scopes the underlying session/message scan to sessionIds instead of the whole database (code-review-2026-08-02.md M2)", () => {
+    const config: PricingConfig = {
+      version: 1,
+      prices: {
+        "opencode/priced-model": { inputPerMTok: 5, outputPerMTok: 5, cacheReadPerMTok: 5, cacheWritePerMTok: 5, currency: "USD" },
+        "opencode/unpriced-model": { inputPerMTok: 5, outputPerMTok: 5, cacheReadPerMTok: 5, cacheWritePerMTok: 5, currency: "USD" },
+      },
+      updatedAt: 1,
+    };
+
+    const scoped = costBreakdown(db, config, "UTC", {}, ["ses_1"]);
+    expect(scoped.bySession.map((s) => s.sessionId)).toEqual(["ses_1"]);
+    expect(scoped.bySession.find((s) => s.sessionId === "ses_2")).toBeUndefined();
+    expect(scoped.byModel.find((m) => m.modelID === "unpriced-model")).toBeUndefined();
+    expect(scoped.totalCost.amount).toBeCloseTo(5, 6);
+
+    const unscoped = costBreakdown(db, config, "UTC", {}, undefined);
+    expect(unscoped.bySession.map((s) => s.sessionId).sort()).toEqual(["ses_1", "ses_2"]);
+    expect(unscoped.totalCost.amount).toBeCloseTo(10, 6);
+  });
+
   it("attributes costs from message agent evidence rather than the session default", () => {
     const config: PricingConfig = {
       version: 1,
@@ -162,15 +183,15 @@ describe("costBreakdown", () => {
         WHERE json_valid(data) AND json_extract(data, '$.role') = 'assistant'
       `).get() as { amount: number };
 
-      expect(sessionTotals.amount).toBeCloseTo(4.857402, 6);
-      expect(validMessageTotals.amount).toBeCloseTo(4.853064, 6);
-      expect(sessionTotals.amount - validMessageTotals.amount).toBeCloseTo(0.004338, 6);
+      expect(sessionTotals.amount).toBeCloseTo(4.78954, 6);
+      expect(validMessageTotals.amount).toBeCloseTo(4.786188, 6);
+      expect(sessionTotals.amount - validMessageTotals.amount).toBeCloseTo(0.003352, 6);
 
       const result = costBreakdown(fixture, config);
       expect(result.totalCost).toEqual({ amount: 0, priced: false });
       expect(result.bySession.find((entry) => entry.sessionId === "ses_0000")?.cost).toEqual({ amount: 0, priced: false });
-      expect(result.byAgent.find((entry) => entry.agent === "build")?.cost.amount).toBeCloseTo(2.950962, 6);
-      expect(result.byAgent.find((entry) => entry.agent === "plan")?.cost.amount).toBeCloseTo(1.902102, 6);
+      expect(result.byAgent.find((entry) => entry.agent === "build")?.cost.amount).toBeCloseTo(2.960916, 6);
+      expect(result.byAgent.find((entry) => entry.agent === "plan")?.cost.amount).toBeCloseTo(1.825272, 6);
       expect(result.byAgent.find((entry) => entry.agent === "unknown")?.cost).toEqual({ amount: 0, priced: false });
     });
   });

@@ -133,8 +133,37 @@ function bucketsToCostArray<K extends string>(
  * `byDay` bucketing (default UTC) — same IANA-zone convention the rest of the
  * product's time-series queries use.
  */
-export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone = "UTC", range: { from?: number; to?: number } = {}): CostBreakdown {
-  const sessions = query<SessionRow>(db, "SELECT id, project_id, agent FROM session");
+const ID_CHUNK_SIZE = 800;
+
+/** Chunks `ids` at SQLite's practical bound-parameter comfort zone and unions the results. */
+function queryForIds<T>(db: DatabaseSync, select: string, idColumn: string, ids: readonly string[]): T[] {
+  const rows: T[] = [];
+  for (let offset = 0; offset < ids.length; offset += ID_CHUNK_SIZE) {
+    const chunk = ids.slice(offset, offset + ID_CHUNK_SIZE);
+    const placeholders = chunk.map(() => "?").join(",");
+    rows.push(...query<T>(db, `${select} WHERE ${idColumn} IN (${placeholders})`, chunk));
+  }
+  return rows;
+}
+
+/**
+ * @param sessionIds When provided, scopes the underlying `session`/`message` scans to
+ * only these ids instead of the whole database (code-review-2026-08-02.md M2: callers
+ * like `listSessions` that only need cost for one page of sessions previously forced a
+ * full-DB, full-JSON-decode pass on every request regardless of page size).
+ * `storedCostComparison` remains all-time-only regardless — no caller needs it scoped
+ * to a session-id list today, and inventing that would add complexity nothing exercises.
+ */
+export function costBreakdown(
+  db: DatabaseSync,
+  config: PricingConfig,
+  timeZone = "UTC",
+  range: { from?: number; to?: number } = {},
+  sessionIds?: readonly string[],
+): CostBreakdown {
+  const sessions = sessionIds === undefined
+    ? query<SessionRow>(db, "SELECT id, project_id, agent FROM session")
+    : queryForIds<SessionRow>(db, "SELECT id, project_id, agent FROM session", "id", sessionIds);
   const sessionById = new Map(sessions.map((s) => [s.id, s]));
 
   const byModelTokens = new Map<string, { providerID: string; modelID: string; tokens: OcTokens }>();
@@ -170,7 +199,9 @@ export function costBreakdown(db: DatabaseSync, config: PricingConfig, timeZone 
     addToBucket(byAgent, agent, unpriced);
   };
 
-  const messages = query<MessageRow>(db, "SELECT session_id, time_created, data FROM message");
+  const messages = sessionIds === undefined
+    ? query<MessageRow>(db, "SELECT session_id, time_created, data FROM message")
+    : queryForIds<MessageRow>(db, "SELECT session_id, time_created, data FROM message", "session_id", sessionIds);
   for (const message of messages) {
     if ((range.from !== undefined && message.time_created < range.from) || (range.to !== undefined && message.time_created >= range.to)) continue;
     const evidence = pricingEvidence(message.data);

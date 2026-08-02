@@ -111,6 +111,40 @@ describe("OCL-030 GET /api/stats", () => {
     db.close();
   });
 
+  it("scopes storedCostComparison to the requested range instead of returning the all-time figure (code-review-2026-08-02.md M1)", async () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    const now = Date.UTC(2026, 7, 1, 12);
+    const inRangeTime = now - 3 * 86_400_000;
+    const outOfRangeTime = now - 40 * 86_400_000;
+    db.prepare("INSERT INTO project (id, worktree, name) VALUES ('global', '/', NULL)").run();
+    db.prepare(
+      "INSERT INTO session (id, project_id, slug, directory, title, version, cost, time_created, time_updated) VALUES ('recent', 'global', 'recent', '/', 'Recent', '1', 1.5, ?, ?)",
+    ).run(inRangeTime, inRangeTime);
+    db.prepare(
+      "INSERT INTO session (id, project_id, slug, directory, title, version, cost, time_created, time_updated) VALUES ('old', 'global', 'old', '/', 'Old', '1', 2.5, ?, ?)",
+    ).run(outOfRangeTime, outOfRangeTime);
+    vi.spyOn(connectionModule, "getConnection").mockReturnValue({ ok: true, db });
+    vi.spyOn(Date, "now").mockReturnValue(now);
+
+    const rangedPayload = await (await GET(new Request("http://localhost/api/stats?range=7d&tz=UTC"))).json();
+    expect(rangedPayload.data.storedCostComparison).toBe(1.5);
+    expect(rangedPayload.data.costBreakdown.storedCostComparison).toBe(1.5);
+
+    const allPayload = await (await GET(new Request("http://localhost/api/stats?range=all&tz=UTC"))).json();
+    expect(allPayload.data.storedCostComparison).toBe(4);
+    expect(allPayload.data.costBreakdown.storedCostComparison).toBe(4);
+
+    // A custom picked range (from/to) overrides the named range and needs no `range` param at all.
+    const customFrom = outOfRangeTime - 1;
+    const customPayload = await (await GET(new Request(`http://localhost/api/stats?from=${customFrom}&to=${outOfRangeTime + 1}&tz=UTC`))).json();
+    expect(customPayload.data.storedCostComparison).toBe(2.5);
+
+    expect((await GET(new Request("http://localhost/api/stats?from=100&to=50&tz=UTC"))).status).toBe(400);
+    expect((await GET(new Request("http://localhost/api/stats?from=notanumber&to=100&tz=UTC"))).status).toBe(400);
+    db.close();
+  });
+
   it("rejects invalid range and timezone", async () => {
     expect((await GET(new Request("http://localhost/api/stats?range=1y"))).status).toBe(400);
     expect((await GET(new Request("http://localhost/api/stats?tz=not-a-zone"))).status).toBe(400);

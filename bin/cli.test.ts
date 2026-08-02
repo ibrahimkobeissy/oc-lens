@@ -1,8 +1,14 @@
 import { EventEmitter } from "node:events";
+import type { ChildProcess } from "node:child_process";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { browserCommand, openBrowser, parseArgs, readStartupMetadata, selectPort, serverSpawnOptions, startupLines } from "./cli-lib.js";
+import { browserCommand, openBrowser, parseArgs, readStartupMetadata, selectPort, serverSpawnOptions, startupLines, waitForServer } from "./cli-lib.js";
+
+/** Minimal fake satisfying only what `waitForServer` actually touches (`.exitCode`, `.once("error"/"exit")`). */
+function fakeChild(exitCode: number | null = null): ChildProcess {
+  return Object.assign(new EventEmitter(), { exitCode }) as unknown as ChildProcess;
+}
 
 describe("OCL-130 CLI", () => {
   it("parses strict options and rejects invalid arguments", () => {
@@ -58,5 +64,26 @@ describe("OCL-130 CLI", () => {
       "[oc-lens] Schema: opencode-1.17.7",
       "[oc-lens] Sessions: unavailable",
     ]);
+  });
+
+  it("polls /api/health and requires exactly 200 rather than any status under 500 (code-review-2026-08-02.md L6)", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toBe("http://local/api/health");
+      return { ok: true, status: 200, json: async () => ({}) };
+    });
+    await waitForServer("http://local", fakeChild(), { fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledWith("http://local/api/health", expect.anything());
+  });
+
+  it("does not report ready on a 404 — the old status < 500 check would have accepted it", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) }));
+    await expect(waitForServer("http://local", fakeChild(), { fetchImpl, timeoutMs: 50, intervalMs: 10 })).rejects.toThrow(/did not become ready/);
+  });
+
+  it("throws immediately if the child process exits before becoming ready", async () => {
+    const child = fakeChild(1);
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }));
+    await expect(waitForServer("http://local", child, { fetchImpl, timeoutMs: 1_000 })).rejects.toThrow(/exited before becoming ready/);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

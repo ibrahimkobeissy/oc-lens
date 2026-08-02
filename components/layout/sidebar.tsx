@@ -29,7 +29,7 @@ export function Sidebar() {
     <aside
       data-slot="sidebar"
       className={cn(
-        "hidden md:flex md:flex-col md:shrink-0 md:border-r md:border-border md:bg-surface md:transition-[width] md:duration-150",
+        "hidden md:sticky md:top-0 md:flex md:h-screen md:flex-col md:shrink-0 md:border-r md:border-border md:bg-surface md:transition-[width] md:duration-150",
         collapsed ? "md:w-14" : "md:w-56",
       )}
     >
@@ -45,7 +45,7 @@ export function Sidebar() {
           if (groupRoutes.length === 0) return null;
           return (
             <div key={group} className="mb-4">
-              {!collapsed && (
+              {!collapsed && groupRoutes.length > 1 && (
                 <div className="px-2 pb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
                   {GROUP_LABELS[group] ?? group}
                 </div>
@@ -71,8 +71,8 @@ export function Sidebar() {
                     key={route.href}
                     href={route.href}
                     className={cn(
-                      "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-200 hover:bg-accent hover:text-foreground",
-                      isActive ? "bg-primary/10 font-medium text-foreground" : "text-muted-foreground",
+                      "group relative flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors duration-200 before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full hover:bg-accent hover:text-foreground",
+                      isActive ? "bg-primary/10 font-medium text-foreground before:bg-primary" : "text-muted-foreground before:bg-transparent",
                     )}
                   >
                     <Icon className="size-4 shrink-0" />

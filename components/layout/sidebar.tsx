@@ -45,7 +45,7 @@ export function Sidebar() {
           if (groupRoutes.length === 0) return null;
           return (
             <div key={group} className="mb-4">
-              {!collapsed && (
+              {!collapsed && groupRoutes.length > 1 && (
                 <div className="px-2 pb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
                   {GROUP_LABELS[group] ?? group}
                 </div>

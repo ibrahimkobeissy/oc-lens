@@ -18,9 +18,11 @@ const ALL_PRICES: PricingConfig = {
   updatedAt: 1,
   prices: {
     "anthropic/claude-haiku-4-5": RATE,
+    "anthropic/claude-sonnet-5": RATE,
     "openai/gpt-5-mini": RATE,
     "google/gemini-2.5-pro": RATE,
     "opencode/deepseek-v4-flash-free": RATE,
+    "opencode/qwen3-coder": RATE,
   },
 };
 
@@ -85,37 +87,41 @@ describe("GET /api/sessions/[id]/tree", () => {
     expect(body.meta.warnings).toContainEqual(expect.objectContaining({ code: "malformed-message-data" }));
   });
 
-  it("returns the exact fixture hierarchy with honest D3 costs and ses_0000 roll-up totals", async () => {
+  it("returns the exact fixture hierarchy with honest D3 costs and ses_0006 roll-up totals", async () => {
     writePricing(ALL_PRICES, { configHome: process.env.XDG_CONFIG_HOME });
-    const response = await request("ses_0000");
+    const response = await request("ses_0006");
     const body = await payload(response);
 
     expect(dynamic).toBe("force-dynamic");
     expect(response.status).toBe(200);
     if (!("data" in body)) throw new Error("expected subagent tree envelope");
-    expect(body.data.children.map((child) => child.sessionId)).toEqual(["ses_0035", "ses_0036", "ses_0038"]);
-    expect(body.data.cost).toEqual({ amount: 0, priced: false });
+    expect(body.data.children.map((child) => child.sessionId)).toEqual(["ses_0035", "ses_0036", "ses_0039"]);
+    expect(body.data.cost.priced).toBe(true);
+    expect(body.data.cost.amount).toBeCloseTo(0.027024, 6);
     expect(body.data.children.map((child) => child.cost.priced)).toEqual([true, true, true]);
     const rollup = inclusiveSubagentRollup(body.data);
-    expect(rollup.tokens).toEqual({ input: 381_421, output: 58_748, reasoning: 10_307, cacheRead: 121_297, cacheWrite: 20_574 });
-    expect(rollup.toolCallCount).toBe(289);
-    expect(rollup.cost).toEqual({ amount: 0, priced: false });
+    expect(rollup.tokens).toEqual({ input: 91_921, output: 13_287, reasoning: 1_741, cacheRead: 28_659, cacheWrite: 3_317 });
+    expect(rollup.toolCallCount).toBe(70);
+    expect(rollup.cost.priced).toBe(true);
+    expect(rollup.cost.amount).toBeCloseTo(0.137184, 6);
   });
 
   it("keeps a partially priced inclusive tree wholly unpriced", async () => {
     const partial = { ...ALL_PRICES, prices: { ...ALL_PRICES.prices } };
-    delete partial.prices["opencode/deepseek-v4-flash-free"];
+    // ses_0039 (a child in this tree) uses anthropic/claude-haiku-4-5; dropping its price
+    // is what makes this specific child, and the inclusive rollup, unpriced.
+    delete partial.prices["anthropic/claude-haiku-4-5"];
     writePricing(partial, { configHome: process.env.XDG_CONFIG_HOME });
-    const response = await request("ses_0000");
+    const response = await request("ses_0006");
     const body = await payload(response);
 
     if (!("data" in body)) throw new Error("expected subagent tree envelope");
-    expect(body.data.children.find((child) => child.sessionId === "ses_0038")?.cost).toEqual({ amount: 0, priced: false });
+    expect(body.data.children.find((child) => child.sessionId === "ses_0039")?.cost).toEqual({ amount: 0, priced: false });
     expect(inclusiveSubagentRollup(body.data).cost).toEqual({ amount: 0, priced: false });
   });
 
   it("surfaces malformed pricing evidence only from sessions in the returned tree", async () => {
-    const before = await payload(await request("ses_0000"));
+    const before = await payload(await request("ses_0006"));
     if (!("data" in before)) throw new Error("expected subagent tree envelope");
     const previousCount = before.meta.warnings.find((warning) => warning.code === "malformed-message-data")?.count ?? 0;
     resetConnectionForTests();
@@ -125,7 +131,7 @@ describe("GET /api/sessions/[id]/tree", () => {
     db.close();
     resetConnectionForTests();
 
-    const body = await payload(await request("ses_0000"));
+    const body = await payload(await request("ses_0006"));
 
     if (!("data" in body)) throw new Error("expected subagent tree envelope");
     expect(body.meta.warnings.find((warning) => warning.code === "malformed-message-data")?.count).toBe(previousCount + 1);

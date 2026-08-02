@@ -1,6 +1,7 @@
 import type { OcPartData, OcWarning, ToolStatus } from "@/types/oc";
 import { decodeCompactionData } from "./compaction";
 import { asNumber, asRecord, asString, safeJsonParse } from "./json";
+import { decodePatchData } from "./patch";
 import { decodeTokens } from "./tokens";
 import { type Decoded, mergeWarnings, warning } from "./warnings";
 
@@ -24,9 +25,10 @@ function unknownPart(rawType: string, raw: unknown, extraWarning?: OcWarning): D
 
 /**
  * Decodes `part.data` into the OCL-010 discriminated union (data-model §5).
- * `patch`/`file`/`agent`/`snapshot` are still ⚠️ UNVERIFIED — not decoded
- * here; they fall through to the `unknown` variant until OCL-103 adds its
- * verified shape. `compaction` was confirmed live on 2026-08-02.
+ * `file`/`agent`/`snapshot` are still ⚠️ UNVERIFIED — not decoded here; they
+ * fall through to the `unknown` variant until a future ticket adds its
+ * verified shape. `compaction` and `patch` were both confirmed live on
+ * 2026-08-02.
  */
 export function decodePartData(raw: string | null): Decoded<OcPartData> {
   const parsed = safeJsonParse(raw);
@@ -97,6 +99,13 @@ export function decodePartData(raw: string | null): Decoded<OcPartData> {
       return compaction
         ? { value: compaction, warnings: [] }
         : unknownPart("compaction", parsed.value, warning("malformed-compaction", "part.data.type was 'compaction' but auto/overflow/tail_start_id were missing or the wrong type"));
+    }
+
+    case "patch": {
+      const patch = decodePatchData(obj);
+      return patch
+        ? { value: patch, warnings: [] }
+        : unknownPart("patch", parsed.value, warning("malformed-patch", "part.data.type was 'patch' but hash/files were missing or the wrong type"));
     }
 
     default:

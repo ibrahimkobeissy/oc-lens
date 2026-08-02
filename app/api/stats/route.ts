@@ -33,8 +33,25 @@ export async function GET(request: Request): Promise<NextResponse<StatsRouteResp
   const params = new URL(request.url).searchParams;
   const range = params.get("range") ?? "30d";
   const timeZone = params.get("tz") ?? "UTC";
-  if (!(["7d", "30d", "90d", "all"] as string[]).includes(range)) return error("invalid_range", "range must be 7d, 30d, 90d, or all", 400);
+  const fromParam = params.get("from");
+  const toParam = params.get("to");
+  // An explicit from/to (a user-picked custom range) overrides the named range window.
+  const hasCustomWindow = fromParam !== null && toParam !== null;
+  if (!hasCustomWindow && !(["7d", "30d", "90d", "all"] as string[]).includes(range)) return error("invalid_range", "range must be 7d, 30d, 90d, or all", 400);
   if (!validTimeZone(timeZone)) return error("invalid_timezone", "tz must be a valid IANA timezone", 400);
+
+  let window: { from?: number; to?: number };
+  if (hasCustomWindow) {
+    const from = Number(fromParam);
+    const to = Number(toParam);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) {
+      return error("invalid_range", "from/to must be finite epoch-ms timestamps with from < to", 400);
+    }
+    window = { from, to };
+  } else {
+    window = rangeWindow(range as RangeName, Date.now());
+  }
+
   try {
     const connection = getConnection();
     if (!connection.ok) {
@@ -42,7 +59,6 @@ export async function GET(request: Request): Promise<NextResponse<StatsRouteResp
       return error("schema_mismatch", `Database schema does not match ${schemaVersion}.`, 409);
     }
     const now = Date.now();
-    const window = rangeWindow(range as RangeName, now);
     const overview = getOverviewStats(connection.db, timeZone, now, window);
     const costs = costBreakdown(connection.db, readPricing(), timeZone, window);
     // costBreakdown's own storedCostComparison is intentionally all-time (code-review-2026-08-02.md M1) —

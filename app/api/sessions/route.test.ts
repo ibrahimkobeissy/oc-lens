@@ -99,7 +99,7 @@ describe("GET /api/sessions", () => {
 
     expect(response.status).toBe(200);
     expect(body.data?.totalCount).toBe(3);
-    expect(body.data?.sessions.map((session) => session.id)).toEqual(["ses_0027", "ses_0016", "ses_0000"]);
+    expect(body.data?.sessions.map((session) => session.id)).toEqual(["ses_0066", "ses_0010", "ses_0000"]);
     expect(body.data?.sessions.every((session) => session.slug === "lucid-vole")).toBe(true);
     expect(body.data?.nextCursor).toBeNull();
     expect(body.meta?.warnings).toBeInstanceOf(Array);
@@ -116,7 +116,7 @@ describe("GET /api/sessions", () => {
   });
 
   it.each([
-    ["?project=proj_infra&limit=100", 25],
+    ["?project=proj_infra&limit=100", 21],
     ["?agent=unknown&limit=100", 10],
     ["?model=unknown&limit=100", 10],
     ["?model=opencode/qwen3-coder&limit=100", 21],
@@ -124,8 +124,8 @@ describe("GET /api/sessions", () => {
     ["?archived=false&limit=100", 115],
     ["?isSubagent=true&limit=100", 8],
     ["?is-subagent=false&limit=100", 112],
-    ["?hasError=true&limit=100", 107],
-    ["?has-error=false&limit=100", 13],
+    ["?hasError=true&limit=100", 106],
+    ["?has-error=false&limit=100", 14],
   ])("applies fixture filter %s with its hand-counted total", async (query, expected) => {
     const { body } = await list(query);
     expect(body.data?.totalCount).toBe(expected);
@@ -133,14 +133,14 @@ describe("GET /api/sessions", () => {
 
   it("composes project, agent, and half-open date-range filters", async () => {
     const { body } = await list("?project=proj_infra&agent=build&from=1756000000000&to=1760000000000&limit=100");
-    expect(body.data?.sessions.map((session) => session.id)).toEqual(["ses_0025", "ses_0022", "ses_0020"]);
-    expect(body.data?.totalCount).toBe(3);
+    expect(body.data?.sessions.map((session) => session.id)).toEqual(["ses_0027"]);
+    expect(body.data?.totalCount).toBe(1);
   });
 
   it("returns exact per-session error evidence for the has-errors badge", async () => {
     const { body } = await list("?search=ses_0006&hasError=true");
     expect(body.data?.sessions).toHaveLength(1);
-    expect(body.data?.sessions[0]).toMatchObject({ id: "ses_0006", errorCount: 1 });
+    expect(body.data?.sessions[0]).toMatchObject({ id: "ses_0006", errorCount: 2 });
   });
 
   it.each([
@@ -196,8 +196,8 @@ describe("GET /api/sessions", () => {
 
     const highest = await list("?sort=cost&order=desc&limit=1");
     expect(highest.body.data?.sessions[0]).toMatchObject({
-      id: "ses_0010",
-      cost: { amount: 0.061312, priced: true },
+      id: "ses_0020",
+      cost: { amount: 0.06126, priced: true },
     });
 
     const malformed = await list("?search=ses_0000&limit=1");
@@ -254,10 +254,10 @@ describe("GET /api/sessions/[id]", () => {
 
   it("returns fixture session detail and ordered child ids", async () => {
     useDb(populatedCopy);
-    const { response, body } = await detail("ses_0000");
+    const { response, body } = await detail("ses_0006");
     expect(response.status).toBe(200);
-    expect((body.data as unknown as { id: string }).id).toBe("ses_0000");
-    expect((body.data as unknown as { childIds: string[] }).childIds).toEqual(["ses_0035", "ses_0036", "ses_0038"]);
+    expect((body.data as unknown as { id: string }).id).toBe("ses_0006");
+    expect((body.data as unknown as { childIds: string[] }).childIds).toEqual(["ses_0035", "ses_0036", "ses_0039"]);
   });
 
   it("uses active pricing in the session detail summary", async () => {
@@ -270,7 +270,7 @@ describe("GET /api/sessions/[id]", () => {
 
     const { response, body } = await detail("ses_0010");
     expect(response.status).toBe(200);
-    expect((body.data as unknown as { cost: { amount: number; priced: boolean } }).cost).toEqual({ amount: 0.061312, priced: true });
+    expect((body.data as unknown as { cost: { amount: number; priced: boolean } }).cost).toEqual({ amount: 0.023222, priced: true });
   });
 
   it("distinguishes a missing session from a missing database", async () => {

@@ -88,13 +88,13 @@ export interface OcTokens {
 // ─── Enums / unions ─────────────────────────────────────────────────────────
 
 /**
- * `patch`, `file`, `agent`, `snapshot` are still ⚠️ UNVERIFIED (data-model
- * §5) and are not part of this union — OCL-103 adds its verified variant via
- * a documented amendment after its probe. Until then those shapes decode to
- * `'unknown'`. `compaction` was confirmed live against a real opencode.db on
- * 2026-08-02 (data-model §5) and is added here as this ticket's amendment.
+ * `file`, `agent`, `snapshot` are still ⚠️ UNVERIFIED (data-model §5) and are
+ * not part of this union — a future ticket adds its verified variant via a
+ * documented amendment after its own probe. Until then those shapes decode
+ * to `'unknown'`. `compaction` and `patch` were both confirmed live against
+ * a real opencode.db on 2026-08-02 (data-model §5) and are added here.
  */
-export type PartType = "text" | "reasoning" | "step-start" | "step-finish" | "tool" | "compaction" | "unknown";
+export type PartType = "text" | "reasoning" | "step-start" | "step-finish" | "tool" | "compaction" | "patch" | "unknown";
 
 export type ToolStatus = "completed" | "error" | "pending" | "running" | "unknown";
 
@@ -215,6 +215,21 @@ export interface OcPartCompactionData {
   tailStartId: string; // part.data.tail_start_id — message.id of the first message retained after the compacted head
 }
 
+/**
+ * A workspace-wide diff snapshot — confirmed live 2026-08-02 (data-model §5). **Not**
+ * scoped to the owning session or message: the same `hash`/`files` pair has been
+ * observed attached to messages in two different sessions, including a file a
+ * *subagent* wrote that the owning message's own tool calls never touched. Treat
+ * this as "the working tree had these files diffed at this point in time," never as
+ * "this session/turn changed these files" — OCL-103's file-change timeline
+ * deliberately does not use this as evidence for that reason (see the data-model doc).
+ */
+export interface OcPartPatchData {
+  type: "patch";
+  hash: string; // part.data.hash
+  files: string[]; // part.data.files
+}
+
 /** A part type not in the verified set — never thrown away, always rendered as a labelled placeholder. */
 export interface OcPartUnknownData {
   type: "unknown";
@@ -229,6 +244,7 @@ export type OcPartData =
   | OcPartStepFinishData
   | OcPartToolData
   | OcPartCompactionData
+  | OcPartPatchData
   | OcPartUnknownData;
 
 export interface OcPart {

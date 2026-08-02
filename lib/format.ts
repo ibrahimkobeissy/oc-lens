@@ -44,6 +44,10 @@ export function formatDuration(ms: number | null): string {
  * must go through this function rather than formatting `amount` directly.
  */
 export function formatCost(cost: OcCost): string {
-  if (!cost.priced) return "not priced";
+  // Every upstream cost computation already guarantees a finite amount whenever
+  // `priced: true`, so this should be unreachable — but this is the single most
+  // load-bearing display function in the product, so it enforces the no-NaN/no-Infinity
+  // rule at the boundary itself rather than trusting every future caller (code-review-2026-08-02.md L2).
+  if (!cost.priced || !Number.isFinite(cost.amount)) return "not priced";
   return usdFormatter.format(cost.amount);
 }

@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Moon, Search, Sun } from "lucide-react";
+import { Activity, Moon, RefreshCw, Search, Sun } from "lucide-react";
+import { mutate } from "swr";
 import { matchRouteTrail } from "@/lib/routes";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /** Derived from the pathname + route registry — no per-page breadcrumb code (OCL-020's acceptance criterion). */
 function Breadcrumbs() {
@@ -51,6 +54,30 @@ function ThemeToggleButton() {
   );
 }
 
+/** Revalidates every currently mounted `useOc` (SWR) key at once — a manual complement to the default 30s poll. */
+function RefreshButton() {
+  const [refreshing, setRefreshing] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      aria-label="Refresh data"
+      disabled={refreshing}
+      onClick={async () => {
+        setRefreshing(true);
+        try {
+          await mutate(() => true, undefined, { revalidate: true });
+        } finally {
+          setRefreshing(false);
+        }
+      }}
+    >
+      <RefreshCw aria-hidden="true" className={cn("size-4", refreshing && "animate-spin")} />
+    </Button>
+  );
+}
+
 function CommandPaletteAffordance() {
   return (
     <Button
@@ -75,12 +102,13 @@ export function TopBar() {
     >
       <Breadcrumbs />
       <div className="flex items-center gap-2">
-        <div className="hidden items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1.5 text-[11px] text-muted-foreground lg:flex" title="oc-lens never writes to the opencode database">
+        <div className="hidden items-center gap-2 rounded-full border border-warning/30 bg-warning/5 px-3 py-1.5 text-[11px] text-muted-foreground lg:flex" title="oc-lens never writes to the opencode database" aria-label="Read-only signal: oc-lens never writes to the opencode database">
           <span className="signal-dot size-1.5 rounded-full bg-warning" aria-hidden="true" />
           <Activity aria-hidden="true" className="size-3.5 text-primary" />
           <span className="font-mono uppercase tracking-[0.12em]">read-only signal</span>
         </div>
         <CommandPaletteAffordance />
+        <RefreshButton />
         <ThemeToggleButton />
       </div>
     </header>

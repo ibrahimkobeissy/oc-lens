@@ -114,7 +114,7 @@ export function SessionSidebar({ replay, onTurnJump }: { replay: SessionReplay; 
   };
   return (
     <>
-      <aside aria-label="Session replay sidebar" className="sticky top-20 hidden max-h-[calc(100vh-6rem)] min-h-0 w-72 shrink-0 lg:flex lg:flex-col">
+      <aside aria-label="Session replay sidebar" className="sticky top-20 hidden h-[calc(100vh-15rem)] min-h-[32rem] w-72 shrink-0 lg:flex lg:flex-col">
         <SidebarContents replay={replay} activeTurnIndex={activeTurnIndex} onSelect={selectTurn} />
       </aside>
       <div className="lg:hidden">

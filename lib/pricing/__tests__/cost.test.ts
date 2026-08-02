@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createFullSchemaDb, makeTempDir } from "@/lib/db/__tests__/test-db";
 import type { PricingConfig } from "@/types/oc";
-import { costFor, storedCostComparison } from "../cost";
+import { costFor, storedCostComparison, storedCostInRange } from "../cost";
 
 describe("costFor", () => {
   const config: PricingConfig = {
@@ -63,6 +63,35 @@ describe("storedCostComparison", () => {
     `);
     // The fixture's seed session (ses_1) has cost = 0.
     expect(storedCostComparison(db)).toBeCloseTo(2.5, 6);
+    db.close();
+  });
+});
+
+describe("storedCostInRange", () => {
+  let dir: string;
+  let dbPath: string;
+
+  beforeEach(() => {
+    dir = makeTempDir();
+    dbPath = join(dir, "test.db");
+    createFullSchemaDb(dbPath);
+  });
+
+  afterEach(() => {
+    cleanupTempDir(dir);
+  });
+
+  it("scopes the sum to a half-open [from, to) window instead of returning the all-time total", () => {
+    const db = new DatabaseSync(dbPath);
+    db.exec(`
+      UPDATE session SET cost = 1, time_created = 100, time_updated = 100 WHERE id = 'ses_1';
+      INSERT INTO session (id, project_id, cost, agent, time_created, time_updated) VALUES ('ses_2', 'global', 2, 'build', 200, 200);
+      INSERT INTO session (id, project_id, cost, agent, time_created, time_updated) VALUES ('ses_3', 'global', 4, 'build', 300, 300);
+    `);
+    expect(storedCostInRange(db, {})).toBeCloseTo(7, 6);
+    expect(storedCostInRange(db, { from: 200 })).toBeCloseTo(6, 6);
+    expect(storedCostInRange(db, { to: 200 })).toBeCloseTo(1, 6);
+    expect(storedCostInRange(db, { from: 100, to: 300 })).toBeCloseTo(3, 6);
     db.close();
   });
 });

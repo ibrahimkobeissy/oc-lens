@@ -51,9 +51,9 @@ describe("GET /api/agents", () => {
     expect(response.status).toBe(200);
     if (!("data" in payload)) throw new Error("expected agents envelope");
     const build = payload.data.agents.find((agent) => agent.agent === "build");
-    expect(build?.toolMix.find((tool) => tool.tool === "read")?.calls).toBe(114);
-    expect(build?.toolMix.reduce((total, tool) => total + tool.calls, 0)).toBe(1_404);
-    expect(build?.errorCount).toBe(206);
+    expect(build?.toolMix.find((tool) => tool.tool === "read")?.calls).toBe(110);
+    expect(build?.toolMix.reduce((total, tool) => total + tool.calls, 0)).toBe(1_409);
+    expect(build?.errorCount).toBe(209);
     expect(payload.data.agents.find((agent) => agent.agent === "unknown")?.sessionCount).toBeGreaterThanOrEqual(10);
     expect(payload.data.agents.every((agent) => agent.cost.priced === false)).toBe(true);
     expect(payload.data.activity.reduce((total, point) => total + point.messageCount, 0)).toBe(4_048);

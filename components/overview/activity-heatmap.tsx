@@ -36,6 +36,22 @@ export function buildHeatmapWeeks(activity: readonly DailyActivity[], today: str
   return weeks;
 }
 
+const WEEKDAY_ROW_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""] as const;
+const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+
+/** One label per week column: the month name on the first week that starts a new month, blank otherwise — so a 53-column year reads like a calendar instead of a wall of dots. */
+export function buildHeatmapColumnLabels(weeks: readonly HeatmapCell[][]): Array<string | null> {
+  let previousMonth: number | null = null;
+  return weeks.map((week) => {
+    const dated = week.find((cell) => cell.value !== null && /^\d{4}-\d{2}-\d{2}$/.test(cell.label));
+    if (!dated) return null;
+    const month = new Date(`${dated.label}T12:00:00Z`).getUTCMonth();
+    if (month === previousMonth) return null;
+    previousMonth = month;
+    return MONTH_LABEL_FORMATTER.format(new Date(`${dated.label}T12:00:00Z`));
+  });
+}
+
 export function sessionHrefForDate(date: string): string {
   const from = new Date(`${date}T00:00:00`);
   const to = new Date(from);
@@ -52,9 +68,15 @@ export function ActivityHeatmap({ activity, timeZone, now }: { activity: DailyAc
     <Card className="min-w-0">
       <CardHeader><CardTitle>Activity heatmap</CardTitle><CardDescription>A rolling year of local activity. Select a day to inspect its sessions.</CardDescription></CardHeader>
       <CardContent>
-        <HeatmapGrid weeks={weeks} emptyMessage="No activity was recorded in the rolling year." onCellClick={(cell) => {
-          if (cell.value !== null && /^\d{4}-\d{2}-\d{2}$/.test(cell.label)) router.push(sessionHrefForDate(cell.label));
-        }} />
+        <HeatmapGrid
+          weeks={weeks}
+          columnLabels={buildHeatmapColumnLabels(weeks)}
+          rowLabels={WEEKDAY_ROW_LABELS}
+          emptyMessage="No activity was recorded in the rolling year."
+          onCellClick={(cell) => {
+            if (cell.value !== null && /^\d{4}-\d{2}-\d{2}$/.test(cell.label)) router.push(sessionHrefForDate(cell.label));
+          }}
+        />
       </CardContent>
     </Card>
   );

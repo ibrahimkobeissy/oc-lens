@@ -55,7 +55,9 @@ describe("OCL-055 ReasoningPart", () => {
     expect(html).not.toContain(">Overflow<");
   });
 
-  it("leaves unverified compaction on the labelled unknown fallback", () => {
+  it("falls back a malformed compaction part to the labelled unknown renderer rather than inventing fields", () => {
+    // `compaction`'s real shape (auto/overflow/tail_start_id) was confirmed live on 2026-08-02
+    // (see ./compaction-card.test.tsx) — this checks the *malformed* case still falls back honestly.
     const decoded = decodePartData(JSON.stringify({ type: "compaction", invented: "must not render" }));
     expect(decoded.value).toMatchObject({ type: "unknown", rawType: "compaction" });
     const Renderer = replayPartRenderer(decoded.value.type);

@@ -51,11 +51,11 @@ describe("GET /api/skills", () => {
       expect(response.status).toBe(200);
       expect(result).toEqual({
         data: [
-          { skill: "changelog-writer", totalCalls: 36, sessionCount: 34, errorCount: 4, p50DurationMs: 1917, p95DurationMs: 3068 },
-          { skill: "code-review", totalCalls: 36, sessionCount: 34, errorCount: 4, p50DurationMs: 2058, p95DurationMs: 3761 },
-          { skill: "deploy-helper", totalCalls: 36, sessionCount: 34, errorCount: 2, p50DurationMs: 1434, p95DurationMs: 3738 },
-          { skill: "test-runner", totalCalls: 36, sessionCount: 34, errorCount: 2, p50DurationMs: 1769, p95DurationMs: 3891 },
-          { skill: "docs-sync", totalCalls: 35, sessionCount: 33, errorCount: 4, p50DurationMs: 1567, p95DurationMs: 3657 },
+          { skill: "code-review", totalCalls: 36, sessionCount: 34, errorCount: 2, p50DurationMs: 1769, p95DurationMs: 3891 },
+          { skill: "deploy-helper", totalCalls: 36, sessionCount: 34, errorCount: 5, p50DurationMs: 1917, p95DurationMs: 3519 },
+          { skill: "test-runner", totalCalls: 36, sessionCount: 34, errorCount: 2, p50DurationMs: 1434, p95DurationMs: 3738 },
+          { skill: "changelog-writer", totalCalls: 35, sessionCount: 33, errorCount: 3, p50DurationMs: 1688, p95DurationMs: 3456 },
+          { skill: "docs-sync", totalCalls: 35, sessionCount: 34, errorCount: 3, p50DurationMs: 2058, p95DurationMs: 3761 },
         ],
         meta: {
           generatedAt: expect.any(Number),

@@ -1222,9 +1222,11 @@ Author `types/oc.ts` containing, at minimum:
 
 **Acceptance criteria**
 
-- [ ] Reasoning parts render, collapsed by default, with duration and token count.
-- [ ] The data-model doc was updated with whatever the probe found — including a "not reproducible" note if it failed.
-- [ ] No field is rendered that the probe did not observe.
+- [x] Reasoning parts render, collapsed by default, with duration and token count.
+- [x] The data-model doc was updated with whatever the probe found — including a "not reproducible" note if it failed.
+- [x] No field is rendered that the probe did not observe.
+
+**Completion note (2026-08-02):** the original fixture-only probe (2026-08-01) found zero compaction parts and left the shape unverified. At the maintainer's request, a live read-only query against their own real `opencode.db` confirmed the real shape: `{ type: "compaction", auto: boolean, overflow: boolean, tail_start_id: string }`. `types/oc.ts` was amended to add `OcPartCompactionData`/`PartType`'s `"compaction"` member; `lib/decode/compaction.ts` decodes it (falling back to `unknown` if any of the three fields is missing/mistyped, never inventing a value); `components/sessions/replay/compaction-card.tsx` renders exactly those three fields, collapsed by default; `test/fixtures/build-fixture.ts` now injects one deterministic compaction part (`manifest.ts`'s `MINIMUMS.compactionParts`). No pre-compaction token count is rendered — opencode never recorded one. `patch`/`file`/`agent`/`snapshot` remain unverified and out of scope.
 
 ---
 

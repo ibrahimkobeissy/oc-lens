@@ -88,12 +88,13 @@ export interface OcTokens {
 // ─── Enums / unions ─────────────────────────────────────────────────────────
 
 /**
- * `patch`, `compaction`, `file`, `agent`, `snapshot` are ⚠️ UNVERIFIED
- * (data-model §5) and are not part of this union yet — OCL-055 and OCL-103
- * each add their verified variant via a documented amendment after their
- * probe. Until then those shapes decode to `'unknown'`.
+ * `patch`, `file`, `agent`, `snapshot` are still ⚠️ UNVERIFIED (data-model
+ * §5) and are not part of this union — OCL-103 adds its verified variant via
+ * a documented amendment after its probe. Until then those shapes decode to
+ * `'unknown'`. `compaction` was confirmed live against a real opencode.db on
+ * 2026-08-02 (data-model §5) and is added here as this ticket's amendment.
  */
-export type PartType = "text" | "reasoning" | "step-start" | "step-finish" | "tool" | "unknown";
+export type PartType = "text" | "reasoning" | "step-start" | "step-finish" | "tool" | "compaction" | "unknown";
 
 export type ToolStatus = "completed" | "error" | "pending" | "running" | "unknown";
 
@@ -206,6 +207,14 @@ export interface OcPartToolData {
   timeEnd: number | null; // part.data.state.time.end
 }
 
+/** Context compaction — confirmed live 2026-08-02 (data-model §5). Only the three fields actually observed; opencode has no pre-compaction token count. */
+export interface OcPartCompactionData {
+  type: "compaction";
+  auto: boolean; // part.data.auto — triggered automatically vs. user-invoked
+  overflow: boolean; // part.data.overflow — triggered because the context window overflowed
+  tailStartId: string; // part.data.tail_start_id — message.id of the first message retained after the compacted head
+}
+
 /** A part type not in the verified set — never thrown away, always rendered as a labelled placeholder. */
 export interface OcPartUnknownData {
   type: "unknown";
@@ -219,6 +228,7 @@ export type OcPartData =
   | OcPartStepStartData
   | OcPartStepFinishData
   | OcPartToolData
+  | OcPartCompactionData
   | OcPartUnknownData;
 
 export interface OcPart {

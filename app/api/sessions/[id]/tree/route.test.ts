@@ -75,8 +75,8 @@ describe("GET /api/sessions/[id]/tree", () => {
     expect(body.data.cost).toEqual({ amount: 0, priced: false });
     expect(body.data.children.map((child) => child.cost.priced)).toEqual([true, true, true]);
     const rollup = inclusiveSubagentRollup(body.data);
-    expect(rollup.tokens).toEqual({ input: 377_114, output: 60_747, reasoning: 10_172, cacheRead: 130_482, cacheWrite: 20_497 });
-    expect(rollup.toolCallCount).toBe(284);
+    expect(rollup.tokens).toEqual({ input: 381_421, output: 58_748, reasoning: 10_307, cacheRead: 121_297, cacheWrite: 20_574 });
+    expect(rollup.toolCallCount).toBe(289);
     expect(rollup.cost).toEqual({ amount: 0, priced: false });
   });
 

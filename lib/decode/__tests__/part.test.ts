@@ -15,6 +15,13 @@ const STEP_FINISH_RAW = JSON.stringify({
   cost: 0,
   tokens: { total: 7933, input: 7912, output: 6, reasoning: 15, cache: { write: 0, read: 0 } },
 });
+// Real shape confirmed live against a developer's opencode.db on 2026-08-02 (data-model §5).
+const COMPACTION_RAW = JSON.stringify({
+  type: "compaction",
+  auto: true,
+  overflow: false,
+  tail_start_id: "msg_fc2bf37c6001K6Sh2mjXGJQsKN",
+});
 const TOOL_RAW = JSON.stringify({
   type: "tool",
   tool: "write",
@@ -62,6 +69,23 @@ describe("decodePartData", () => {
       cost: 0,
       tokens: { input: 7912, output: 6, reasoning: 15, cacheRead: 0, cacheWrite: 0 },
     });
+  });
+
+  it("decodes the verbatim compaction sample", () => {
+    const { value, warnings } = decodePartData(COMPACTION_RAW);
+    expect(warnings).toEqual([]);
+    expect(value).toEqual({
+      type: "compaction",
+      auto: true,
+      overflow: false,
+      tailStartId: "msg_fc2bf37c6001K6Sh2mjXGJQsKN",
+    });
+  });
+
+  it("falls back to unknown, with a warning, when a compaction part is missing auto/overflow/tail_start_id", () => {
+    const { value, warnings } = decodePartData(JSON.stringify({ type: "compaction" }));
+    expect(value.type).toBe("unknown");
+    expect(warnings.some((w) => w.code === "malformed-compaction")).toBe(true);
   });
 
   it("decodes the verbatim tool sample", () => {
@@ -131,7 +155,7 @@ describe("decodeParts (batch)", () => {
   it("aggregates warnings across a batch by code — 3 unknown types in 100 parts is one warning with count 3", () => {
     const raws: string[] = [];
     for (let i = 0; i < 100; i++) {
-      raws.push(i < 3 ? JSON.stringify({ type: "compaction" }) : TEXT_RAW);
+      raws.push(i < 3 ? JSON.stringify({ type: "patch", files: [] }) : TEXT_RAW);
     }
     const { values, warnings } = decodeParts(raws);
     expect(values).toHaveLength(100);

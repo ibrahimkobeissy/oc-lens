@@ -29,7 +29,7 @@ export function Sidebar() {
     <aside
       data-slot="sidebar"
       className={cn(
-        "hidden md:flex md:flex-col md:shrink-0 md:border-r md:border-border md:bg-surface md:transition-[width] md:duration-150",
+        "hidden md:sticky md:top-0 md:flex md:h-screen md:flex-col md:shrink-0 md:border-r md:border-border md:bg-surface md:transition-[width] md:duration-150",
         collapsed ? "md:w-14" : "md:w-56",
       )}
     >

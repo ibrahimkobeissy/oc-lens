@@ -1,4 +1,5 @@
 import type { OcPartData, OcWarning, ToolStatus } from "@/types/oc";
+import { decodeCompactionData } from "./compaction";
 import { asNumber, asRecord, asString, safeJsonParse } from "./json";
 import { decodeTokens } from "./tokens";
 import { type Decoded, mergeWarnings, warning } from "./warnings";
@@ -23,9 +24,9 @@ function unknownPart(rawType: string, raw: unknown, extraWarning?: OcWarning): D
 
 /**
  * Decodes `part.data` into the OCL-010 discriminated union (data-model §5).
- * `patch`/`compaction`/`file`/`agent`/`snapshot` are ⚠️ UNVERIFIED — not
- * decoded here; they fall through to the `unknown` variant until OCL-055/
- * OCL-103 add their verified shape.
+ * `patch`/`file`/`agent`/`snapshot` are still ⚠️ UNVERIFIED — not decoded
+ * here; they fall through to the `unknown` variant until OCL-103 adds its
+ * verified shape. `compaction` was confirmed live on 2026-08-02.
  */
 export function decodePartData(raw: string | null): Decoded<OcPartData> {
   const parsed = safeJsonParse(raw);
@@ -89,6 +90,13 @@ export function decodePartData(raw: string | null): Decoded<OcPartData> {
         },
         warnings: status.warnings,
       };
+    }
+
+    case "compaction": {
+      const compaction = decodeCompactionData(obj);
+      return compaction
+        ? { value: compaction, warnings: [] }
+        : unknownPart("compaction", parsed.value, warning("malformed-compaction", "part.data.type was 'compaction' but auto/overflow/tail_start_id were missing or the wrong type"));
     }
 
     default:

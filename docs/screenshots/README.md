@@ -1,11 +1,9 @@
 # Screenshot ledger
 
-This is the complete planned screenshot inventory for the 15 shipped pages: one 1440 × 1200 PNG in each theme, for 30 assets total.
+This is the complete screenshot inventory for the 15 shipped pages: one 1440 × 1200 PNG in each theme, for 30 assets total.
 
-> [!WARNING]
-> **Capture status: blocked; 0 of 30 assets exist.** On 2026-08-01 the sandbox rejected the fixture-backed loopback server with `listen EPERM: operation not permitted 127.0.0.1:43131`. The required escalated execution was then rejected because the execution-approval usage limit was exhausted until 2026-08-08 13:05 Europe/Paris. No placeholder, copied image, or fabricated capture has been committed. OCL-131 cannot satisfy its screenshot acceptance criterion until the real captures are produced.
-
-When capture is unblocked, use the deterministic `test/fixtures/populated.db`, the fixture's stable `ses_0000` and `proj_infra` detail records, and an isolated local pricing file with explicit documentation-only rates. Do not read a personal opencode database or real pricing configuration.
+> [!NOTE]
+> **Capture status: complete; 30 of 30 assets committed (2026-08-02).** Captured from `pnpm dev` bound to loopback, using the deterministic `test/fixtures/populated.db` and an isolated `XDG_CONFIG_HOME` pricing file with documentation-only rates (see Reproducibility below). No personal opencode database or real pricing configuration was read.
 
 | Page | Route captured | Light asset | Dark asset |
 | --- | --- | --- | --- |
@@ -27,6 +25,15 @@ When capture is unblocked, use the deterministic `test/fixtures/populated.db`, t
 
 ## Reproducibility
 
-Start the capture server against an absolute fixture path and a temporary `XDG_CONFIG_HOME`, never the default database or pricing locations. Give the six fixture models deterministic nonzero USD-per-million-token rates solely so every cost-capable page demonstrates priced data. Run Firefox headlessly with isolated light and dark profiles, and load each route from the local loopback server.
+Start the capture server against an absolute fixture path and a temporary `XDG_CONFIG_HOME`, never the default database or pricing locations:
+
+```sh
+pnpm fixture
+OC_LENS_DB="$PWD/test/fixtures/populated.db" XDG_CONFIG_HOME=/tmp/oc-lens-shots-config pnpm dev --port 4173
+```
+
+Give the six fixture models (`opencode/deepseek-v4-flash-free`, `opencode/qwen3-coder`, `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5`, `openai/gpt-5-mini`, `google/gemini-2.5-pro`) deterministic nonzero USD-per-million-token rates in `$XDG_CONFIG_HOME/oc-lens/config.json` solely so every cost-capable page demonstrates priced data.
+
+Capture with a headless Chromium driven by Playwright (`pip install playwright && playwright install chromium`), one browser context per theme: a 1440×1200 viewport, `color_scheme` set to `light`/`dark` so `prefers-color-scheme` resolves correctly, and an `add_init_script` that seeds `localStorage["oc-lens-theme"]` before the app's own theme script runs. For each of the 15 routes, navigate with `wait_until="networkidle"`, wait an additional ~600ms for client-side data fetches to settle, then screenshot to PNG. Load each route from the local loopback server only.
 
 The PNGs are documentation artifacts, not visual-regression baselines. Regenerate the full ledger after a material shipped-page layout change, and verify every file is a decoded PNG of the expected dimensions before committing it.

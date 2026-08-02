@@ -45,22 +45,47 @@ describe("GET /api/sessions/tree", () => {
     cleanupTempDir(directory);
   });
 
-  it("returns all four spawning roots unpaginated and all eight fixture subagents", async () => {
+  it("returns all five spawning roots unpaginated and all eight fixture subagents", async () => {
     const response = await GET();
     const body = await payload(response);
 
     expect(dynamic).toBe("force-dynamic");
     expect(response.status).toBe(200);
     if (!("data" in body)) throw new Error("expected subagent roots envelope");
-    expect(body.data.map((root) => root.sessionId)).toEqual(["ses_0000", "ses_0003", "ses_0005", "ses_0007"]);
+    expect(body.data.map((root) => root.sessionId)).toEqual(["ses_0001", "ses_0004", "ses_0005", "ses_0006", "ses_0007"]);
     expect(body.data.reduce((total, root) => total + descendantCount(root), 0)).toBe(8);
     expect(Object.fromEntries(body.data.map((root) => [root.sessionId, root.children.map((child) => child.sessionId)]))).toEqual({
-      ses_0000: ["ses_0035", "ses_0036", "ses_0038"],
-      ses_0003: ["ses_0037"],
-      ses_0005: ["ses_0034", "ses_0039"],
-      ses_0007: ["ses_0033", "ses_0040"],
+      ses_0001: ["ses_0037"],
+      ses_0004: ["ses_0038", "ses_0040"],
+      ses_0005: ["ses_0034"],
+      ses_0006: ["ses_0035", "ses_0036", "ses_0039"],
+      ses_0007: ["ses_0033"],
     });
     expect(body.data.every((root) => root.cost.priced === false)).toBe(true);
+  });
+
+  it("chunks pricing-evidence lookups so a tree with more than one chunk of ids doesn't lose any warnings (code-review-2026-08-02.md M6)", async () => {
+    const db = new DatabaseSync(databasePath);
+    db.exec("INSERT INTO project (id, worktree, name) VALUES ('wide', '/wide', 'wide') ON CONFLICT(id) DO NOTHING;");
+    db.exec("INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated) VALUES ('ses_wide_root', 'wide', 'wide-root', '/wide', 'Wide root', '1', 1, 1);");
+    const insertChild = db.prepare(
+      "INSERT INTO session (id, project_id, parent_id, slug, directory, title, version, time_created, time_updated) VALUES (?, 'wide', 'ses_wide_root', ?, '/wide', 'child', '1', 1, 1)",
+    );
+    const CHILD_COUNT = 850; // > the 800-per-chunk size, so at least 2 chunks are required
+    for (let i = 0; i < CHILD_COUNT; i++) insertChild.run(`ses_wide_child_${i.toString().padStart(4, "0")}`, `wide-child-${i}`);
+    // Deliberately malformed, on a child whose id only appears in the *second* chunk.
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('msg_wide_bad', 'ses_wide_child_0805', 1, 1, '{not json')").run();
+    db.close();
+    resetConnectionForTests();
+
+    const response = await GET();
+    const body = await payload(response);
+    expect(response.status).toBe(200);
+    if (!("data" in body)) throw new Error("expected subagent roots envelope");
+    const wideRoot = body.data.find((root) => root.sessionId === "ses_wide_root");
+    expect(wideRoot).toBeDefined();
+    expect(descendantCount(wideRoot!)).toBe(CHILD_COUNT);
+    expect(body.meta.warnings).toContainEqual(expect.objectContaining({ code: "malformed-message-data" }));
   });
 
   it("returns an exact empty list when no session spawned descendants", async () => {

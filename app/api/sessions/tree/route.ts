@@ -34,6 +34,11 @@ function applySessionCosts(node: SubagentNode, costs: ReadonlyMap<string, OcCost
   };
 }
 
+// SQLite's ~32k bound-parameter limit means a single unchunked `IN (...)` over every
+// subagent id would throw for a large enough tree (code-review-2026-08-02.md M6) —
+// same chunk size already used for this reason in lib/queries/sessions.ts.
+const ID_CHUNK_SIZE = 800;
+
 function pricingEvidenceWarnings(db: Parameters<typeof query>[0], trees: readonly SubagentNode[]): OcWarning[] {
   const sessionIds = new Set<string>();
   const visit = (node: SubagentNode): void => {
@@ -43,9 +48,13 @@ function pricingEvidenceWarnings(db: Parameters<typeof query>[0], trees: readonl
   trees.forEach(visit);
   if (sessionIds.size === 0) return [];
   const ids = [...sessionIds];
-  const placeholders = ids.map(() => "?").join(", ");
-  const warnings = query<MessageDataRow>(db, `SELECT data FROM message WHERE session_id IN (${placeholders})`, ids)
-    .flatMap((row) => decodeMessageData(row.data).warnings);
+  const warnings: OcWarning[] = [];
+  for (let offset = 0; offset < ids.length; offset += ID_CHUNK_SIZE) {
+    const chunk = ids.slice(offset, offset + ID_CHUNK_SIZE);
+    const placeholders = chunk.map(() => "?").join(", ");
+    warnings.push(...query<MessageDataRow>(db, `SELECT data FROM message WHERE session_id IN (${placeholders})`, chunk)
+      .flatMap((row) => decodeMessageData(row.data).warnings));
+  }
   return mergeWarnings([warnings]);
 }
 

@@ -54,7 +54,7 @@ export function SessionTable(props: SessionTableProps) {
           <TableBody>{sessions.map((session) => {
             const messages = session.messageCounts.user + session.messageCounts.assistant;
             return <TableRow key={session.id}>
-              <TableCell className="max-w-80 whitespace-normal"><div className="space-y-1.5"><Link className="font-medium text-foreground hover:text-primary hover:underline" href={`/sessions/${encodeURIComponent(session.id)}`}>{session.title}</Link><p className="font-mono text-xs text-muted-foreground">{session.slug}</p><SessionBadges session={session} /></div></TableCell>
+              <TableCell className="max-w-80"><div className="space-y-1.5"><Link className="block truncate font-medium text-foreground hover:text-primary hover:underline" href={`/sessions/${encodeURIComponent(session.id)}`} title={session.title}>{session.title}</Link><p className="truncate font-mono text-xs text-muted-foreground">{session.slug}</p><SessionBadges session={session} /></div></TableCell>
               <TableCell><time suppressHydrationWarning dateTime={new Date(session.timeCreated).toISOString()}>{new Date(session.timeCreated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time></TableCell>
               <TableCell>{session.projectDisplayName}</TableCell>
               <TableCell>{session.agent ?? "unknown"}</TableCell>

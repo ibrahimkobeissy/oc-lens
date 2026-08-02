@@ -55,6 +55,23 @@ describe("config reader", () => {
     });
   });
 
+  it("never attempts a relative or traversal-containing worktree (code-review-2026-08-02.md L5)", () => {
+    const globalDir = join(dir, "config-home", "opencode");
+    fs.mkdirSync(globalDir, { recursive: true });
+    fs.writeFileSync(join(globalDir, "opencode.jsonc"), '{"theme":"safe"}');
+    vi.clearAllMocks();
+
+    const result = readOpencodeConfig({
+      configHome: join(dir, "config-home"),
+      projectWorktrees: ["relative/path", "../../etc", "/legit/../../../etc"],
+    });
+
+    expect(result).toEqual({ theme: "safe" });
+    const opened = vi.mocked(fs.readFileSync).mock.calls.map(([path]) => String(path));
+    expect(opened).toEqual([join(globalDir, "opencode.jsonc")]);
+    expect(opened.some((path) => path.includes("etc"))).toBe(false);
+  });
+
   it("never opens auth.json or account.json", () => {
     const globalDir = join(dir, "opencode");
     fs.mkdirSync(globalDir, { recursive: true });

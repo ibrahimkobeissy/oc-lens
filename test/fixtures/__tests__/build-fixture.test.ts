@@ -136,6 +136,45 @@ describe("fixture row counts and required scenarios", () => {
     });
   });
 
+  it("has at least one compaction part, shaped exactly as confirmed live on 2026-08-02", () => {
+    withFixture((db) => {
+      const rows = db.prepare("SELECT data FROM part").all() as Array<{ data: string }>;
+      let compactionCount = 0;
+      for (const row of rows) {
+        try {
+          const parsed = JSON.parse(row.data) as { type?: string; auto?: unknown; overflow?: unknown; tail_start_id?: unknown };
+          if (parsed.type !== "compaction") continue;
+          compactionCount++;
+          expect(typeof parsed.auto).toBe("boolean");
+          expect(typeof parsed.overflow).toBe("boolean");
+          expect(typeof parsed.tail_start_id).toBe("string");
+        } catch {
+          // malformed-JSON dirt row — expected, skip.
+        }
+      }
+      expect(compactionCount).toBeGreaterThanOrEqual(MINIMUMS.compactionParts);
+    });
+  });
+
+  it("has at least one patch part, shaped exactly as confirmed live on 2026-08-02", () => {
+    withFixture((db) => {
+      const rows = db.prepare("SELECT data FROM part").all() as Array<{ data: string }>;
+      let patchCount = 0;
+      for (const row of rows) {
+        try {
+          const parsed = JSON.parse(row.data) as { type?: string; hash?: unknown; files?: unknown };
+          if (parsed.type !== "patch") continue;
+          patchCount++;
+          expect(typeof parsed.hash).toBe("string");
+          expect(Array.isArray(parsed.files)).toBe(true);
+        } catch {
+          // malformed-JSON dirt row — expected, skip.
+        }
+      }
+      expect(patchCount).toBeGreaterThanOrEqual(MINIMUMS.patchParts);
+    });
+  });
+
   it("has at least one pending and one running tool call", () => {
     withFixture((db) => {
       const rows = db.prepare("SELECT data FROM part").all() as Array<{ data: string }>;

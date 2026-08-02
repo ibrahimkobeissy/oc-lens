@@ -19,6 +19,8 @@ export const MINIMUMS = {
   parts: 12000,
   errorToolCalls: 40,
   skillNames: 5,
+  compactionParts: 1,
+  patchParts: 1,
 } as const;
 
 /** The one session generated with exactly 400 messages. */

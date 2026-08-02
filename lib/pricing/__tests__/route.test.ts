@@ -1,18 +1,42 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanupTempDir, makeTempDir } from "@/lib/db/__tests__/test-db";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetConnectionForTests, type ConnectResult } from "@/lib/db/connection";
+import { cleanupTempDir, createFullSchemaDb, makeTempDir } from "@/lib/db/__tests__/test-db";
 import { resetPricingForTests } from "../config";
+
+// Overridable so the missing-database path is deterministic instead of depending
+// on whether this machine happens to have a real opencode DB (project rule: test
+// against the fixture, never the developer's real DB).
+const connectionOverride = vi.hoisted((): { value: ConnectResult | undefined } => ({ value: undefined }));
+
+vi.mock("@/lib/db/connection", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/db/connection")>();
+  return {
+    ...actual,
+    getConnection: (...args: Parameters<typeof actual.getConnection>): ConnectResult =>
+      connectionOverride.value ?? actual.getConnection(...args),
+  };
+});
 
 describe("GET/PUT /api/pricing", () => {
   let dir: string;
+  let dbPath: string;
   let originalXdg: string | undefined;
+  let originalDb: string | undefined;
 
   beforeEach(() => {
     dir = makeTempDir();
+    dbPath = join(dir, "opencode.db");
+    createFullSchemaDb(dbPath);
+
     originalXdg = process.env.XDG_CONFIG_HOME;
     process.env.XDG_CONFIG_HOME = dir;
+    originalDb = process.env.OC_LENS_DB;
+    process.env.OC_LENS_DB = dbPath;
+    connectionOverride.value = undefined;
+    resetConnectionForTests();
   });
 
   afterEach(() => {
@@ -22,10 +46,17 @@ describe("GET/PUT /api/pricing", () => {
     } else {
       process.env.XDG_CONFIG_HOME = originalXdg;
     }
+    if (originalDb === undefined) {
+      delete process.env.OC_LENS_DB;
+    } else {
+      process.env.OC_LENS_DB = originalDb;
+    }
+    connectionOverride.value = undefined;
+    resetConnectionForTests();
     cleanupTempDir(dir);
   });
 
-  it("GET returns the default empty config plus pricableModels (no DB present here)", async () => {
+  it("GET returns the default empty config plus pricableModels from the fixture database", async () => {
     const { GET } = await import("@/app/api/pricing/route");
     const response = await GET();
     const body = await response.json();
@@ -34,6 +65,18 @@ describe("GET/PUT /api/pricing", () => {
       expect(body.data.version).toBe(1);
       expect(body.data.prices).toEqual({});
       expect(Array.isArray(body.data.pricableModels)).toBe(true);
+    }
+  });
+
+  it("GET reports a database_not_found error honestly instead of a silent empty model list", async () => {
+    connectionOverride.value = { ok: false, reason: "not-found", searched: [join(dir, "does-not-exist.db")] };
+    const { GET } = await import("@/app/api/pricing/route");
+    const response = await GET();
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect("error" in body).toBe(true);
+    if ("error" in body) {
+      expect(body.error.code).toBe("database_not_found");
     }
   });
 
@@ -104,7 +147,17 @@ describe("GET/PUT /api/pricing", () => {
 
 // Sanity check this file itself doesn't accidentally touch the real user config dir.
 describe("test isolation", () => {
-  it("XDG_CONFIG_HOME override does not point at the real home directory", () => {
-    expect(process.env.XDG_CONFIG_HOME).not.toBe(join(homedir(), ".config"));
+  it("the temp dir used to override XDG_CONFIG_HOME is never the real home config directory", () => {
+    // Checking against the ambient XDG_CONFIG_HOME is unsound: real environments
+    // (including GitHub-hosted runners) may legitimately have it set to exactly
+    // `$HOME/.config`, which made this assertion fail on CI while passing locally.
+    // `makeTempDir()` is rooted under `os.tmpdir()`, so this is always true regardless
+    // of what XDG_CONFIG_HOME happens to resolve to on the machine running the suite.
+    const dir = makeTempDir();
+    try {
+      expect(dir).not.toBe(join(homedir(), ".config"));
+    } finally {
+      cleanupTempDir(dir);
+    }
   });
 });

@@ -35,3 +35,21 @@ export function storedCostComparison(db: DatabaseSync): number {
   const rows = query<SessionCostRow>(db, "SELECT cost FROM session");
   return rows.reduce((sum, row) => sum + (row.cost ?? 0), 0);
 }
+
+/**
+ * `storedCostComparison`, scoped to the same half-open `[from, to)` window as
+ * a ranged request. A ranged response must compare like with like — every
+ * caller that applies a date range to its own cost figures must use this
+ * instead of the all-time `storedCostComparison` (code-review-2026-08-02.md M1:
+ * `/api/stats` previously used the all-time figure while `/api/costs` scoped
+ * it locally, so the same range showed two different provider-reported costs).
+ */
+export function storedCostInRange(db: DatabaseSync, range: { from?: number; to?: number }): number {
+  const clauses: string[] = [];
+  const params: number[] = [];
+  if (range.from !== undefined) { clauses.push("time_created >= ?"); params.push(range.from); }
+  if (range.to !== undefined) { clauses.push("time_created < ?"); params.push(range.to); }
+  const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
+  return query<SessionCostRow>(db, `SELECT cost FROM session${where}`, params)
+    .reduce((sum, row) => sum + (row.cost ?? 0), 0);
+}

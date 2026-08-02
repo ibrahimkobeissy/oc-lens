@@ -38,10 +38,20 @@ export function groupConsecutiveToolParts(parts: readonly ReplayPart[]): ReplayT
   return result;
 }
 
+/**
+ * `userOverride === null` means no explicit click yet, so the target/default wins; once
+ * the user clicks, their choice sticks even while `?part=` still targets this group.
+ * (code-review-2026-08-02.md M4: "Collapse calls" previously did nothing, because
+ * `userExpanded || targetExpanded` kept forcing the group back open regardless of the click.)
+ */
+export function effectiveExpanded(userOverride: boolean | null, targetExpanded: boolean, defaultExpanded: boolean): boolean {
+  return userOverride ?? (targetExpanded || defaultExpanded);
+}
+
 export function ToolGroup({ parts, turn, defaultExpanded = false, targetPartId }: { parts: ReplayPart[]; turn: ReplayTurn; defaultExpanded?: boolean; targetPartId?: string | null }) {
-  const [userExpanded, setUserExpanded] = useState(defaultExpanded);
+  const [userOverride, setUserOverride] = useState<boolean | null>(null);
   const targetExpanded = targetPartId !== null && targetPartId !== undefined && parts.some((part) => part.id === targetPartId);
-  const expanded = userExpanded || targetExpanded;
+  const expanded = effectiveExpanded(userOverride, targetExpanded, defaultExpanded);
   const first = parts.find((part) => part.data.type === "tool");
   const tool = first?.data.type === "tool" ? first.data.tool : "";
   const category = categorizeTool(tool);
@@ -60,7 +70,7 @@ export function ToolGroup({ parts, turn, defaultExpanded = false, targetPartId }
         {statuses.running > 0 ? <Badge>{statuses.running} running</Badge> : null}
         {statuses.unknown > 0 ? <Badge variant="outline">{statuses.unknown} unknown</Badge> : null}
       </div>
-      <Button type="button" variant="ghost" size="xs" aria-expanded={expanded} onClick={() => setUserExpanded((value) => !value)}>
+      <Button type="button" variant="ghost" size="xs" aria-expanded={expanded} onClick={() => setUserOverride(!expanded)}>
         {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
         {expanded ? "Collapse calls" : "Expand calls"}
       </Button>

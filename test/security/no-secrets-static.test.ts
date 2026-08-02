@@ -3,7 +3,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
-const SCAN_DIRS = ["app", "lib", "components"];
+const SCAN_DIRS = ["app", "lib", "components", "types", "bin", "hooks", "design-system"];
 
 /**
  * `lib/db/connection.ts` legitimately names the four denylisted tables in its
@@ -15,6 +15,14 @@ const SCAN_DIRS = ["app", "lib", "components"];
  * name these strings.
  */
 const ALLOWLISTED_FILES = new Set(["lib/db/connection.ts", "lib/db/__tests__/connection.test.ts"]);
+
+/**
+ * Exact substrings stripped from source before scanning — legitimate,
+ * non-leaking uses of an otherwise-forbidden term (e.g. `types/oc.ts`
+ * documenting a field as "credential-free"). Unlike `ALLOWLISTED_FILES`,
+ * this doesn't exempt the rest of the file from scanning.
+ */
+const ALLOWLISTED_PHRASES = ["credential-free"];
 
 const FORBIDDEN = [
   "auth.json",
@@ -33,7 +41,7 @@ function walkSourceFiles(dir: string, out: string[] = []): string[] {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
       walkSourceFiles(full, out);
-    } else if (/\.(ts|tsx)$/.test(entry)) {
+    } else if (/\.(ts|tsx|js)$/.test(entry)) {
       out.push(full);
     }
   }
@@ -41,7 +49,7 @@ function walkSourceFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe("no secret-adjacent string appears outside the denylist constant", () => {
-  it("scans app/, lib/, components/ for auth.json, account.json, access_token, refresh_token, and the four denylisted table names", () => {
+  it("scans app/, lib/, components/, types/, bin/, hooks/, design-system/ for auth.json, account.json, access_token, refresh_token, and the four denylisted table names", () => {
     const violations: string[] = [];
 
     for (const scanDir of SCAN_DIRS) {
@@ -52,7 +60,8 @@ describe("no secret-adjacent string appears outside the denylist constant", () =
         const rel = relative(ROOT, file).replace(/\\/g, "/");
         if (ALLOWLISTED_FILES.has(rel)) continue;
 
-        const source = readFileSync(file, "utf8");
+        let source = readFileSync(file, "utf8");
+        for (const phrase of ALLOWLISTED_PHRASES) source = source.replaceAll(phrase, "");
         for (const term of FORBIDDEN) {
           const pattern = new RegExp(`\\b${term.replace(/\./g, "\\.")}\\b`, "i");
           if (pattern.test(source)) {

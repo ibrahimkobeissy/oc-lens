@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, normalize, sep } from "node:path";
 
 type JsonObject = Record<string, unknown>;
 
@@ -127,6 +127,18 @@ function mergeObjects(base: JsonObject, override: JsonObject): JsonObject {
   return merged;
 }
 
+/**
+ * `project.worktree` is a DB-controlled value concatenated into a filesystem
+ * path this function reads (code-review-2026-08-02.md L5). Only an absolute
+ * path with no `..` segment is trusted — `readFile`'s no-symlink check
+ * mitigates further, but a malformed/adversarial worktree value shouldn't
+ * even reach `join()` with an unvalidated relative or traversal segment.
+ */
+function isSafeWorktree(worktree: string): boolean {
+  if (!isAbsolute(worktree)) return false;
+  return !normalize(worktree).split(sep).includes("..");
+}
+
 function globalConfigPath(options: ConfigReadOptions): string {
   const configHome = options.configHome ?? process.env.XDG_CONFIG_HOME;
   const base = configHome && configHome.length > 0 ? configHome : join(options.homeDir ?? homedir(), ".config");
@@ -142,7 +154,7 @@ export function readOpencodeConfig(options: ConfigReadOptions = {}): JsonObject 
   const paths = [
     globalConfigPath(options),
     ...[...new Set(options.projectWorktrees ?? [])]
-      .filter((worktree) => worktree.length > 0 && worktree !== "/")
+      .filter((worktree) => worktree.length > 0 && worktree !== "/" && isSafeWorktree(worktree))
       .sort()
       .flatMap((worktree) => [join(worktree, "opencode.jsonc"), join(worktree, "opencode.json")]),
   ];

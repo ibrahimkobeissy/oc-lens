@@ -2,8 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatCost } from "@/lib/format";
 import type { CostBreakdown } from "@/types/oc";
 
-function providerCost(value: number): string {
-  if (value === 0) return "not reported";
+/** Exported for direct testing (code-review-2026-08-02.md L4: the old `value === 0` check let a negative or non-finite value through as `-$x`/`$NaN`). */
+export function providerCost(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "not reported";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
 }
 

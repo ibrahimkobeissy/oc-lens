@@ -14,7 +14,18 @@ const ALLOWED_EXTRA: Record<string, string[]> = {
 };
 const DEFAULT_ALLOWED = ["GET", "HEAD", "OPTIONS"];
 
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
+type HttpMethod = (typeof HTTP_METHODS)[number];
+
+function isHttpMethod(value: string): value is HttpMethod {
+  return (HTTP_METHODS as readonly string[]).includes(value);
+}
+
 const HTTP_EXPORT_RE = /export\s+(?:default\s+)?(?:async\s+function|function|const)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g;
+// `export { name }` / `export { name as ALIAS }` — Next.js binds a route handler by the
+// *final* exported name, so `export { handler as POST }` is a real POST handler even
+// though nothing named `POST` was ever declared with `function`/`const` (code-review-2026-08-02.md M5).
+const HTTP_REEXPORT_BLOCK_RE = /export\s*\{([^}]*)\}/g;
 
 function findHttpExports(source: string): string[] {
   const found = new Set<string>();
@@ -24,6 +35,19 @@ function findHttpExports(source: string): string[] {
     const method = match[1];
     if (method !== undefined) found.add(method);
   }
+
+  HTTP_REEXPORT_BLOCK_RE.lastIndex = 0;
+  let blockMatch: RegExpExecArray | null;
+  while ((blockMatch = HTTP_REEXPORT_BLOCK_RE.exec(source))) {
+    for (const entry of (blockMatch[1] ?? "").split(",")) {
+      const trimmed = entry.trim();
+      if (!trimmed) continue;
+      const asMatch = /^\S+\s+as\s+(\S+)$/.exec(trimmed);
+      const exportedName = asMatch?.[1] ?? trimmed;
+      if (isHttpMethod(exportedName)) found.add(exportedName);
+    }
+  }
+
   return [...found];
 }
 
@@ -97,5 +121,20 @@ describe("disallowedExports (detection proof)", () => {
   it("still flags POST/DELETE on app/api/pricing/route.ts — only PUT is sanctioned there", () => {
     const source = "export async function DELETE() {}\n";
     expect(disallowedExports("app/api/pricing/route.ts", source)).toEqual(["DELETE"]);
+  });
+
+  it("flags a re-exported handler aliased to an HTTP method name, not just direct function/const declarations", () => {
+    const source = "async function handler() {}\nexport { handler as POST };\n";
+    expect(disallowedExports("app/api/sessions/route.ts", source)).toEqual(["POST"]);
+  });
+
+  it("flags a direct named re-export with no alias", () => {
+    const source = "async function POST() {}\nexport { POST };\n";
+    expect(disallowedExports("app/api/sessions/route.ts", source)).toEqual(["POST"]);
+  });
+
+  it("does not flag a POST-named local binding re-exported under a safe alias — Next.js binds by the final exported name", () => {
+    const source = "async function POST() {}\nexport { POST as internalPostHelper };\n";
+    expect(disallowedExports("app/api/sessions/route.ts", source)).toEqual([]);
   });
 });

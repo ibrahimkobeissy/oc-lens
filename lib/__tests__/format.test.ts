@@ -19,6 +19,12 @@ describe("formatCost", () => {
     expect(formatCost({ amount: 12.3, priced: true })).toBe("$12.30");
     expect(formatCost({ amount: 1234.5, priced: true })).toBe("$1,234.50");
   });
+
+  it("falls back to 'not priced' rather than $NaN/$Infinity for a non-finite priced:true amount (code-review-2026-08-02.md L2)", () => {
+    expect(formatCost({ amount: Number.NaN, priced: true })).toBe("not priced");
+    expect(formatCost({ amount: Number.POSITIVE_INFINITY, priced: true })).toBe("not priced");
+    expect(formatCost({ amount: Number.NEGATIVE_INFINITY, priced: true })).toBe("not priced");
+  });
 });
 
 describe("formatNumber", () => {

@@ -83,6 +83,27 @@ describe("costBreakdown", () => {
     expect(result.bySession.find((s) => s.sessionId === "ses_1")?.cost.amount).toBeCloseTo(5, 6);
   });
 
+  it("scopes the underlying session/message scan to sessionIds instead of the whole database (code-review-2026-08-02.md M2)", () => {
+    const config: PricingConfig = {
+      version: 1,
+      prices: {
+        "opencode/priced-model": { inputPerMTok: 5, outputPerMTok: 5, cacheReadPerMTok: 5, cacheWritePerMTok: 5, currency: "USD" },
+        "opencode/unpriced-model": { inputPerMTok: 5, outputPerMTok: 5, cacheReadPerMTok: 5, cacheWritePerMTok: 5, currency: "USD" },
+      },
+      updatedAt: 1,
+    };
+
+    const scoped = costBreakdown(db, config, "UTC", {}, ["ses_1"]);
+    expect(scoped.bySession.map((s) => s.sessionId)).toEqual(["ses_1"]);
+    expect(scoped.bySession.find((s) => s.sessionId === "ses_2")).toBeUndefined();
+    expect(scoped.byModel.find((m) => m.modelID === "unpriced-model")).toBeUndefined();
+    expect(scoped.totalCost.amount).toBeCloseTo(5, 6);
+
+    const unscoped = costBreakdown(db, config, "UTC", {}, undefined);
+    expect(unscoped.bySession.map((s) => s.sessionId).sort()).toEqual(["ses_1", "ses_2"]);
+    expect(unscoped.totalCost.amount).toBeCloseTo(10, 6);
+  });
+
   it("attributes costs from message agent evidence rather than the session default", () => {
     const config: PricingConfig = {
       version: 1,

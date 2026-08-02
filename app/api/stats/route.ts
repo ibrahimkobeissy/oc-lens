@@ -4,6 +4,7 @@ import { schemaVersion } from "@/lib/db/schema-guard";
 import { getOverviewStats } from "@/lib/queries/projects";
 import { costBreakdown } from "@/lib/pricing/breakdown";
 import { readPricing } from "@/lib/pricing/config";
+import { storedCostInRange } from "@/lib/pricing/cost";
 import type { OcResponse, OverviewStats, StatsRouteResponse } from "@/types/oc";
 
 export const dynamic = "force-dynamic";
@@ -44,13 +45,17 @@ export async function GET(request: Request): Promise<NextResponse<StatsRouteResp
     const window = rangeWindow(range as RangeName, now);
     const overview = getOverviewStats(connection.db, timeZone, now, window);
     const costs = costBreakdown(connection.db, readPricing(), timeZone, window);
+    // costBreakdown's own storedCostComparison is intentionally all-time (code-review-2026-08-02.md M1) —
+    // a ranged HTTP response must compare like with like, so scope it here, same as /api/costs.
+    const rangedStoredCost = storedCostInRange(connection.db, window);
+    const rangedCosts = { ...costs, storedCostComparison: rangedStoredCost };
     const modelCosts = new Map(costs.byModel.map((item) => [`${item.providerID}/${item.modelID}`, item.cost]));
     const projectCosts = new Map(costs.byProject.map((item) => [item.projectId, item.cost]));
     const data: OverviewStats = {
       ...overview.data,
       totalCost: costs.totalCost,
-      storedCostComparison: costs.storedCostComparison,
-      costBreakdown: costs,
+      storedCostComparison: rangedStoredCost,
+      costBreakdown: rangedCosts,
       modelBreakdown: overview.data.modelBreakdown.map((item) => ({ ...item, cost: modelCosts.get(`${item.providerID}/${item.modelID}`) ?? { amount: 0, priced: false } })),
       projectBreakdown: overview.data.projectBreakdown.map((item) => ({ ...item, cost: projectCosts.get(item.id) ?? { amount: 0, priced: false } })),
     };

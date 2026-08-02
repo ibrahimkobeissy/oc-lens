@@ -1,5 +1,12 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { MOBILE_NAV_ROUTES, ROUTES, matchRouteTrail } from "./routes";
+
+/** `href` -> the App Router page file it must resolve to, e.g. "/agents/tree" -> "app/agents/tree/page.tsx". */
+function pageFileFor(href: string): string {
+  return href === "/" ? join(process.cwd(), "app", "page.tsx") : join(process.cwd(), "app", ...href.split("/").filter(Boolean), "page.tsx");
+}
 
 describe("ROUTES", () => {
   it("registers every v1 page ticket's route", () => {
@@ -38,6 +45,11 @@ describe("ROUTES", () => {
       "/settings/pricing",
       "/style-guide",
     ]);
+  });
+
+  it("has a real page.tsx behind every route marked enabled (code-review-2026-08-02.md L8)", () => {
+    const missing = ROUTES.filter((r) => r.enabled).map((r) => r.href).filter((href) => !existsSync(pageFileFor(href)));
+    expect(missing).toEqual([]);
   });
 });
 

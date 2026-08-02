@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { groupConsecutiveToolParts, ToolGroup } from "./tool-group";
+import { effectiveExpanded, groupConsecutiveToolParts, ToolGroup } from "./tool-group";
 import type { ReplayPart, ReplayTurn } from "@/types/oc";
 
 function toolPart(id: string, tool: string, status: "completed" | "error" | "pending" | "running" | "unknown" = "completed"): ReplayPart {
@@ -61,5 +61,21 @@ describe("tool call grouping", () => {
     expect(before).not.toContain('data-part-id="two"');
     expect(afterTargetChange).toContain('aria-expanded="true"');
     expect(afterTargetChange).toContain('data-part-id="two"');
+  });
+
+  it("respects an explicit user collapse even while ?part= still targets this group (code-review-2026-08-02.md M4)", () => {
+    // This was the bug: the old `userExpanded || targetExpanded` formula meant clicking
+    // "Collapse calls" (userExpanded -> false) did nothing as long as targetExpanded stayed true.
+    expect(effectiveExpanded(false, true, false)).toBe(false);
+  });
+
+  it("respects an explicit user expand even when neither the target nor the default would open it", () => {
+    expect(effectiveExpanded(true, false, false)).toBe(true);
+  });
+
+  it("defers to the target/default before any explicit click", () => {
+    expect(effectiveExpanded(null, true, false)).toBe(true);
+    expect(effectiveExpanded(null, false, true)).toBe(true);
+    expect(effectiveExpanded(null, false, false)).toBe(false);
   });
 });

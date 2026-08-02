@@ -148,9 +148,10 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}, prici
     flags.set(row.session_id, state);
   }
   const parentIds = new Set(query<{ parent_id: string }>(db, "SELECT DISTINCT parent_id FROM session WHERE parent_id IS NOT NULL").map((row) => row.parent_id));
+  // Scoped to this page's session ids rather than a full-DB pass (code-review-2026-08-02.md M2).
   const costs = pricing === undefined
     ? new Map<string, SessionSummary["cost"]>()
-    : new Map(costBreakdown(db, pricing).bySession.map((entry) => [entry.sessionId, entry.cost]));
+    : new Map(costBreakdown(db, pricing, "UTC", {}, ids).bySession.map((entry) => [entry.sessionId, entry.cost]));
 
   const data = rows.map((row): SessionSummary => {
     const model = decodeSessionModel(row.model);

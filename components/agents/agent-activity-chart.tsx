@@ -10,14 +10,19 @@ export interface AgentActivityChartData {
 
 export function agentActivityChartData(points: readonly AgentActivityPoint[]): AgentActivityChartData {
   const agents = [...new Set(points.map((point) => point.agent))].sort((left, right) => left.localeCompare(right));
+  // Object.hasOwn, not `row[key] ?? 0` / `row[key] === undefined`: an agent literally
+  // named "toString" or "constructor" would otherwise read/skip the inherited
+  // Object.prototype member instead of treating it as an unset count
+  // (code-review-2026-08-02.md L9).
   const days = new Map<string, Record<string, string | number>>();
   for (const point of points) {
     const row = days.get(point.date) ?? { date: point.date };
-    row[point.agent] = Number(row[point.agent] ?? 0) + point.messageCount;
+    const previous = Object.hasOwn(row, point.agent) ? row[point.agent] : 0;
+    row[point.agent] = Number(previous) + point.messageCount;
     days.set(point.date, row);
   }
   const data = [...days.values()].sort((left, right) => String(left.date).localeCompare(String(right.date))).map((row) => {
-    for (const agent of agents) if (row[agent] === undefined) row[agent] = 0;
+    for (const agent of agents) if (!Object.hasOwn(row, agent)) row[agent] = 0;
     return row;
   });
   return { data, series: agents.map((agent) => ({ key: agent, label: agent })) };

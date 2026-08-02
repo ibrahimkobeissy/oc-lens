@@ -77,6 +77,13 @@ export function isPortAvailable(port, host = LOOPBACK_HOST) {
   });
 }
 
+/**
+ * Inherent check-then-use race (code-review-2026-08-02.md L7): another process could
+ * bind this port between this check and the child actually spawning. Left unclosed —
+ * closing it fully means the child reporting back its actual bound port, a larger
+ * protocol change. The narrow window is non-silent: if it's lost, the standalone
+ * server fails to bind and exits, which `waitForServer` already detects and reports.
+ */
 export async function selectPort(requestedPort, available = isPortAvailable) {
   if (requestedPort !== null) {
     if (await available(requestedPort)) return requestedPort;
@@ -129,7 +136,14 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-/** @param {string} url @param {import("node:child_process").ChildProcess} child @param {{ fetchImpl?: FetchLike, timeoutMs?: number, intervalMs?: number }} [options] */
+/**
+ * Polls `/api/health` rather than `url` itself and requires exactly 200
+ * (code-review-2026-08-02.md L6): `/api/health` always returns 200 once the
+ * app's own request handling actually works, regardless of the user's DB
+ * state, whereas `/` under the old `status < 500` check would have reported
+ * "Ready" even while serving a broken 404 page.
+ * @param {string} url @param {import("node:child_process").ChildProcess} child @param {{ fetchImpl?: FetchLike, timeoutMs?: number, intervalMs?: number }} [options]
+ */
 export async function waitForServer(url, child, { fetchImpl = fetch, timeoutMs = STARTUP_TIMEOUT_MS, intervalMs = 100 } = {}) {
   const deadline = Date.now() + timeoutMs;
   let spawnError = null;
@@ -138,8 +152,8 @@ export async function waitForServer(url, child, { fetchImpl = fetch, timeoutMs =
     if (spawnError) throw spawnError;
     if (child.exitCode !== null) throw new Error(`Standalone server exited before becoming ready (code ${child.exitCode}).`);
     try {
-      const response = await fetchImpl(url, { signal: AbortSignal.timeout(Math.min(1_000, Math.max(1, deadline - Date.now()))) });
-      if (response.status < 500) return;
+      const response = await fetchImpl(`${url}/api/health`, { signal: AbortSignal.timeout(Math.min(1_000, Math.max(1, deadline - Date.now()))) });
+      if (response.status === 200) return;
     } catch {
       // Expected while the loopback server is still binding.
     }
@@ -224,7 +238,10 @@ export async function runServer(options, { packageRoot = PACKAGE_ROOT, spawn = n
     try {
       await waitForServer(url, child, { fetchImpl });
     } catch (error) {
-      if (child.exitCode === null) child.kill("SIGTERM");
+      // Await the actual exit rather than firing-and-forgetting the kill signal
+      // (code-review-2026-08-02.md L7) — otherwise this function can return/throw
+      // while the child is still tearing down and still holding the port.
+      if (child.exitCode === null) { child.kill("SIGTERM"); await waitForExit(child); }
       throw error;
     }
     const metadata = await readStartupMetadata(url, fetchImpl);

@@ -156,6 +156,25 @@ describe("fixture row counts and required scenarios", () => {
     });
   });
 
+  it("has at least one patch part, shaped exactly as confirmed live on 2026-08-02", () => {
+    withFixture((db) => {
+      const rows = db.prepare("SELECT data FROM part").all() as Array<{ data: string }>;
+      let patchCount = 0;
+      for (const row of rows) {
+        try {
+          const parsed = JSON.parse(row.data) as { type?: string; hash?: unknown; files?: unknown };
+          if (parsed.type !== "patch") continue;
+          patchCount++;
+          expect(typeof parsed.hash).toBe("string");
+          expect(Array.isArray(parsed.files)).toBe(true);
+        } catch {
+          // malformed-JSON dirt row — expected, skip.
+        }
+      }
+      expect(patchCount).toBeGreaterThanOrEqual(MINIMUMS.patchParts);
+    });
+  });
+
   it("has at least one pending and one running tool call", () => {
     withFixture((db) => {
       const rows = db.prepare("SELECT data FROM part").all() as Array<{ data: string }>;

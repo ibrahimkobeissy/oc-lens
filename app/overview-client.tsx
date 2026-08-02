@@ -6,6 +6,7 @@ import { ActivityHeatmap } from "@/components/overview/activity-heatmap";
 import { ModelBreakdownDonut } from "@/components/overview/model-breakdown-donut";
 import { PeakHoursChart } from "@/components/overview/peak-hours-chart";
 import { ProjectActivityDonut } from "@/components/overview/project-activity-donut";
+import { RangePicker, type RangeSelection } from "@/components/overview/range-picker";
 import { RecentSessionsTable } from "@/components/overview/recent-sessions-table";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
@@ -21,15 +22,6 @@ import { UsageOverTimeChart } from "@/components/overview/usage-over-time-chart"
 import { useOc } from "@/hooks/use-oc";
 import { schemaVersion } from "@/lib/db/schema-guard";
 
-const RANGES = [
-  { value: "7d", label: "7 days" },
-  { value: "30d", label: "30 days" },
-  { value: "90d", label: "90 days" },
-  { value: "all", label: "All time" },
-] as const;
-
-type Range = (typeof RANGES)[number]["value"];
-
 function StatGridSkeleton() {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" role="status" aria-label="Loading overview statistics">
@@ -39,16 +31,21 @@ function StatGridSkeleton() {
 }
 
 export function OverviewClient() {
-  const [range, setRange] = useState<Range>("30d");
+  const [range, setRange] = useState<RangeSelection>({ kind: "preset", value: "30d" });
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
-  const statsRoute = `/api/stats?range=${range}&tz=${encodeURIComponent(timeZone)}` as const;
+  const statsRoute = range.kind === "preset"
+    ? (`/api/stats?range=${range.value}&tz=${encodeURIComponent(timeZone)}` as const)
+    : (`/api/stats?from=${range.from}&to=${range.to}&tz=${encodeURIComponent(timeZone)}` as const);
   const yearActivityRoute = `/api/activity?range=all&tz=${encodeURIComponent(timeZone)}` as const;
   const stats = useOc(statsRoute);
   const recentSessionsRoute = useMemo(() => {
     const params = new URLSearchParams({ sort: "timeCreated", order: "desc", limit: "10" });
     const generatedAt = stats.data?.meta.generatedAt;
-    if (range !== "all" && generatedAt !== undefined) {
-      params.set("from", `${generatedAt - Number.parseInt(range, 10) * 86_400_000}`);
+    if (range.kind === "custom") {
+      params.set("from", `${range.from}`);
+      params.set("to", `${range.to}`);
+    } else if (range.value !== "all" && generatedAt !== undefined) {
+      params.set("from", `${generatedAt - Number.parseInt(range.value, 10) * 86_400_000}`);
       params.set("to", `${generatedAt + 1}`);
     }
     return `/api/sessions?${params.toString()}` as const;
@@ -68,17 +65,7 @@ export function OverviewClient() {
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Overview</h1>
           <p className="mt-1 text-sm text-muted-foreground">Your opencode activity, computed locally from the read-only database.</p>
         </div>
-        <label className="text-sm font-medium">
-          Range
-          <select
-            aria-label="Overview range"
-            className="ml-2 h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={range}
-            onChange={(event) => setRange(event.target.value as Range)}
-          >
-            {RANGES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
+        <RangePicker value={range} onChange={setRange} />
       </header>
 
       {stats.data && !stats.error && <WarningsBanner warnings={stats.data.meta.warnings} />}

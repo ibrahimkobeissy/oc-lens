@@ -254,6 +254,7 @@ function buildPopulatedDb(): void {
   let unknownTypeInjected = false;
   let missingCompletedInjected = false;
   let compactionInjected = false;
+  let patchInjected = false;
 
   for (let i = 0; i < NUM_SESSIONS; i++) {
     const project = randChoice(rng, PROJECT_SEEDS);
@@ -365,6 +366,19 @@ function buildPopulatedDb(): void {
               messageId: msgId,
               time: turnTime,
               data: { type: "compaction", auto: true, overflow: false, tail_start_id: pendingMessageRows[0]?.id ?? msgId },
+            });
+            continue;
+          }
+          if (!patchInjected && randBool(rng, 0.01)) {
+            patchInjected = true;
+            // Real shape confirmed live against a developer's opencode.db on 2026-08-02 (data-model §5).
+            // Deliberately not tied to this message's own tool calls — real patch parts
+            // aren't either; they're a workspace-wide diff snapshot (see data-model §5).
+            pendingPartRows.push({
+              id: partId,
+              messageId: msgId,
+              time: turnTime,
+              data: { type: "patch", hash: "094c0ec1231b737617bded055272857a3c644f8a", files: ["/repo/fixture-diff-file.ts"] },
             });
             continue;
           }

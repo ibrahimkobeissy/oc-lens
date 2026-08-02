@@ -45,20 +45,21 @@ describe("GET /api/sessions/tree", () => {
     cleanupTempDir(directory);
   });
 
-  it("returns all four spawning roots unpaginated and all eight fixture subagents", async () => {
+  it("returns all five spawning roots unpaginated and all eight fixture subagents", async () => {
     const response = await GET();
     const body = await payload(response);
 
     expect(dynamic).toBe("force-dynamic");
     expect(response.status).toBe(200);
     if (!("data" in body)) throw new Error("expected subagent roots envelope");
-    expect(body.data.map((root) => root.sessionId)).toEqual(["ses_0000", "ses_0003", "ses_0005", "ses_0007"]);
+    expect(body.data.map((root) => root.sessionId)).toEqual(["ses_0001", "ses_0004", "ses_0005", "ses_0006", "ses_0007"]);
     expect(body.data.reduce((total, root) => total + descendantCount(root), 0)).toBe(8);
     expect(Object.fromEntries(body.data.map((root) => [root.sessionId, root.children.map((child) => child.sessionId)]))).toEqual({
-      ses_0000: ["ses_0035", "ses_0036", "ses_0038"],
-      ses_0003: ["ses_0037"],
-      ses_0005: ["ses_0034", "ses_0039"],
-      ses_0007: ["ses_0033", "ses_0040"],
+      ses_0001: ["ses_0037"],
+      ses_0004: ["ses_0038", "ses_0040"],
+      ses_0005: ["ses_0034"],
+      ses_0006: ["ses_0035", "ses_0036", "ses_0039"],
+      ses_0007: ["ses_0033"],
     });
     expect(body.data.every((root) => root.cost.priced === false)).toBe(true);
   });

@@ -12,8 +12,9 @@ All minimums live in `manifest.ts`'s `MINIMUMS` — import that constant rather 
 
 - 6 projects, including the synthetic `global` project (`worktree: "/"`, `name: null`)
 - 120 sessions across ~14 months: ≥8 subagent sessions (non-null `parent_id`), ≥5 archived, ≥10 with NULL `agent`, ≥10 with NULL `model`, ≥4 with a placeholder title (`New session - <ISO>`), ≥3 with exactly one message, exactly one with 400 messages
-- ≥4,000 messages and ≥12,000 parts, spanning every verified part type (`text`, `reasoning`, `step-start`, `step-finish`, `tool`, `compaction`) across ≥3 providers and ≥6 models (`manifest.ts`'s `PROVIDER_MODELS`)
+- ≥4,000 messages and ≥12,000 parts, spanning every verified part type (`text`, `reasoning`, `step-start`, `step-finish`, `tool`, `compaction`, `patch`) across ≥3 providers and ≥6 models (`manifest.ts`'s `PROVIDER_MODELS`)
 - ≥1 `compaction` part shaped exactly as confirmed live against a real opencode.db on 2026-08-02 (`manifest.ts`'s `MINIMUMS.compactionParts`): `{ type: "compaction", auto: boolean, overflow: boolean, tail_start_id: string }`
+- ≥1 `patch` part shaped exactly as confirmed live against a real opencode.db on 2026-08-02 (`manifest.ts`'s `MINIMUMS.patchParts`): `{ type: "patch", hash: string, files: string[] }`. **Deliberately not tied to any tool call in the same message** — real `patch` parts aren't either; they're a workspace-wide diff snapshot, not per-turn evidence (see data-model.md §5).
 - Every core tool (`manifest.ts`'s `CORE_TOOLS`) appears at least once
 - MCP-shaped tool names (`manifest.ts`'s `MCP_TOOL_NAMES`) include `linear_docs_search` — the server itself is `linear_docs` (its own name contains an underscore), so naively splitting on the first underscore misreads the server as `linear`. Don't do that; see `lib/tools` (OCL-071) for the real resolver.
 - ≥40 tool calls with `state.status === "error"`, plus at least one `pending` and one `running` call
@@ -29,4 +30,4 @@ Every table from the schema exists with zero rows — nothing else.
 
 ## Not in scope here
 
-`patch` parts are still ⚠️ UNVERIFIED (data-model.md §5) and are **not** in this fixture. OCL-103 adds them once its own probe confirms the real shape — do not invent them here in the meantime. `compaction` was confirmed live on 2026-08-02 and is now included above.
+`file`, `agent`, and `snapshot` parts are still ⚠️ UNVERIFIED (data-model.md §5) and are **not** in this fixture — a future ticket adds them once its own probe confirms the real shape; do not invent them here in the meantime. `compaction` and `patch` were both confirmed live on 2026-08-02 and are now included above.

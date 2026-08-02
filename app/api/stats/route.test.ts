@@ -134,6 +134,14 @@ describe("OCL-030 GET /api/stats", () => {
     const allPayload = await (await GET(new Request("http://localhost/api/stats?range=all&tz=UTC"))).json();
     expect(allPayload.data.storedCostComparison).toBe(4);
     expect(allPayload.data.costBreakdown.storedCostComparison).toBe(4);
+
+    // A custom picked range (from/to) overrides the named range and needs no `range` param at all.
+    const customFrom = outOfRangeTime - 1;
+    const customPayload = await (await GET(new Request(`http://localhost/api/stats?from=${customFrom}&to=${outOfRangeTime + 1}&tz=UTC`))).json();
+    expect(customPayload.data.storedCostComparison).toBe(2.5);
+
+    expect((await GET(new Request("http://localhost/api/stats?from=100&to=50&tz=UTC"))).status).toBe(400);
+    expect((await GET(new Request("http://localhost/api/stats?from=notanumber&to=100&tz=UTC"))).status).toBe(400);
     db.close();
   });
 

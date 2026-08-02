@@ -22,6 +22,12 @@ const COMPACTION_RAW = JSON.stringify({
   overflow: false,
   tail_start_id: "msg_fc2bf37c6001K6Sh2mjXGJQsKN",
 });
+// Real shape confirmed live against a developer's opencode.db on 2026-08-02 (data-model §5).
+const PATCH_RAW = JSON.stringify({
+  type: "patch",
+  hash: "094c0ec1231b737617bded055272857a3c644f8a",
+  files: ["/home/user/project/lib/pricing/__tests__/route.test.ts"],
+});
 const TOOL_RAW = JSON.stringify({
   type: "tool",
   tool: "write",
@@ -88,6 +94,22 @@ describe("decodePartData", () => {
     expect(warnings.some((w) => w.code === "malformed-compaction")).toBe(true);
   });
 
+  it("decodes the verbatim patch sample", () => {
+    const { value, warnings } = decodePartData(PATCH_RAW);
+    expect(warnings).toEqual([]);
+    expect(value).toEqual({
+      type: "patch",
+      hash: "094c0ec1231b737617bded055272857a3c644f8a",
+      files: ["/home/user/project/lib/pricing/__tests__/route.test.ts"],
+    });
+  });
+
+  it("falls back to unknown, with a warning, when a patch part is missing hash/files", () => {
+    const { value, warnings } = decodePartData(JSON.stringify({ type: "patch" }));
+    expect(value.type).toBe("unknown");
+    expect(warnings.some((w) => w.code === "malformed-patch")).toBe(true);
+  });
+
   it("decodes the verbatim tool sample", () => {
     const { value, warnings } = decodePartData(TOOL_RAW);
     expect(warnings).toEqual([]);
@@ -135,10 +157,10 @@ describe("decodePartData", () => {
   });
 
   it("an unknown part type decodes to the unknown variant with a warning, never throwing", () => {
-    const raw = JSON.stringify({ type: "patch", files: [] });
+    const raw = JSON.stringify({ type: "snapshot", files: [] });
     const { value, warnings } = decodePartData(raw);
     expect(value.type).toBe("unknown");
-    expect(value).toMatchObject({ type: "unknown", rawType: "patch" });
+    expect(value).toMatchObject({ type: "unknown", rawType: "snapshot" });
     expect(warnings.some((w) => w.code === "unknown-part-type")).toBe(true);
   });
 
@@ -155,7 +177,7 @@ describe("decodeParts (batch)", () => {
   it("aggregates warnings across a batch by code — 3 unknown types in 100 parts is one warning with count 3", () => {
     const raws: string[] = [];
     for (let i = 0; i < 100; i++) {
-      raws.push(i < 3 ? JSON.stringify({ type: "patch", files: [] }) : TEXT_RAW);
+      raws.push(i < 3 ? JSON.stringify({ type: "snapshot" }) : TEXT_RAW);
     }
     const { values, warnings } = decodeParts(raws);
     expect(values).toHaveLength(100);

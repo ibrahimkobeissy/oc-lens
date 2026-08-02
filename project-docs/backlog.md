@@ -1600,10 +1600,12 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 **Acceptance criteria**
 
-- [ ] The data-model doc records what the probe actually found, including a negative result.
-- [ ] The timeline is built from a ✅ verified source, and the PR names which.
+- [x] The data-model doc records what the probe actually found, including a negative result.
+- [x] The timeline is built from a ✅ verified source, and the PR names which.
 - [ ] A session that touched no files renders an empty state, not an empty list frame.
 - [ ] File paths display relative to the project worktree, with the absolute path on hover.
+
+**Update (2026-08-02): `patch` shape confirmed live, decoded, and rendered — but deliberately still not used for `fileChanges()`.** At the maintainer's request, a live probe against their own real `opencode.db` confirmed `patch`'s real shape: `{ type: "patch", hash: string, files: string[] }` (`types/oc.ts`'s `OcPartPatchData`, `lib/decode/patch.ts`, `components/sessions/replay/patch-card.tsx`). Cross-referencing the real rows found `patch` is a **workspace-wide diff snapshot, not scoped to the owning session or message** — the same hash/file pair was observed on messages in two different sessions, including one whose own tool calls never touched that file. Using it as file-change-timeline evidence would misattribute another session's (or a subagent's) edits as this session's own, so `fileChanges()` continues to use only the verified tool-call fallback (`state.input.filePath`/`state.metadata.filepath`), exactly per this ticket's own fallback contingency (step 4 above) — the "fallback" is not a stopgap here, it's the only source that's actually correct for a *per-session* timeline. See `project-docs/opencode-data-model.md` §5 for the full evidence.
 
 **W8 test-harness amendment.** `test/fixtures/__tests__/build-fixture.test.ts` rebuilds the same checked-in fixture databases that route/query tests copy and read. Vitest worker parallelism therefore races destructive fixture replacement and makes the binding `pnpm test` command nondeterministic. W8 owns the narrow `vitest.config.ts` serialization needed to make the documented command reliable; this is infrastructure stabilization, not permission to rebuild fixtures from application code.
 

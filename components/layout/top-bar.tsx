@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Moon, Search, Sun } from "lucide-react";
+import { Activity, Moon, RefreshCw, Search, Sun } from "lucide-react";
+import { mutate } from "swr";
 import { matchRouteTrail } from "@/lib/routes";
 import { useTheme } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /** Derived from the pathname + route registry — no per-page breadcrumb code (OCL-020's acceptance criterion). */
 function Breadcrumbs() {
@@ -51,6 +54,30 @@ function ThemeToggleButton() {
   );
 }
 
+/** Revalidates every currently mounted `useOc` (SWR) key at once — a manual complement to the default 30s poll. */
+function RefreshButton() {
+  const [refreshing, setRefreshing] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      aria-label="Refresh data"
+      disabled={refreshing}
+      onClick={async () => {
+        setRefreshing(true);
+        try {
+          await mutate(() => true, undefined, { revalidate: true });
+        } finally {
+          setRefreshing(false);
+        }
+      }}
+    >
+      <RefreshCw aria-hidden="true" className={cn("size-4", refreshing && "animate-spin")} />
+    </Button>
+  );
+}
+
 function CommandPaletteAffordance() {
   return (
     <Button
@@ -81,6 +108,7 @@ export function TopBar() {
           <span className="font-mono uppercase tracking-[0.12em]">read-only signal</span>
         </div>
         <CommandPaletteAffordance />
+        <RefreshButton />
         <ThemeToggleButton />
       </div>
     </header>

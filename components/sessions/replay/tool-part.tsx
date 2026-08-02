@@ -56,14 +56,16 @@ function ToolOutput({ data }: { data: OcPartToolData }) {
 
   const long = data.output.length > TOOL_OUTPUT_PREVIEW_CHARS;
   const visible = expanded || !long ? data.output : truncate(data.output, TOOL_OUTPUT_PREVIEW_CHARS);
-  return <div className="space-y-2">
-    <p className="text-xs font-medium text-muted-foreground">{data.status === "error" ? "Error message" : "Output"}</p>
-    <pre role={data.status === "error" ? "alert" : undefined} className={cn("max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 font-mono text-xs", data.status === "error" && "border-destructive/40 bg-destructive/5 text-destructive")}>{visible}</pre>
-    {long ? <Button type="button" variant="ghost" size="xs" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
-      {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-      {expanded ? "Show truncated output" : `Show full output (${byteLabel(data.output)})`}
-    </Button> : null}
-  </div>;
+  return <details className="rounded-md border bg-muted/20 px-3 py-2">
+    <summary className={cn("cursor-pointer text-xs font-medium", data.status === "error" && "text-destructive")}>{data.status === "error" ? "Error message" : "Output"}</summary>
+    <div className="mt-2 space-y-2">
+      <pre role={data.status === "error" ? "alert" : undefined} className={cn("max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 font-mono text-xs", data.status === "error" && "border-destructive/40 bg-destructive/5 text-destructive")}>{visible}</pre>
+      {long ? <Button type="button" variant="ghost" size="xs" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+        {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+        {expanded ? "Show truncated output" : `Show full output (${byteLabel(data.output)})`}
+      </Button> : null}
+    </div>
+  </details>;
 }
 
 export function ToolCallCard({ data }: { data: OcPartToolData }) {

@@ -6,6 +6,7 @@ import { decodeMessageData } from "@/lib/decode/message";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { costBreakdown } from "@/lib/pricing/breakdown";
 import { readPricing } from "@/lib/pricing/config";
+import { storedCostInRange } from "@/lib/pricing/cost";
 import type { CostBreakdown, CostsRouteResponse } from "@/types/oc";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +15,6 @@ export const runtime = "nodejs";
 const DAY_MS = 86_400_000;
 const RANGE_DAYS = { "7d": 7, "30d": 30, "90d": 90 } as const;
 type CostsRange = keyof typeof RANGE_DAYS | "all";
-
-interface StoredCostRow {
-  cost: number | null;
-}
 
 interface MessageDataRow {
   time_created: number;
@@ -39,17 +36,6 @@ function isTimeZone(value: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** Provider-reported session cost for the same half-open range as the computed message costs. */
-function storedCostInRange(db: Parameters<typeof costBreakdown>[0], range: { from?: number; to?: number }): number {
-  const clauses: string[] = [];
-  const params: number[] = [];
-  if (range.from !== undefined) { clauses.push("time_created >= ?"); params.push(range.from); }
-  if (range.to !== undefined) { clauses.push("time_created < ?"); params.push(range.to); }
-  const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
-  return query<StoredCostRow>(db, `SELECT cost FROM session${where}`, params)
-    .reduce((sum, row) => sum + (row.cost ?? 0), 0);
 }
 
 function messageWarningsInRange(db: Parameters<typeof costBreakdown>[0], range: { from?: number; to?: number }) {

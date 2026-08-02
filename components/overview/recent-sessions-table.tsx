@@ -1,11 +1,24 @@
+"use client";
+
+import { useState } from "react";
 import { ArrowRight, MessagesSquare } from "lucide-react";
 import Link from "next/link";
 
 import { EmptyState } from "@/components/states/empty-state";
 import { formatCost, formatDuration, formatNumber, formatTokens } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { SessionSummary } from "@/types/oc";
 
 const RECENT_LIMIT = 10;
+const HOUR_MS = 60 * 60 * 1_000;
+const DAY_MS = 24 * HOUR_MS;
+
+const RECENCY_FILTERS = [
+  { key: "24h", label: "Active (24h)", windowMs: 24 * HOUR_MS },
+  { key: "7d", label: "Recent (7d)", windowMs: 7 * DAY_MS },
+  { key: "all", label: "All", windowMs: null },
+] as const;
+type RecencyFilterKey = (typeof RECENCY_FILTERS)[number]["key"];
 
 export function recentSessions(sessions: readonly SessionSummary[]): SessionSummary[] {
   return [...sessions]
@@ -13,17 +26,44 @@ export function recentSessions(sessions: readonly SessionSummary[]): SessionSumm
     .slice(0, RECENT_LIMIT);
 }
 
+/** Exported for direct testing without depending on `Date.now()`. */
+export function filterSessionsByRecency(sessions: readonly SessionSummary[], filter: RecencyFilterKey, now: number): SessionSummary[] {
+  const windowMs = RECENCY_FILTERS.find((entry) => entry.key === filter)?.windowMs;
+  if (windowMs === null || windowMs === undefined) return [...sessions];
+  return sessions.filter((session) => now - session.timeCreated <= windowMs);
+}
+
 function tokenTotal(session: SessionSummary): number {
   return session.tokens.input + session.tokens.output + session.tokens.reasoning + session.tokens.cacheRead + session.tokens.cacheWrite;
 }
 
-export function RecentSessionsTable({ sessions }: { sessions: readonly SessionSummary[] }) {
-  const rows = recentSessions(sessions);
+export function RecentSessionsTable({ sessions, initialFilter = "7d" }: { sessions: readonly SessionSummary[]; initialFilter?: RecencyFilterKey }) {
+  const [filter, setFilter] = useState<RecencyFilterKey>(initialFilter);
+  const [now] = useState(() => Date.now());
+  const rows = recentSessions(filterSessionsByRecency(sessions, filter, now));
   return (
     <section aria-labelledby="recent-sessions-heading" className="overflow-hidden rounded-lg border border-border bg-card shadow-xs">
-      <header className="flex items-start justify-between gap-3 border-b border-border p-4">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4">
         <div><h2 id="recent-sessions-heading" className="font-semibold text-card-foreground">Recent sessions</h2><p className="mt-1 text-xs text-muted-foreground">The ten latest sessions in the selected overview range.</p></div>
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground"><MessagesSquare aria-hidden="true" className="size-4" /></span>
+        <div className="flex items-center gap-2">
+          <div role="group" aria-label="Filter recent sessions by recency" className="flex items-center gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
+            {RECENCY_FILTERS.map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                aria-pressed={filter === entry.key}
+                onClick={() => setFilter(entry.key)}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-medium transition-colors",
+                  filter === entry.key ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground"><MessagesSquare aria-hidden="true" className="size-4" /></span>
+        </div>
       </header>
       {rows.length === 0 ? (
         <div className="p-4"><EmptyState icon={<MessagesSquare />} title="No sessions in this range" description="Choose a wider range or start an opencode session." /></div>

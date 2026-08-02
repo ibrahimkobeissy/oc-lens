@@ -6,7 +6,10 @@ import { Bot, Clock, UserRound } from "lucide-react";
 
 import { AssistantMarkdown } from "./assistant-markdown";
 import { partDomId, registerReplayPartRenderer, replayPartRenderer, type ReplayPartRendererProps } from "./part-registry";
+import "./compaction-card";
+import "./patch-card";
 import "./reasoning-part";
+import "./step-parts";
 import { groupConsecutiveToolParts, ToolGroup } from "./tool-group";
 import "./tool-part";
 import { TurnMetrics } from "./turn-metrics";

@@ -254,10 +254,30 @@ function compareSessions(left: SessionSummary, right: SessionSummary, sort: Sort
   return left.id.localeCompare(right.id);
 }
 
+/**
+ * `project`, `agent`, and `model` all render as free-text inputs identical to `search`
+ * (session-filters.tsx), so they must all share the same case-insensitive substring
+ * semantics — an exact match against the raw `project_id`/`agent`/`model.id` column
+ * silently returned zero results for anything the user typed that wasn't a byte-exact
+ * copy of an internal identifier never shown anywhere in the UI.
+ */
+function matchesProject(session: SessionSummary, requested: string): boolean {
+  const term = requested.toLocaleLowerCase();
+  return session.projectId.toLocaleLowerCase().includes(term) || session.projectDisplayName.toLocaleLowerCase().includes(term);
+}
+
+function matchesAgent(session: SessionSummary, requested: string): boolean {
+  const term = requested.toLocaleLowerCase();
+  if (term === "unknown") return session.agent === null;
+  if (!session.agent) return false;
+  return session.agent.toLocaleLowerCase().includes(term);
+}
+
 function matchesModel(session: SessionSummary, requested: string): boolean {
-  if (requested === "unknown") return session.model === null;
+  const term = requested.toLocaleLowerCase();
+  if (term === "unknown") return session.model === null;
   if (!session.model) return false;
-  return requested === session.model.id || requested === `${session.model.providerID}/${session.model.id}`;
+  return session.model.id.toLocaleLowerCase().includes(term) || `${session.model.providerID}/${session.model.id}`.toLocaleLowerCase().includes(term);
 }
 
 function matchesSearch(session: SessionSummary, requested: string): boolean {
@@ -309,8 +329,6 @@ export async function GET(request: Request): Promise<NextResponse<SessionsRouteR
     const config = readOpencodeConfig({ projectWorktrees });
     const mcpServers = config ? redactConfig(config).mcpServers.map((server) => server.name) : [];
     const result = listSessions(connection.db, {
-      projectId: options.project,
-      agent: options.agent === "unknown" ? null : options.agent,
       archived: options.archived,
       from: options.from,
       to: options.to,
@@ -319,6 +337,14 @@ export async function GET(request: Request): Promise<NextResponse<SessionsRouteR
     const warnings = result.warnings;
     let sessions = result.data;
 
+    if (options.project !== undefined) {
+      const requestedProject = options.project;
+      sessions = sessions.filter((session) => matchesProject(session, requestedProject));
+    }
+    if (options.agent !== undefined) {
+      const requestedAgent = options.agent;
+      sessions = sessions.filter((session) => matchesAgent(session, requestedAgent));
+    }
     if (options.model !== undefined) {
       const requestedModel = options.model;
       sessions = sessions.filter((session) => matchesModel(session, requestedModel));

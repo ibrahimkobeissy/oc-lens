@@ -37,6 +37,19 @@ function dateInputEpoch(value: string, inclusiveEnd = false): string {
   return `${date.getTime()}`;
 }
 
+/**
+ * What to store in the URL param (and thus feed back into the controlled input) for a
+ * raw filter value. Must NOT trim text fields here — that fed the trimmed value straight
+ * back into the input's `value` prop on every keystroke, so a trailing space typed while
+ * composing a multi-word search term was wiped before the next keystroke could land.
+ * Trimming still happens server-side (see `optionalText` in the API route).
+ */
+export function encodedFilterValue(name: keyof SessionFilterValues, value: string): string {
+  if (name === "from") return dateInputEpoch(value);
+  if (name === "to") return dateInputEpoch(value, true);
+  return value;
+}
+
 export function apiRouteFromParams(params: URLSearchParams): `/api/sessions?${string}` {
   const api = new URLSearchParams();
   for (const key of API_KEYS) {
@@ -99,8 +112,8 @@ function SessionsContent() {
 
   const changeFilter = useCallback((name: keyof SessionFilterValues, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    const encoded = name === "from" ? dateInputEpoch(value) : name === "to" ? dateInputEpoch(value, true) : value.trim();
-    if (encoded) params.set(name, encoded); else params.delete(name);
+    const encoded = encodedFilterValue(name, value);
+    if (encoded.trim()) params.set(name, encoded); else params.delete(name);
     params.delete("cursor");
     params.delete("trail");
     navigate(params);

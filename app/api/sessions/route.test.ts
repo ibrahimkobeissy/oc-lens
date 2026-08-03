@@ -137,6 +137,28 @@ describe("GET /api/sessions", () => {
     expect(body.data?.totalCount).toBe(1);
   });
 
+  it("matches project/agent/model as case-insensitive substrings, not only a byte-exact internal id", async () => {
+    // "infra" is the project's display name shown in the UI — "proj_infra" is the internal
+    // id never shown anywhere; a user typing what they see must still get the same 21 rows.
+    const byDisplayName = await list("?project=infra&limit=100");
+    expect(byDisplayName.body.data?.totalCount).toBe(21);
+
+    const byPartialUppercase = await list("?project=INFRA&limit=100");
+    expect(byPartialUppercase.body.data?.totalCount).toBe(21);
+
+    const byPartialAgent = await list("?agent=buil&limit=100");
+    expect(byPartialAgent.body.data?.totalCount).toBeGreaterThan(0);
+    expect(byPartialAgent.body.data?.sessions.every((session) => session.agent === "build")).toBe(true);
+
+    const byPartialModel = await list("?model=qwen3&limit=100");
+    expect(byPartialModel.body.data?.totalCount).toBe(21);
+  });
+
+  it("still returns nothing for a project fragment that matches no project's id or name", async () => {
+    const { body } = await list("?project=does-not-exist&limit=100");
+    expect(body.data?.totalCount).toBe(0);
+  });
+
   it("returns exact per-session error evidence for the has-errors badge", async () => {
     const { body } = await list("?search=ses_0006&hasError=true");
     expect(body.data?.sessions).toHaveLength(1);

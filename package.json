@@ -1,6 +1,6 @@
 {
   "name": "oc-lens",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "description": "Local, read-only analytics dashboard for opencode",
   "license": "MIT",

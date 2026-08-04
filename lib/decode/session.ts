@@ -2,7 +2,13 @@ import type { OcSessionModel } from "@/types/oc";
 import { asRecord, asString, safeJsonParse } from "./json";
 import { type Decoded, warning } from "./warnings";
 
-/** Decodes the `session.model` JSON-blob column. `null`/empty is a legitimate NULL column, not a warning. */
+/**
+ * Decodes the `session.model` JSON-blob column. `null`/empty is a legitimate NULL
+ * column, not a warning. `variant` is optional — confirmed live 2026-08-03 on a real
+ * custom (non-catalog) provider row, `{"id":"ClovisLLM","providerID":"litellm"}`, with
+ * no `variant` key at all — so its absence decodes to `null` rather than rejecting the
+ * whole model; only a missing/wrong-typed `id` or `providerID` is still malformed.
+ */
 export function decodeSessionModel(raw: string | null): Decoded<OcSessionModel | null> {
   if (raw === null || raw === "") {
     return { value: null, warnings: [] };
@@ -17,7 +23,7 @@ export function decodeSessionModel(raw: string | null): Decoded<OcSessionModel |
   const id = asString(obj?.id);
   const providerID = asString(obj?.providerID);
   const variant = asString(obj?.variant);
-  if (!obj || id === null || providerID === null || variant === null) {
+  if (!obj || id === null || providerID === null) {
     return { value: null, warnings: [warning("malformed-session-model", "session.model did not match the expected {id,providerID,variant} shape")] };
   }
 

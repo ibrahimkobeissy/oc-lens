@@ -125,11 +125,18 @@ export interface OcProject {
   timeInitialized: number | null; // project.time_initialized
 }
 
-/** A decoded `session.model` blob, or `null` for a NULL column (data-model §2). */
+/**
+ * A decoded `session.model` blob, or `null` for a NULL column (data-model §2).
+ * `variant` is `null` when the key is absent entirely — confirmed live
+ * 2026-08-03 against a custom (non-catalog) provider that has no variant
+ * concept, e.g. `{"id":"ClovisLLM","providerID":"litellm"}` with no `variant`
+ * key at all. `id`/`providerID` remain required: no real row has ever been
+ * seen missing either of those.
+ */
 export interface OcSessionModel {
   id: string; // session.model (JSON).id
   providerID: string; // session.model (JSON).providerID
-  variant: string; // session.model (JSON).variant
+  variant: string | null; // session.model (JSON).variant — absent for some custom/non-catalog providers
 }
 
 export interface OcSession {
@@ -207,12 +214,17 @@ export interface OcPartToolData {
   timeEnd: number | null; // part.data.state.time.end
 }
 
-/** Context compaction — confirmed live 2026-08-02 (data-model §5). Only the three fields actually observed; opencode has no pre-compaction token count. */
+/**
+ * Context compaction — confirmed live 2026-08-02 (data-model §5). Only the three fields
+ * actually observed; opencode has no pre-compaction token count. `tailStartId` is `null`
+ * when `tail_start_id` is absent entirely — confirmed live 2026-08-03 on a real
+ * `{type:"compaction",auto:true,overflow:true}` row with no `tail_start_id` key at all.
+ */
 export interface OcPartCompactionData {
   type: "compaction";
   auto: boolean; // part.data.auto — triggered automatically vs. user-invoked
   overflow: boolean; // part.data.overflow — triggered because the context window overflowed
-  tailStartId: string; // part.data.tail_start_id — message.id of the first message retained after the compacted head
+  tailStartId: string | null; // part.data.tail_start_id — message.id of the first message retained after the compacted head, absent on some real rows
 }
 
 /**

@@ -16,3 +16,4 @@ test/fixtures/*.db
 test/fixtures/*.db-*
 .DS_Store
 .vercel
+project-docs/code-review-2026-08-04.md

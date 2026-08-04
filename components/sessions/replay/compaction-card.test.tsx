@@ -51,6 +51,12 @@ describe("OCL-055 CompactionCard", () => {
     expect(html).not.toContain("Cost");
   });
 
+  it("renders an honest fallback sentence when tail_start_id was absent — real shape confirmed live 2026-08-03", () => {
+    const html = renderToStaticMarkup(<CompactionCard part={part({ tailStartId: null })} turn={turn()} />);
+    expect(html).toContain("did not record which message");
+    expect(html).not.toContain("starting at message");
+  });
+
   it("decodes a real compaction sample end to end through the registry", () => {
     const decoded = decodePartData(JSON.stringify({ type: "compaction", auto: true, overflow: false, tail_start_id: "msg_real" }));
     expect(decoded.value).toEqual({ type: "compaction", auto: true, overflow: false, tailStartId: "msg_real" });

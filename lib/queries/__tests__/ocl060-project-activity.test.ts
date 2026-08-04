@@ -101,4 +101,17 @@ describe("OCL-060 project activity scope", () => {
     expect(projectModelBreakdown(db, "alpha", { version: 1, updatedAt: 1, prices: {} }).data.every((model) => !model.cost.priced)).toBe(true);
     db.close();
   });
+
+  it("keeps a project model unpriced when one message has incomplete native token evidence", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    db.exec("INSERT INTO project (id, worktree, name) VALUES ('alpha', '/alpha', 'alpha'); INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated) VALUES ('s', 'alpha', 's', '/', 's', '1', 1, 2);");
+    const insert = db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES (?, 's', ?, ?, ?)");
+    insert.run("valid", 1, 1, JSON.stringify({ role: "assistant", providerID: "provider", modelID: "model", tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } }));
+    insert.run("invalid", 2, 2, JSON.stringify({ role: "assistant", providerID: "provider", modelID: "model", tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0 } } }));
+    const result = projectModelBreakdown(db, "alpha", { version: 1, updatedAt: 1, prices: { "provider/model": { inputPerMTok: 1, outputPerMTok: 1, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" } } });
+    expect(result.data.find((model) => model.modelID === "model")?.cost).toEqual({ amount: 0, priced: false });
+    expect(result.warnings).toContainEqual(expect.objectContaining({ code: "malformed-message-tokens" }));
+    db.close();
+  });
 });

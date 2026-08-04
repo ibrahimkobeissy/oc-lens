@@ -63,16 +63,20 @@ export function decodePartData(raw: string | null): Decoded<OcPartData> {
     case "step-start":
       return { value: { type: "step-start" }, warnings: [] };
 
-    case "step-finish":
+    case "step-finish": {
+      const tokens = decodeTokens(obj.tokens);
       return {
         value: {
           type: "step-finish",
           reason: asString(obj.reason),
           cost: asNumber(obj.cost),
-          tokens: decodeTokens(obj.tokens),
+          tokens,
         },
-        warnings: [],
+        warnings: obj.tokens !== undefined && tokens === null
+          ? [warning("malformed-step-tokens", "step-finish tokens did not contain finite non-negative input/output/reasoning/cache.read/cache.write values")]
+          : [],
       };
+    }
 
     case "tool": {
       const state = asRecord(obj.state);

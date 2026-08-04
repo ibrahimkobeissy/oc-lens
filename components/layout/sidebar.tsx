@@ -18,7 +18,6 @@ const GROUP_LABELS: Record<string, string> = {
   agents: "Agents",
   export: "Export",
   settings: "Settings",
-  dev: "Dev",
 };
 
 export function Sidebar() {

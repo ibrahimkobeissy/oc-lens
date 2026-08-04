@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import { FIXTURE_SCHEMA_SQL } from "@/test/fixtures/schema";
+import { agentUsage } from "../agents";
 import { versionHistory } from "../projects";
 import { featureAdoption } from "../tools";
 
@@ -54,10 +55,37 @@ describe("OCL-070 range-aware query composition", () => {
     insertMessage(db, "old-message", "old", 10);
     insertMessage(db, "recent-message", "recent", 110);
     insertMessage(db, "late-message", "recent", 130);
+    insertMessage(db, "boundary-message", "recent", 120);
+    insertSession(db, "boundary-session", "3.0", 120);
 
     expect(versionHistory(db, { from: 100, to: 120 }).data).toEqual([
       { version: "2.0", sessionCount: 1, messageCount: 1, firstSeen: 110, lastSeen: 110 },
     ]);
+    db.close();
+  });
+
+  it("uses event-time activity for the adoption cohort and the first-used timestamp", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    insertSession(db, "old-active", "1.0", 10);
+    insertSession(db, "idle", "1.0", 105);
+    insertSession(db, "boundary", "1.0", 120);
+    insertMessage(db, "old-active-message", "old-active", 110);
+    insertMessage(db, "boundary-message", "boundary", 120);
+    insertPart(db, "old-active-skill", "old-active", "old-active-message", 110, { type: "tool", tool: "skill", callID: "old", state: { status: "completed", input: { name: "audit" } } });
+    insertPart(db, "boundary-skill", "boundary", "boundary-message", 120, { type: "tool", tool: "skill", callID: "boundary", state: { status: "completed", input: { name: "audit" } } });
+
+    const result = featureAdoption(db, [], { from: 100, to: 120 }).data;
+    expect(result.skills).toEqual({ sessionCount: 1, pct: 0.5, firstUsed: 110 });
+    db.close();
+  });
+
+  it("excludes sessions exactly at the half-open upper boundary from agent analytics", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    insertSession(db, "inside", "1.0", 119);
+    insertSession(db, "boundary", "1.0", 120);
+    expect(agentUsage(db, { from: 100, to: 120 }).data.flatMap((row) => [...Array(row.sessionCount)])).toHaveLength(1);
     db.close();
   });
 

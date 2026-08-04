@@ -23,7 +23,7 @@ function partRows(db: DatabaseSync, filter: PartQueryFilter = {}): PartRow[] {
   const clauses: string[] = [];
   const params: Array<string | number> = [];
   if (filter.from !== undefined) { clauses.push("p.time_created >= ?"); params.push(filter.from); }
-  if (filter.to !== undefined) { clauses.push("p.time_created <= ?"); params.push(filter.to); }
+  if (filter.to !== undefined) { clauses.push("p.time_created < ?"); params.push(filter.to); }
   if (filter.projectId !== undefined) { clauses.push("s.project_id = ?"); params.push(filter.projectId); }
   if (filter.agent !== undefined) { clauses.push("COALESCE(s.agent, 'unknown') = ?"); params.push(filter.agent); }
   if (filter.sessionId !== undefined) { clauses.push("p.session_id = ?"); params.push(filter.sessionId); }
@@ -235,33 +235,53 @@ export interface FeatureAdoptionFilter {
 
 function inFeatureRange(timeCreated: number, filter: FeatureAdoptionFilter): boolean {
   return (filter.from === undefined || timeCreated >= filter.from) &&
-    (filter.to === undefined || timeCreated <= filter.to);
+    (filter.to === undefined || timeCreated < filter.to);
 }
 
-function adoptionRow(all: SessionFeatureRow[], ids: Set<string>): FeatureAdoptionRow {
-  const matching = all.filter((s) => ids.has(s.id));
-  const times = matching.map((s) => s.time_created);
-  return { sessionCount: matching.length, pct: all.length === 0 ? 0 : matching.length / all.length, firstUsed: times.length ? Math.min(...times) : null };
+function addFeature(events: Map<string, number>, sessionId: string, timeCreated: number): void {
+  events.set(sessionId, Math.min(events.get(sessionId) ?? timeCreated, timeCreated));
+}
+
+function adoptionRow(cohort: SessionFeatureRow[], events: ReadonlyMap<string, number>): FeatureAdoptionRow {
+  const matching = cohort.filter((session) => events.has(session.id));
+  const times = matching.map((session) => events.get(session.id)).filter((time): time is number => time !== undefined);
+  return { sessionCount: matching.length, pct: cohort.length === 0 ? 0 : matching.length / cohort.length, firstUsed: times.length ? Math.min(...times) : null };
 }
 
 export function featureAdoption(db: DatabaseSync, servers: string[] = [], filter: FeatureAdoptionFilter = {}): QueryResult<FeatureAdoption> {
-  const sessions = query<SessionFeatureRow>(db, "SELECT id, parent_id, time_created FROM session")
-    .filter((row) => inFeatureRange(row.time_created, filter));
+  const sessions = query<SessionFeatureRow>(db, "SELECT id, parent_id, time_created FROM session");
   const messages = query<MessageFeatureRow>(db, "SELECT session_id, time_created, data FROM message")
     .filter((row) => inFeatureRange(row.time_created, filter));
   const todos = query<TodoFeatureRow>(db, "SELECT session_id, time_created FROM todo")
     .filter((row) => inFeatureRange(row.time_created, filter));
+  const parts = partRows(db, filter);
   const { calls, warnings } = toolRows(db, filter);
-  const subagents = new Set(sessions.filter((s) => s.parent_id !== null).map((s) => s.id));
-  const mcp = new Set<string>(), webfetch = new Set<string>(), skills = new Set<string>(), reasoning = new Set<string>(), planMode = new Set<string>();
+  const cohortIds = new Set<string>();
+  for (const session of sessions) if (inFeatureRange(session.time_created, filter)) cohortIds.add(session.id);
+  for (const row of messages) cohortIds.add(row.session_id);
+  for (const row of todos) cohortIds.add(row.session_id);
+  for (const row of parts) cohortIds.add(row.session_id);
+  const cohort = sessions.filter((session) => cohortIds.has(session.id));
+
+  const subagents = new Map<string, number>();
+  const mcp = new Map<string, number>(), webfetch = new Map<string, number>(), skills = new Map<string, number>(), reasoning = new Map<string, number>(), planMode = new Map<string, number>();
   const messageWarnings: OcWarning[] = [];
-  for (const c of calls) { if (c.tool.tool === "task") subagents.add(c.session_id); if (resolveMcpTool(c.tool.tool, servers)) mcp.add(c.session_id); if (c.tool.tool === "webfetch") webfetch.add(c.session_id); if (c.tool.tool === "skill") skills.add(c.session_id); }
-  for (const row of partRows(db, filter)) if (decodePartData(row.data).value.type === "reasoning") reasoning.add(row.session_id);
+  for (const session of sessions) {
+    if (session.parent_id !== null && inFeatureRange(session.time_created, filter)) addFeature(subagents, session.id, session.time_created);
+  }
+  for (const call of calls) {
+    if (call.tool.tool === "task") addFeature(subagents, call.session_id, call.time_created);
+    if (resolveMcpTool(call.tool.tool, servers)) addFeature(mcp, call.session_id, call.time_created);
+    if (call.tool.tool === "webfetch") addFeature(webfetch, call.session_id, call.time_created);
+    if (call.tool.tool === "skill") addFeature(skills, call.session_id, call.time_created);
+  }
+  for (const row of parts) if (decodePartData(row.data).value.type === "reasoning") addFeature(reasoning, row.session_id, row.time_created);
   for (const message of messages) {
     const decoded = decodeMessageData(message.data);
     messageWarnings.push(...decoded.warnings);
-    if (decoded.value.mode === "plan") planMode.add(message.session_id);
+    if (decoded.value.mode === "plan") addFeature(planMode, message.session_id, message.time_created);
   }
-  const todoIds = new Set(todos.map((t) => t.session_id));
-  return { data: { subagents: adoptionRow(sessions, subagents), mcp: adoptionRow(sessions, mcp), webfetch: adoptionRow(sessions, webfetch), planMode: adoptionRow(sessions, planMode), reasoning: adoptionRow(sessions, reasoning), todos: adoptionRow(sessions, todoIds), skills: adoptionRow(sessions, skills) }, warnings: mergeWarnings([warnings, messageWarnings]) };
+  const todoEvents = new Map<string, number>();
+  for (const todo of todos) addFeature(todoEvents, todo.session_id, todo.time_created);
+  return { data: { subagents: adoptionRow(cohort, subagents), mcp: adoptionRow(cohort, mcp), webfetch: adoptionRow(cohort, webfetch), planMode: adoptionRow(cohort, planMode), reasoning: adoptionRow(cohort, reasoning), todos: adoptionRow(cohort, todoEvents), skills: adoptionRow(cohort, skills) }, warnings: mergeWarnings([warnings, messageWarnings]) };
 }

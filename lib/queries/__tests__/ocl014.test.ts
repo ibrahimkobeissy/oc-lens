@@ -16,6 +16,7 @@ describe("OCL-014 session queries", () => {
       expect(result.data.filter((s) => s.agent === null).length).toBeGreaterThanOrEqual(MINIMUMS.nullAgentSessions);
       expect(result.data.filter((s) => s.model === null).length).toBeGreaterThanOrEqual(MINIMUMS.nullModelSessions);
       expect(result.data.some((s) => s.hasReasoning)).toBe(true);
+      expect(result.data.some((s) => s.hasCompaction)).toBe(true);
       expect(result.data.some((s) => s.usesMcp)).toBe(true);
       expect(result.data.some((s) => s.usesSubagent)).toBe(true);
       expect(result.data.some((s) => s.usesWebfetch)).toBe(true);
@@ -99,6 +100,17 @@ describe("OCL-014 project and overview queries", () => {
       const expectedMessages = (db.prepare("SELECT COUNT(*) AS count FROM message m JOIN session s ON s.id = m.session_id WHERE s.project_id = ?").get(GLOBAL_PROJECT_ID) as { count: number }).count;
       expect(global?.messageCount).toBe(expectedMessages);
     });
+  });
+
+  it("flows strict configured pricing into project summaries", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    db.prepare("INSERT INTO project (id, worktree, name) VALUES ('global', '/', NULL)").run();
+    db.prepare("INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated) VALUES ('s', 'global', 's', '/', 's', '1', 1, 2)").run();
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('m', 's', 1, 2, ?)").run(JSON.stringify({ role: "assistant", providerID: "provider", modelID: "model", tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } }));
+    const pricing = { version: 1 as const, updatedAt: 1, prices: { "provider/model": { inputPerMTok: 1, outputPerMTok: 1, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" as const } } };
+    expect(listProjects(db, {}, pricing).data[0]?.cost).toEqual({ amount: 1, priced: true });
+    db.close();
   });
 
   it("computes overview totals and explicit unknown counts", () => {

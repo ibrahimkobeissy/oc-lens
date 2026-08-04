@@ -1800,9 +1800,37 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 ---
 
+#### OCL-143 — 2026-08-04 full-review remediation
+
+**Epic** E13 · **Size** L · **Depends on** OCL-130 · **Wave** W9R
+
+**Ruling (2026-08-04).** The maintainer requested that every confirmed defect in `project-docs/code-review-2026-08-04.md` be corrected in one pass. This is a post-freeze ownership amendment: OCL-143 is the single active ticket for that remediation and supersedes the historical ticket locks only for the files listed below. W10 release work remains blocked until this ticket is green.
+
+**Correction (2026-08-04, later same day).** The maintainer reviewed the warning-report fix and asked for it to be reverted: `components/states/warnings-banner.tsx` and `app/api/warnings/sample/**` are back to their pre-OCL-143 behavior (the GitHub-report URL can again embed a raw local-database sample, and the sample endpoint is live again), by explicit maintainer choice, not an oversight. That P1 finding from `project-docs/code-review-2026-08-04.md` is therefore knowingly left unaddressed. OCL-143 no longer owns those two files or their tests, and its first acceptance criterion is unmet. Every other criterion below still holds.
+
+**In scope** Make strict assistant-message pricing evidence canonical in replay, agent, and project analytics; reject malformed token objects without silently substituting zero; flow configured prices through project list/detail session summaries; derive compaction flags from verified parts; make feature adoption use an activity-range cohort and event timestamps; use local-calendar exclusive range ends across DST; reject all-zero pricing rows at the server boundary; return an explicit settings schema-mismatch response; and standardize affected query helpers on half-open `[from, to)` ranges. ~~Remove raw local database content from the external GitHub-report URL and retire the raw-sample endpoint~~ — reverted per the correction above.
+
+**Owns** `project-docs/backlog.md`, `project-docs/code-review-2026-08-04.md`, `lib/pricing/breakdown.ts`, `lib/pricing/config.ts` and focused tests, `lib/decode/tokens.ts`, `lib/decode/message.ts`, `lib/decode/part.ts` and focused tests, `lib/queries/replay.ts`, `lib/queries/agents.ts`, `lib/queries/projects.ts`, `lib/queries/sessions.ts`, `lib/queries/tools.ts` and focused tests, `app/api/projects/route.ts` and its test, `app/api/projects/[id]/route.ts` and its test, `components/overview/range-picker.tsx` and its test, `app/api/settings/route.ts` and its test, and `app/api/export/route.ts` plus focused expectation corrections in its test. This amendment does not claim or alter the maintainer's pre-existing uncommitted optional-field work in `types/oc.ts`, `lib/decode/compaction.ts`, `lib/decode/session.ts`, their tests/renderers, or `project-docs/opencode-data-model.md`.
+
+**Acceptance criteria**
+
+- [ ] ~~No external URL or support endpoint contains raw database payloads, source ids, file paths, prompts, code, or other local content.~~ Reverted by maintainer request (2026-08-04 correction) — the raw-sample endpoint and GitHub-report URL embedding are intentionally back to pre-remediation behavior.
+- [x] Replay, agent, project, session, cost, and export surfaces agree on whether each message is priceable.
+- [x] Missing, wrong-typed, non-finite, or negative native token fields are unpriced/unknown and produce a warning instead of becoming zero.
+- [x] Project cards, cost sorting, and project-detail session rows use configured pricing.
+- [x] Verified compaction parts set `hasCompaction` in live and exported summaries.
+- [x] Feature adoption uses one documented activity-range denominator and reports the first qualifying event time.
+- [x] Custom calendar ranges and every affected query use a half-open `[from, to)` contract, including DST transition days.
+- [x] All-zero model rates are rejected by direct API/config writes; Settings exposes schema mismatch as an error.
+- [x] Focused regressions plus `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build` pass.
+
+**Gate evidence (2026-08-04):** `pnpm typecheck`, `pnpm lint`, and `git diff --check` pass; `pnpm test` passes 573/573 tests across 111 files; `pnpm build` passes outside the restricted sandbox after the expected in-sandbox Turbopack CSS-worker port denial. OCL-143 is green on every criterion except the warning-report one, which is intentionally reverted per the correction above. W10's pre-existing screenshot and external GitHub evidence blockers remain unchanged.
+
+---
+
 #### OCL-131 — README and documentation
 
-**Epic** E13 · **Size** S · **Depends on** OCL-140, OCL-141, OCL-142 · **Wave** W10
+**Epic** E13 · **Size** S · **Depends on** OCL-140, OCL-141, OCL-142, OCL-143 · **Wave** W10
 
 **In scope** README with what it is, why it exists (versus `opencode web` / `opencode stats`), install, usage, screenshots of every page, the **read-only guarantee**, the pricing-setup walkthrough (D3), the pinned opencode version, and **MIT attribution to cc-lens** as the design inspiration. Plus `CONTRIBUTING.md` pointing at this backlog and the data-model doc.
 
@@ -1821,7 +1849,7 @@ These are the differentiator. They have **no cc-lens equivalent** — `.referenc
 
 #### OCL-132 — CI and release
 
-**Epic** E13 · **Size** S · **Depends on** OCL-140, OCL-141, OCL-142 · **Wave** W10
+**Epic** E13 · **Size** S · **Depends on** OCL-140, OCL-141, OCL-142, OCL-143 · **Wave** W10
 
 **In scope** GitHub Actions running `typecheck`, `lint`, `test`, `build` on Node 22 and 24; the fixture build step; a release workflow publishing to npm on tag; Dependabot.
 

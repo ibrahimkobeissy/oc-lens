@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { query } from "@/lib/db/connection";
 import { decodeMessageData, decodePartData, mergeWarnings } from "@/lib/decode";
-import { costFor } from "@/lib/pricing/cost";
+import { costForMessageData, pricingEvidence } from "@/lib/pricing/breakdown";
 import type { AgentActivityPoint, AgentSummary, AgentSwitchEvent, OcTokens, OcWarning, PricingConfig } from "@/types/oc";
 import type { PartQueryFilter, QueryResult } from "./tools";
 
@@ -21,7 +21,7 @@ function hasTokenUsage(tokens: OcTokens): boolean { return tokens.input !== 0 ||
 const EMPTY_PRICING: PricingConfig = { version: 1, prices: {}, updatedAt: 0 };
 
 function included(session: SessionRow, filter: PartQueryFilter): boolean {
-  return (filter.from === undefined || session.time_created >= filter.from) && (filter.to === undefined || session.time_created <= filter.to) &&
+  return (filter.from === undefined || session.time_created >= filter.from) && (filter.to === undefined || session.time_created < filter.to) &&
     (filter.projectId === undefined || session.project_id === filter.projectId) && (filter.agent === undefined || (session.agent ?? "unknown") === filter.agent) &&
     (filter.sessionId === undefined || session.id === filter.sessionId);
 }
@@ -46,14 +46,18 @@ export function agentUsage(db: DatabaseSync, filter: PartQueryFilter = {}, prici
     const name = decoded.value.agent ?? "unknown"; agentByMessage.set(message.id, name); const b = get(name); b.messageCount++; b.sessions.add(message.session_id);
     const session = sessionById.get(message.session_id);
     if (session && !b.durationSessions.has(session.id) && session.time_updated >= session.time_created) { b.durations.push(session.time_updated - session.time_created); b.durationSessions.add(session.id); }
+    const evidence = pricingEvidence(message.data);
     if (decoded.value.tokens) {
       addTokens(b.tokens, decoded.value.tokens);
       if (hasTokenUsage(decoded.value.tokens)) {
-        const price = costFor(decoded.value.tokens, `${decoded.value.providerID ?? "unknown"}/${decoded.value.modelID ?? "unknown"}`, pricing);
+        const price = costForMessageData(message.data, pricing);
         b.costAmount += price.amount;
         b.hasPricedUsage = b.hasPricedUsage || price.priced;
         b.allUsagePriced = b.allUsagePriced && price.priced;
       }
+    }
+    if (evidence.kind === "invalid") {
+      b.allUsagePriced = false;
     }
   }
   for (const part of parts) {

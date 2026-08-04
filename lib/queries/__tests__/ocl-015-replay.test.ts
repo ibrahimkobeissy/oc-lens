@@ -63,6 +63,28 @@ describe("OCL-015 replay queries", () => {
     expect(withPricing.turns.filter((turn) => turn.role === "user").every((turn) => !turn.cost.priced)).toBe(true);
   }));
 
+  it("does not price a non-assistant message with otherwise valid-looking model and token fields", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    db.prepare("INSERT INTO project (id, worktree, name) VALUES ('global', '/', NULL)").run();
+    db.prepare("INSERT INTO session (id, project_id, slug, directory, title, version, agent, time_created, time_updated) VALUES ('s', 'global', 's', '/', 's', '1', 'build', 1, 2)").run();
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('m', 's', 1, 2, ?)").run(JSON.stringify({
+      role: "future-role",
+      agent: "build",
+      providerID: "provider",
+      modelID: "model",
+      tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    }));
+    const pricing: PricingConfig = { version: 1, updatedAt: 1, prices: { "provider/model": { inputPerMTok: 1, outputPerMTok: 1, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" } } };
+    expect(getReplay(db, "s", [], pricing).data?.turns[0]?.cost).toEqual({ amount: 0, priced: false });
+    db.close();
+  });
+
+  it("sets the replay summary compaction flag from the verified fixture part", () => withFixture((db) => {
+    const row = db.prepare("SELECT session_id FROM part WHERE json_extract(data, '$.type') = 'compaction' LIMIT 1").get() as { session_id: string };
+    expect(getReplay(db, row.session_id).data?.session.hasCompaction).toBe(true);
+  }));
+
   it("replays the 400-message fixture session in under 300ms", () => withFixture((db) => {
     const id = (db.prepare("SELECT id FROM session ORDER BY id LIMIT 1").get() as { id: string }).id;
     const started = performance.now();

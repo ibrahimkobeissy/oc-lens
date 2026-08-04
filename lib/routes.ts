@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   ListTodo,
   MessagesSquare,
-  Palette,
   Settings,
   Wrench,
 } from "lucide-react";
@@ -44,7 +43,6 @@ export const ROUTE_GROUPS = [
   "agents",
   "export",
   "settings",
-  "dev",
 ] as const;
 
 export const ROUTES: OcRoute[] = [
@@ -60,7 +58,6 @@ export const ROUTES: OcRoute[] = [
   { href: "/export", label: "Export", icon: Download, group: "export", enabled: true },
   { href: "/settings", label: "Settings", icon: Settings, group: "settings", enabled: true },
   { href: "/settings/pricing", label: "Pricing", icon: DollarSign, group: "settings", enabled: true },
-  { href: "/style-guide", label: "Style Guide", icon: Palette, group: "dev", enabled: true },
 ];
 
 /** Routes usable as primary mobile bottom-nav entries — one per user-facing group, dev tooling excluded. */

@@ -98,6 +98,8 @@ describe("GET /api/projects/[id]", () => {
     if (!("data" in payload)) throw new Error("expected project envelope");
     expect(payload.data.cost.priced).toBe(true);
     expect(payload.data.cost.amount).toBeCloseTo(4, 9);
+    expect(payload.data.sessions).toHaveLength(1);
+    expect(payload.data.sessions[0]?.cost).toEqual({ amount: 4, priced: true });
 
     writePricing({ version: 1, updatedAt: 3, prices: {} }, { configHome: process.env.XDG_CONFIG_HOME });
     response = await GET(new Request("http://localhost/api/projects/global"), context("global"));

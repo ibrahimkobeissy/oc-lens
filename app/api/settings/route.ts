@@ -5,7 +5,7 @@ import { getConnection, query } from "@/lib/db/connection";
 import { locateDb } from "@/lib/db/locate";
 import { schemaVersion } from "@/lib/db/schema-guard";
 import { computeStorageSizes } from "@/lib/db/storage";
-import type { OcResponse, SettingsResponse, StorageBreakdown } from "@/types/oc";
+import type { OcResponse, SettingsResponse, SettingsRouteResponse, StorageBreakdown } from "@/types/oc";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +29,15 @@ function envelope<T>(data: T): OcResponse<T> {
   return { data, meta: { generatedAt: Date.now(), schemaVersion, warnings: [] } };
 }
 
-export async function GET(): Promise<NextResponse<OcResponse<SettingsResponse>>> {
+export async function GET(): Promise<NextResponse<SettingsRouteResponse>> {
   const located = locateDb();
   const connected = getConnection();
+  if (!connected.ok && connected.reason === "schema-mismatch") {
+    return NextResponse.json(
+      { error: { code: "schema_mismatch", message: `The opencode database schema is not supported by ${schemaVersion}.` } },
+      { status: 409 },
+    );
+  }
   let projectWorktrees: string[] = [];
   let opencodeVersion: string | null = null;
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getConnection } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
+import { readPricing } from "@/lib/pricing/config";
 import { listProjects } from "@/lib/queries/projects";
 import type { ProjectsRouteResponse } from "@/types/oc";
 
@@ -30,7 +31,7 @@ export async function GET(): Promise<NextResponse<ProjectsRouteResponse>> {
       );
     }
 
-    const result = listProjects(connection.db);
+    const result = listProjects(connection.db, {}, readPricing());
     return NextResponse.json({
       data: result.data,
       meta: { generatedAt: Date.now(), schemaVersion, warnings: result.warnings },

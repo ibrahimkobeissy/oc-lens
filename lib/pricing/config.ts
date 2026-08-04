@@ -31,15 +31,17 @@ export class PricingValidationError extends Error {
 function isValidRate(value: unknown): value is PricingModelRate {
   if (typeof value !== "object" || value === null) return false;
   const rate = value as Record<string, unknown>;
+  const values = [rate.inputPerMTok, rate.outputPerMTok, rate.cacheReadPerMTok, rate.cacheWritePerMTok];
+  if (!values.every((entry): entry is number => typeof entry === "number" && Number.isFinite(entry) && entry >= 0)) {
+    return false;
+  }
   return (
     typeof rate.inputPerMTok === "number" &&
     typeof rate.outputPerMTok === "number" &&
     typeof rate.cacheReadPerMTok === "number" &&
     typeof rate.cacheWritePerMTok === "number" &&
     rate.currency === "USD" &&
-    [rate.inputPerMTok, rate.outputPerMTok, rate.cacheReadPerMTok, rate.cacheWritePerMTok].every(
-      (n) => Number.isFinite(n) && n >= 0,
-    )
+    values.some((n) => n > 0)
   );
 }
 

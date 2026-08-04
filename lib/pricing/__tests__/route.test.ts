@@ -126,6 +126,25 @@ describe("GET/PUT /api/pricing", () => {
     expect(() => readFileSync(configPath, "utf-8")).toThrow();
   });
 
+  it("PUT rejects an all-zero model rate and preserves the previous config", async () => {
+    const { PUT } = await import("@/app/api/pricing/route");
+    const previous = {
+      version: 1,
+      prices: { "provider/model": { inputPerMTok: 1, outputPerMTok: 0, cacheReadPerMTok: 0, cacheWritePerMTok: 0, currency: "USD" } },
+      updatedAt: 1,
+    };
+    expect((await PUT(new Request("http://localhost/api/pricing", { method: "PUT", body: JSON.stringify(previous) }))).status).toBe(200);
+
+    const allZero = {
+      ...previous,
+      prices: { "provider/model": { inputPerMTok: 0, outputPerMTok: 0, cacheReadPerMTok: 0, cacheWritePerMTok: 0, currency: "USD" } },
+      updatedAt: 2,
+    };
+    const response = await PUT(new Request("http://localhost/api/pricing", { method: "PUT", body: JSON.stringify(allZero) }));
+    expect(response.status).toBe(400);
+    expect(JSON.parse(readFileSync(join(dir, "oc-lens", "config.json"), "utf-8"))).toEqual(previous);
+  });
+
   it("PUT with invalid JSON syntax returns 400", async () => {
     const { PUT } = await import("@/app/api/pricing/route");
     const request = new Request("http://localhost/api/pricing", {

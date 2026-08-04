@@ -78,6 +78,20 @@ describe("decodeMessageData", () => {
     expect(value.tokens?.cacheWrite).toBe(42);
   });
 
+  it("rejects incomplete, wrong-typed, non-finite, and negative token evidence instead of substituting zero", () => {
+    const invalidTokens = [
+      { input: 1, output: 2, reasoning: 0, cache: { read: 3 } },
+      { input: "1", output: 2, reasoning: 0, cache: { read: 3, write: 4 } },
+      { input: Number.NaN, output: 2, reasoning: 0, cache: { read: 3, write: 4 } },
+      { input: -1, output: 2, reasoning: 0, cache: { read: 3, write: 4 } },
+    ];
+    for (const tokens of invalidTokens) {
+      const decoded = decodeMessageData(JSON.stringify({ role: "assistant", tokens }));
+      expect(decoded.value.tokens).toBeNull();
+      expect(decoded.warnings).toContainEqual(expect.objectContaining({ code: "malformed-message-tokens" }));
+    }
+  });
+
   it("never throws on malformed JSON, and produces a warning", () => {
     const { value, warnings } = decodeMessageData("{not json");
     expect(value.role).toBe("unknown");

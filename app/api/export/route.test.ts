@@ -80,6 +80,7 @@ describe("OCL-120 GET /api/export", () => {
     expect(exported.replays).toHaveLength(exported.counts.sessions);
     expect(exported.replays?.reduce((sum, replay) => sum + replay.turns.length, 0)).toBe(exported.counts.messages);
     expect(exported.replays?.reduce((sum, replay) => sum + replay.turns.reduce((turnSum, turn) => turnSum + turn.parts.length, 0), 0)).toBe(exported.counts.parts);
+    expect(exported.replays?.some((replay) => replay.session.hasCompaction)).toBe(true);
     expect(exported.todos?.sessions.reduce((sum, session) => sum + session.todos.length, 0)).toBe(exported.counts.todos);
   }, 30_000);
 

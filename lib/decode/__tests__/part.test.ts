@@ -88,8 +88,20 @@ describe("decodePartData", () => {
     });
   });
 
-  it("falls back to unknown, with a warning, when a compaction part is missing auto/overflow/tail_start_id", () => {
+  it("falls back to unknown, with a warning, when a compaction part is missing auto/overflow", () => {
     const { value, warnings } = decodePartData(JSON.stringify({ type: "compaction" }));
+    expect(value.type).toBe("unknown");
+    expect(warnings.some((w) => w.code === "malformed-compaction")).toBe(true);
+  });
+
+  it("decodes a compaction part with no tail_start_id at all as tailStartId: null — real shape confirmed live 2026-08-03", () => {
+    const { value, warnings } = decodePartData(JSON.stringify({ type: "compaction", auto: true, overflow: true }));
+    expect(warnings).toEqual([]);
+    expect(value).toEqual({ type: "compaction", auto: true, overflow: true, tailStartId: null });
+  });
+
+  it("still rejects a compaction part whose tail_start_id is present but the wrong type", () => {
+    const { value, warnings } = decodePartData(JSON.stringify({ type: "compaction", auto: true, overflow: true, tail_start_id: 42 }));
     expect(value.type).toBe("unknown");
     expect(warnings.some((w) => w.code === "malformed-compaction")).toBe(true);
   });

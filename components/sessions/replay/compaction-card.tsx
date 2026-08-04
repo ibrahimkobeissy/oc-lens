@@ -20,7 +20,11 @@ export function CompactionCard({ part }: ReplayPartRendererProps) {
         <span className="ml-auto font-mono text-xs">{auto ? "automatic" : "manual"}{overflow ? " · context overflow" : ""}</span>
       </summary>
       <div className="border-t border-warning/30 px-3 py-3 text-xs text-muted-foreground">
-        <p>The context before this point was compacted; replay continues from the retained tail starting at message <code className="font-mono text-foreground">{tailStartId}</code>.</p>
+        <p>
+          {tailStartId !== null
+            ? <>The context before this point was compacted; replay continues from the retained tail starting at message <code className="font-mono text-foreground">{tailStartId}</code>.</>
+            : "The context before this point was compacted; opencode did not record which message the retained tail starts at."}
+        </p>
       </div>
     </details>
   );

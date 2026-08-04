@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { getConnection, query } from "@/lib/db/connection";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { schemaVersion } from "@/lib/db/schema-guard";
-import { costBreakdown } from "@/lib/pricing/breakdown";
 import { readPricing } from "@/lib/pricing/config";
 import { dailyActivity } from "@/lib/queries/activity";
 import { listProjects, projectModelBreakdown } from "@/lib/queries/projects";
@@ -67,14 +66,12 @@ export async function GET(request: Request, context: RouteContext): Promise<Next
       );
     }
 
-    const sessions = listSessions(connection.db, { projectId: id });
-    const summary = listProjects(connection.db, { projectId: id }, sessions).data.find((project) => project.id === id);
+    const pricing = readPricing();
+    const sessions = listSessions(connection.db, { projectId: id }, pricing);
+    const summary = listProjects(connection.db, { projectId: id }, pricing, sessions).data.find((project) => project.id === id);
     if (!summary) return errorResponse("project_not_found", `Project ${id} was not found.`, 404);
 
     const activity = dailyActivity(connection.db, { projectId: id, timeZone });
-    const pricing = readPricing();
-    const costs = costBreakdown(connection.db, pricing, timeZone);
-    const projectCost = costs.byProject.find((entry) => entry.projectId === id)?.cost ?? { amount: 0, priced: false };
     const models = projectModelBreakdown(connection.db, id, pricing);
     const hasWorkspace = query<TableRow>(
       connection.db,
@@ -89,7 +86,6 @@ export async function GET(request: Request, context: RouteContext): Promise<Next
       : [];
     const data: ProjectDetail = {
       ...summary,
-      cost: projectCost,
       sessions: sessions.data,
       dailyActivity: activity.data,
       modelBreakdown: models.data,

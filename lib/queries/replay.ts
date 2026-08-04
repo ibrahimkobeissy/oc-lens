@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { query } from "@/lib/db/connection";
 import { decodeMessageData, decodePartData, decodeSessionModel, isPlaceholderTitle, mergeWarnings } from "@/lib/decode";
-import { costFor } from "@/lib/pricing/cost";
+import { costForMessageData } from "@/lib/pricing/breakdown";
 import { resolveMcpTool } from "@/lib/tools";
 import type { OcCost, OcTokens, OcWarning, PricingConfig, ReplayPart, ReplayTurn, SessionReplay, SessionSummary, SubagentNode } from "@/types/oc";
 
@@ -51,7 +51,7 @@ function summary(db: DatabaseSync, session: SessionRow, messages: MessageRow[], 
     toolCallCount: decodedParts.filter((part) => part.data.type === "tool").length,
     errorCount: decodedParts.filter((part) => part.data.type === "tool" && part.data.status === "error").length,
     tokens: tokens(session), cost: UNPRICED,
-    hasReasoning: decodedParts.some((part) => part.data.type === "reasoning"), hasCompaction: false,
+    hasReasoning: decodedParts.some((part) => part.data.type === "reasoning"), hasCompaction: decodedParts.some((part) => part.data.type === "compaction"),
     usesMcp: decodedParts.some((part) => part.data.type === "tool" && resolveMcpTool(part.data.tool, mcpServers) !== null),
     usesSubagent: decodedParts.some((part) => part.data.type === "tool" && part.data.tool === "task") || query<{ id: string }>(db, "SELECT id FROM session WHERE parent_id = ? LIMIT 1", [session.id]).length > 0,
     usesWebfetch: decodedParts.some((part) => part.data.type === "tool" && part.data.tool === "webfetch"),
@@ -72,9 +72,7 @@ export function getReplay(db: DatabaseSync, sessionId: string, mcpServers: strin
     const created = decoded.value.timeCreated ?? message.time_created;
     const completed = decoded.value.timeCompleted;
     const messageTokens = decoded.value.tokens;
-    const cost = pricing && messageTokens && decoded.value.providerID && decoded.value.modelID
-      ? costFor(messageTokens, `${decoded.value.providerID}/${decoded.value.modelID}`, pricing)
-      : UNPRICED;
+    const cost = pricing ? costForMessageData(message.data, pricing) : UNPRICED;
     return { messageId: message.id, role: decoded.value.role, agent: decoded.value.agent, timeCreated: created, timeCompleted: completed, durationMs: completed === null ? null : completed - created, tokens: messageTokens, cost, parts: replayParts };
   });
   const accumulation = zeroTokens();

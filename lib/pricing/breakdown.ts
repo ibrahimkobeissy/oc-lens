@@ -52,12 +52,12 @@ function verifiedTokens(data: RawAssistantMessageData): OcTokens | null {
   };
 }
 
-type PricingEvidence =
+export type PricingEvidence =
   | { kind: "ignore" }
   | { kind: "invalid"; data: RawAssistantMessageData | null }
   | { kind: "assistant"; data: RawAssistantMessageData; providerID: string; modelID: string; tokens: OcTokens };
 
-function pricingEvidence(raw: string | null): PricingEvidence {
+export function pricingEvidence(raw: string | null): PricingEvidence {
   let parsed: unknown;
   try {
     parsed = raw === null ? null : JSON.parse(raw);

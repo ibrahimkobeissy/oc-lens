@@ -24,7 +24,6 @@ describe("ROUTES", () => {
       "/export",
       "/settings",
       "/settings/pricing",
-      "/style-guide",
     ]);
   });
 
@@ -43,7 +42,6 @@ describe("ROUTES", () => {
       "/export",
       "/settings",
       "/settings/pricing",
-      "/style-guide",
     ]);
   });
 

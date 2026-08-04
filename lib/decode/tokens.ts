@@ -1,5 +1,9 @@
 import type { OcTokens } from "@/types/oc";
-import { asNumber, asRecord } from "./json";
+import { asRecord } from "./json";
+
+function validToken(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
 
 /**
  * Decodes the `tokens.{input,output,reasoning,cache.{read,write}}` shape
@@ -11,11 +15,19 @@ export function decodeTokens(raw: unknown): OcTokens | null {
   const obj = asRecord(raw);
   if (!obj) return null;
   const cache = asRecord(obj.cache);
+  if (
+    !validToken(obj.input) ||
+    !validToken(obj.output) ||
+    !validToken(obj.reasoning) ||
+    !cache ||
+    !validToken(cache.read) ||
+    !validToken(cache.write)
+  ) return null;
   return {
-    input: asNumber(obj.input) ?? 0,
-    output: asNumber(obj.output) ?? 0,
-    reasoning: asNumber(obj.reasoning) ?? 0,
-    cacheRead: asNumber(cache?.read) ?? 0,
-    cacheWrite: asNumber(cache?.write) ?? 0,
+    input: obj.input,
+    output: obj.output,
+    reasoning: obj.reasoning,
+    cacheRead: cache.read,
+    cacheWrite: cache.write,
   };
 }

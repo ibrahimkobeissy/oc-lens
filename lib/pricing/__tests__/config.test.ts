@@ -88,4 +88,16 @@ describe("pricing config", () => {
       }),
     ).toBe(false);
   });
+
+  it("rejects a non-empty all-zero rate so recorded usage cannot appear priced at $0.00", () => {
+    const allZero = {
+      version: 1,
+      prices: {
+        "a/b": { inputPerMTok: 0, outputPerMTok: 0, cacheReadPerMTok: 0, cacheWritePerMTok: 0, currency: "USD" },
+      },
+      updatedAt: 1,
+    };
+    expect(isValidPricingConfig(allZero)).toBe(false);
+    expect(() => writePricing(allZero, { configHome: dir })).toThrow(PricingValidationError);
+  });
 });

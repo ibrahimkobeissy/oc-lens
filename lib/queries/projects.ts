@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { query } from "@/lib/db/connection";
 import { decodeMessageData } from "@/lib/decode/message";
 import { mergeWarnings, warning } from "@/lib/decode/warnings";
-import { costFor } from "@/lib/pricing/cost";
+import { costBreakdown } from "@/lib/pricing/breakdown";
 import type { ModelUsage, OcTokens, OverviewStats, PricingConfig, ProjectSummary, SessionSummary, VersionRecord } from "@/types/oc";
 import { dailyActivity, dailyTokens, hourOfDay, localDay } from "./activity";
 import { listSessions, projectDisplayName, type QueryResult } from "./sessions";
@@ -58,9 +58,14 @@ export function projectModelBreakdown(db: DatabaseSync, projectId: string, prici
   }
 
   if (unknownCount > 0) warningGroups.push([warning("unknown-message-model", "Messages had no complete provider/model identity", unknownCount)]);
+  const projectSessionIds = query<SessionProjectRow>(db, "SELECT id, project_id FROM session WHERE project_id = ?", [projectId]).map((row) => row.id);
+  const strictCosts = new Map(
+    costBreakdown(db, pricing, "UTC", {}, projectSessionIds).byModel
+      .map((entry) => [`${entry.providerID}/${entry.modelID}`, entry.cost]),
+  );
   for (const [key, entry] of models) {
     entry.sessionCount = sessionsByModel.get(key)?.size ?? 0;
-    entry.cost = key === "unknown/unknown" ? { amount: 0, priced: false } : costFor(entry.tokens, key, pricing);
+    entry.cost = strictCosts.get(key) ?? { amount: 0, priced: false };
   }
   return {
     data: [...models.values()].sort((left, right) => right.messageCount - left.messageCount || `${left.providerID}/${left.modelID}`.localeCompare(`${right.providerID}/${right.modelID}`)),
@@ -68,19 +73,27 @@ export function projectModelBreakdown(db: DatabaseSync, projectId: string, prici
   };
 }
 
-export function listProjects(db: DatabaseSync, filter: Parameters<typeof listSessions>[1] = {}, preloaded?: QueryResult<SessionSummary[]>): QueryResult<ProjectSummary[]> {
-  const sessions = preloaded ?? listSessions(db, filter);
+export function listProjects(
+  db: DatabaseSync,
+  filter: Parameters<typeof listSessions>[1] = {},
+  pricing?: PricingConfig,
+  preloaded?: QueryResult<SessionSummary[]>,
+): QueryResult<ProjectSummary[]> {
+  const sessions = preloaded ?? listSessions(db, filter, pricing);
   const rows = query<ProjectRow>(db, "SELECT id, name, worktree FROM project ORDER BY id");
   const messages = query<MessageRow>(db, "SELECT session_id, data FROM message");
   const messageCounts = new Map<string, number>();
   for (const row of messages) messageCounts.set(row.session_id, (messageCounts.get(row.session_id) ?? 0) + 1);
+  const projectCosts = pricing === undefined
+    ? new Map<string, ProjectSummary["cost"]>()
+    : new Map(costBreakdown(db, pricing, "UTC", {}, sessions.data.map((session) => session.id)).byProject.map((entry) => [entry.projectId, entry.cost]));
   const data = rows.map((row): ProjectSummary => {
     const matching = sessions.data.filter((session) => session.projectId === row.id);
     const tokens = zeroTokens(); matching.forEach((session) => addTokens(tokens, session.tokens));
     return {
       id: row.id, displayName: projectDisplayName(row.id, row.name, row.worktree), worktree: row.worktree ?? "",
       sessionCount: matching.length, messageCount: matching.reduce((sum, s) => sum + (messageCounts.get(s.id) ?? 0), 0),
-      tokens, cost: { amount: 0, priced: false },
+      tokens, cost: projectCosts.get(row.id) ?? { amount: 0, priced: false },
       firstActivity: matching.length ? Math.min(...matching.map((s) => s.timeCreated)) : null,
       lastActivity: matching.length ? Math.max(...matching.map((s) => s.timeUpdated)) : null,
     };
@@ -93,9 +106,9 @@ export function versionHistory(db: DatabaseSync, range: { from?: number; to?: nu
   const sessionRange: string[] = [];
   const params: number[] = [];
   if (range.from !== undefined) { messageRange.push("m.time_created >= ?"); params.push(range.from); }
-  if (range.to !== undefined) { messageRange.push("m.time_created <= ?"); params.push(range.to); }
+  if (range.to !== undefined) { messageRange.push("m.time_created < ?"); params.push(range.to); }
   if (range.from !== undefined) { sessionRange.push("s.time_created >= ?"); params.push(range.from); }
-  if (range.to !== undefined) { sessionRange.push("s.time_created <= ?"); params.push(range.to); }
+  if (range.to !== undefined) { sessionRange.push("s.time_created < ?"); params.push(range.to); }
   const rows = query<VersionRow>(db, `SELECT s.version AS version, COUNT(DISTINCT s.id) AS session_count,
     COUNT(m.id) AS message_count, MIN(s.time_created) AS first_seen, MAX(s.time_created) AS last_seen
     FROM session s LEFT JOIN message m ON m.session_id = s.id${messageRange.length ? ` AND ${messageRange.join(" AND ")}` : ""}
@@ -105,7 +118,7 @@ export function versionHistory(db: DatabaseSync, range: { from?: number; to?: nu
 }
 
 export function getOverviewStats(db: DatabaseSync, timeZone = "UTC", now = Date.now(), range: { from?: number; to?: number } = {}): QueryResult<OverviewStats> {
-  const sessions = listSessions(db, range); const projects = listProjects(db, range, sessions); const daily = dailyActivity(db, { ...range, timeZone }); const tokensByDay = dailyTokens(db, { ...range, timeZone }); const hours = hourOfDay(db, { ...range, timeZone });
+  const sessions = listSessions(db, range); const projects = listProjects(db, range, undefined, sessions); const daily = dailyActivity(db, { ...range, timeZone }); const tokensByDay = dailyTokens(db, { ...range, timeZone }); const hours = hourOfDay(db, { ...range, timeZone });
   const messages = query<MessageRow>(db, "SELECT session_id, time_created, data FROM message").filter((message) =>
     (range.from === undefined || message.time_created >= range.from) &&
     (range.to === undefined || message.time_created < range.to));

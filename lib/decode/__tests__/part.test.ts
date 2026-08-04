@@ -77,6 +77,16 @@ describe("decodePartData", () => {
     });
   });
 
+  it("keeps malformed step-finish token evidence unknown and warns", () => {
+    const decoded = decodePartData(JSON.stringify({
+      type: "step-finish",
+      reason: "stop",
+      tokens: { input: 10, output: 2, reasoning: 0, cache: { read: 1 } },
+    }));
+    expect(decoded.value).toMatchObject({ type: "step-finish", tokens: null });
+    expect(decoded.warnings).toContainEqual(expect.objectContaining({ code: "malformed-step-tokens" }));
+  });
+
   it("decodes the verbatim compaction sample", () => {
     const { value, warnings } = decodePartData(COMPACTION_RAW);
     expect(warnings).toEqual([]);

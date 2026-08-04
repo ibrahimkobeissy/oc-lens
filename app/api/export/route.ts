@@ -99,6 +99,7 @@ interface PartFlagsRow {
   tool_count: number;
   error_count: number;
   has_reasoning: number;
+  has_compaction: number;
   uses_task: number;
   uses_webfetch: number;
 }
@@ -309,9 +310,7 @@ function streaksFromRange(activity: ActivityStats["dailyActivity"], today: strin
 }
 
 function toolsData(db: DatabaseSync, options: ExportOptions, servers: string[]): { data: ToolsStats; warnings: OcWarning[] } {
-  // OCL-015's part/version filters use an inclusive `to`; the export contract
-  // is half-open, so subtract one millisecond at this adapter boundary.
-  const range = { from: options.from, to: options.to === undefined ? undefined : options.to - 1 };
+  const range = { from: options.from, to: options.to };
   const tools = toolUsage(db, range, servers);
   const adoption = featureAdoption(db, servers, range);
   return {
@@ -412,10 +411,11 @@ function replaySummary(
       COALESCE(SUM(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' THEN 1 ELSE 0 END), 0) AS tool_count,
       COALESCE(SUM(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.state.status') = 'error' THEN 1 ELSE 0 END), 0) AS error_count,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'reasoning' THEN 1 ELSE 0 END), 0) AS has_reasoning,
+      COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'compaction' THEN 1 ELSE 0 END), 0) AS has_compaction,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.tool') = 'task' THEN 1 ELSE 0 END), 0) AS uses_task,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.tool') = 'webfetch' THEN 1 ELSE 0 END), 0) AS uses_webfetch
     FROM part WHERE session_id = ?
-  `, [id])[0] ?? { tool_count: 0, error_count: 0, has_reasoning: 0, uses_task: 0, uses_webfetch: 0 };
+  `, [id])[0] ?? { tool_count: 0, error_count: 0, has_reasoning: 0, has_compaction: 0, uses_task: 0, uses_webfetch: 0 };
   const toolNames = query<ToolNameRow>(db, `
     SELECT DISTINCT json_extract(data, '$.tool') AS tool FROM part
     WHERE session_id = ? AND json_valid(data) AND json_extract(data, '$.type') = 'tool'
@@ -456,7 +456,7 @@ function replaySummary(
     },
     cost: sessionCosts.get(session.id) ?? { amount: 0, priced: false },
     hasReasoning: flags.has_reasoning > 0,
-    hasCompaction: false,
+    hasCompaction: flags.has_compaction > 0,
     usesMcp: toolNames.some((row) => resolveMcpTool(row.tool, servers) !== null),
     usesSubagent: flags.uses_task > 0 || childIds.length > 0,
     usesWebfetch: flags.uses_webfetch > 0,

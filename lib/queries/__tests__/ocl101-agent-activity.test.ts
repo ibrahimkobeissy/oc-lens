@@ -43,4 +43,20 @@ describe("OCL-101 agent activity", () => {
     expect(result.data.find((row) => row.agent === "build")?.cost).toEqual({ amount: 0, priced: false });
     db.close();
   });
+
+  it("uses the strict pricing-evidence contract for unknown roles", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(FIXTURE_SCHEMA_SQL);
+    db.prepare("INSERT INTO session (id, project_id, slug, directory, title, version, agent, time_created, time_updated) VALUES ('s', 'global', 's', '/', 's', '1', 'build', 1, 2)").run();
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('m', 's', 1, 2, ?)").run(JSON.stringify({
+      role: "future-role",
+      agent: "build",
+      providerID: "provider",
+      modelID: "model",
+      tokens: { input: 1_000_000, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    }));
+    const result = agentUsage(db, {}, { version: 1, updatedAt: 1, prices: { "provider/model": { inputPerMTok: 1, outputPerMTok: 1, cacheReadPerMTok: 1, cacheWritePerMTok: 1, currency: "USD" } } });
+    expect(result.data.find((row) => row.agent === "build")?.cost).toEqual({ amount: 0, priced: false });
+    db.close();
+  });
 });

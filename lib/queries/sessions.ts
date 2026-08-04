@@ -127,13 +127,14 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}, prici
   if (unknownAgentCount > 0) warnings.push([{ code: "unknown-agent", message: "Sessions had no recorded agent", count: unknownAgentCount }]);
   if (unknownModelCount > 0) warnings.push([{ code: "unknown-model", message: "Sessions had no recorded model", count: unknownModelCount }]);
 
-  const flags = new Map<string, { toolCalls: number; errors: number; reasoning: boolean; mcp: boolean; task: boolean; webfetch: boolean }>();
+  const flags = new Map<string, { toolCalls: number; errors: number; reasoning: boolean; compaction: boolean; mcp: boolean; task: boolean; webfetch: boolean }>();
   const firstUserText = new Map<string, string>();
   for (const row of parts) {
     const decoded = decodePartData(row.data);
     warnings.push(decoded.warnings);
-    const state = flags.get(row.session_id) ?? { toolCalls: 0, errors: 0, reasoning: false, mcp: false, task: false, webfetch: false };
+    const state = flags.get(row.session_id) ?? { toolCalls: 0, errors: 0, reasoning: false, compaction: false, mcp: false, task: false, webfetch: false };
     if (decoded.value.type === "reasoning") state.reasoning = true;
+    if (decoded.value.type === "compaction") state.compaction = true;
     if (decoded.value.type === "text" && firstUserMessageIds.get(row.session_id) === row.message_id && !firstUserText.has(row.session_id)) {
       const text = decoded.value.text.trim();
       if (text) firstUserText.set(row.session_id, text);
@@ -156,7 +157,7 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}, prici
   const data = rows.map((row): SessionSummary => {
     const model = decodeSessionModel(row.model);
     warnings.push(model.warnings);
-    const state = flags.get(row.id) ?? { toolCalls: 0, errors: 0, reasoning: false, mcp: false, task: false, webfetch: false };
+    const state = flags.get(row.id) ?? { toolCalls: 0, errors: 0, reasoning: false, compaction: false, mcp: false, task: false, webfetch: false };
     const title = isPlaceholderTitle(row.title) ? (firstUserText.get(row.id) ?? row.slug) : row.title;
     const duration = row.time_updated >= row.time_created ? row.time_updated - row.time_created : null;
     return {
@@ -174,7 +175,7 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}, prici
         cacheWrite: row.tokens_cache_write ?? 0,
       },
       cost: costs.get(row.id) ?? { amount: 0, priced: false }, hasReasoning: state.reasoning,
-      hasCompaction: false, usesMcp: state.mcp,
+      hasCompaction: state.compaction, usesMcp: state.mcp,
       usesSubagent: state.task || parentIds.has(row.id), usesWebfetch: state.webfetch,
     };
   });

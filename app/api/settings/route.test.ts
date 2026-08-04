@@ -45,6 +45,15 @@ describe("GET /api/settings", () => {
     expect(body.data.storage.dbBytes).toBeGreaterThan(0);
   });
 
+  it("keeps the missing-database diagnostic available as a successful Settings response", async () => {
+    process.env.OC_LENS_DB = join(dir, "missing.db");
+    resetConnectionForTests();
+    const { GET } = await import("./route");
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { dbPath: null, opencodeVersion: null } });
+  });
+
   it("returns version, project config, storage, and only redacted config values", async () => {
     const dbPath = join(dir, "opencode.db");
     const project = join(dir, "project");
@@ -75,5 +84,24 @@ describe("GET /api/settings", () => {
     expect(JSON.stringify(body)).not.toContain("sk-project");
     expect(JSON.stringify(body)).not.toContain('"secret"');
     expect(body.data.config.raw.agent.build.apiKey).toBe("[redacted]");
+  });
+
+  it("returns the standard schema_mismatch envelope instead of a successful diagnostic payload", async () => {
+    const mismatchPath = join(dir, "schema-mismatch.db");
+    const mismatchDb = new DatabaseSync(mismatchPath);
+    mismatchDb.exec("CREATE TABLE session (id TEXT PRIMARY KEY)");
+    mismatchDb.close();
+    process.env.OC_LENS_DB = mismatchPath;
+    resetConnectionForTests();
+
+    const { GET } = await import("./route");
+    const response = await GET();
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: {
+        code: "schema_mismatch",
+        message: "The opencode database schema is not supported by opencode-1.17.7.",
+      },
+    });
   });
 });

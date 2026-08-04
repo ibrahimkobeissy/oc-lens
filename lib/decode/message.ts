@@ -49,13 +49,22 @@ export function decodeMessageData(raw: string | null): Decoded<OcMessageData> {
 
   const time = asRecord(obj.time);
 
+  const tokens = decodeTokens(obj.tokens);
+  if (obj.tokens !== undefined && tokens === null) {
+    warnings.push(warning("malformed-message-tokens", "message.data.tokens did not contain finite non-negative input/output/reasoning/cache.read/cache.write values"));
+  }
+  const hasPricingFields = obj.providerID !== undefined || obj.modelID !== undefined || obj.tokens !== undefined;
+  if (obj.role === "assistant" && hasPricingFields && (!providerID || !modelID || tokens === null)) {
+    warnings.push(warning("incomplete-pricing-evidence", "An assistant message did not contain a complete provider/model/native-token pricing record"));
+  }
+
   const value: OcMessageData = {
     role: decodeRole(obj.role),
     agent: asString(obj.agent),
     mode: asString(obj.mode),
     modelID,
     providerID,
-    tokens: decodeTokens(obj.tokens),
+    tokens,
     cost: asNumber(obj.cost),
     timeCreated: asNumber(time?.created),
     timeCompleted: asNumber(time?.completed),

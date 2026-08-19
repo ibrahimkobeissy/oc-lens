@@ -31,7 +31,7 @@ export function turnCostsDisagree(turn: Pick<ReplayTurn, "cost" | "parts">): boo
 }
 
 function formatProviderCost(cost: number | null): string {
-  return cost === null ? "not reported" : usdFormatter.format(cost);
+  return cost === null || cost <= 0 ? "not reported" : usdFormatter.format(cost);
 }
 
 export function TurnMetrics({ turn }: { turn: ReplayTurn }) {

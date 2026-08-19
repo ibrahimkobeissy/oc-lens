@@ -6,7 +6,7 @@ const ROOT = process.cwd();
 const SCAN_DIRS = ["app", "lib", "components", "types", "bin", "hooks", "design-system"];
 
 /**
- * `lib/db/connection.ts` legitimately names the four denylisted tables in its
+ * `lib/db/denylist.ts` legitimately names the four denylisted tables in its
  * `DENYLISTED_TABLES` constant — that's the enforcement point, not a leak.
  * `lib/db/__tests__/connection.test.ts` legitimately names all four again,
  * one per `it.each` case, to prove the denylist actually rejects each of
@@ -14,7 +14,7 @@ const SCAN_DIRS = ["app", "lib", "components", "types", "bin", "hooks", "design-
  * excluded from scanning below since `test/` isn't one of SCAN_DIRS) may
  * name these strings.
  */
-const ALLOWLISTED_FILES = new Set(["lib/db/connection.ts", "lib/db/__tests__/connection.test.ts"]);
+const ALLOWLISTED_FILES = new Set(["lib/db/denylist.ts", "lib/db/__tests__/connection.test.ts"]);
 
 /**
  * Exact substrings stripped from source before scanning — legitimate,

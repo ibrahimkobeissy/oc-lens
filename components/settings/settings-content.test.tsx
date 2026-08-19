@@ -25,7 +25,7 @@ describe("OCL-111 settings content", () => {
 
     for (const value of [
       "/tmp/opencode/opencode.db", "opencode-1.17.7", "1.17.7", "build", "plan", "docs", "remote",
-      "example-plugin", "Redacted configuration", "[redacted]", "1.00 KB",
+      "example-plugin", "Redacted configuration", "[redacted]", "1.0 KB",
     ]) expect(markup).toContain(value);
     expect(markup).toContain('href="/settings/pricing"');
     expect(markup).toContain("only skills observed in recorded");

@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { isDenylistedTable } from "./denylist";
 
 /** The opencode version this schema was verified against — project-docs/opencode-data-model.md §0. */
 export const schemaVersion = "opencode-1.17.7";
@@ -80,14 +81,26 @@ interface TableInfoRow {
   name: string;
 }
 
+// `table` always comes from our own hardcoded EXPECTED_TABLES list above,
+// never user input — this guard is defense-in-depth, not the primary check,
+// so a future edit that threads a dynamic table name through checkSchema
+// can't silently bypass the same denylist every other query path enforces
+// (lib/db/connection.ts's `query()`, backed by lib/db/denylist.ts).
+function assertNotDenylisted(table: string): void {
+  if (isDenylistedTable(table)) {
+    throw new Error(`Refusing to check schema for denylisted table "${table}"`);
+  }
+}
+
 function tableExists(db: DatabaseSync, table: string): boolean {
+  assertNotDenylisted(table);
   const row = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
   return row !== undefined;
 }
 
 function actualColumns(db: DatabaseSync, table: string): Set<string> {
-  // PRAGMA doesn't accept bound parameters for the table name; `table` always
-  // comes from our own hardcoded EXPECTED_TABLES list above, never user input.
+  assertNotDenylisted(table);
+  // PRAGMA doesn't accept bound parameters for the table name.
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as TableInfoRow[];
   return new Set(rows.map((row) => row.name));
 }

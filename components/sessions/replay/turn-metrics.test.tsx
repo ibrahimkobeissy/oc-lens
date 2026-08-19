@@ -37,14 +37,15 @@ describe("OCL-057 TurnMetrics", () => {
     expect(html).not.toMatch(/NaN|Infinity|\$0\.00/);
   });
 
-  it("shows provider zero beside a non-zero user-priced cost and labels disagreement", () => {
+  it("treats a provider-reported zero cost as 'not reported', never '$0.00', while still flagging disagreement", () => {
     const value = turn({ cost: { amount: 2.5, priced: true }, parts: [stepFinish("finish", 0)] });
     const html = renderToStaticMarkup(<TurnMetrics turn={value} />);
 
     expect(html).toContain("Your configured cost");
     expect(html).toContain("$2.50");
     expect(html).toContain("Provider-reported cost");
-    expect(html).toContain("$0.00");
+    expect(html).toContain("not reported");
+    expect(html).not.toContain("$0.00");
     expect(html).toContain("Different");
     expect(turnCostsDisagree(value)).toBe(true);
   });

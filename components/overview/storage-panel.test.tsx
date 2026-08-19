@@ -11,8 +11,8 @@ describe("StoragePanel", () => {
   it("formats byte values without NaN or Infinity", () => {
     expect(formatBytes(null)).toBe("—");
     expect(formatBytes(0)).toBe("0 B");
-    expect(formatBytes(1_536)).toBe("1.50 KB");
-    expect(formatBytes(5 * 1_024 * 1_024)).toBe("5.00 MB");
+    expect(formatBytes(1_536)).toBe("1.5 KB");
+    expect(formatBytes(5 * 1_024 * 1_024)).toBe("5.0 MB");
   });
 
   it("renders every component, the total, and honest missing-directory dashes", () => {
@@ -23,7 +23,7 @@ describe("StoragePanel", () => {
     for (const label of ["opencode.db", "opencode.db-wal", "log/", "repos/", "Total footprint"]) {
       expect(markup).toContain(label);
     }
-    expect(markup).toContain("1.50 KB");
+    expect(markup).toContain("1.5 KB");
     expect(markup).toContain(">—<");
     expect(markup).toContain("0 B");
     expect(markup).not.toMatch(/NaN|Infinity|delete|cleanup/i);

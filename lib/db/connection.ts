@@ -1,13 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
+import { findDenylistedTable } from "./denylist";
 import { locateDb, type LocateOptions } from "./locate";
 import { checkSchema, type SchemaMismatch } from "./schema-guard";
-
-/**
- * Tables that must never be selected from, enforced here in code — not by
- * convention (project-docs/opencode-data-model.md §6). They hold
- * `access_token`, `refresh_token`, and credential `value`.
- */
-const DENYLISTED_TABLES = ["account", "account_state", "control_account", "credential"] as const;
 
 export type SqlParam = string | number | bigint | null;
 
@@ -60,16 +54,6 @@ export function getConnection(locateOptions?: LocateOptions): ConnectResult {
 export function resetConnectionForTests(): void {
   cached?.close();
   cached = null;
-}
-
-function findDenylistedTable(sql: string): string | null {
-  // A deliberately simple lexical check, not a SQL parser: split on any
-  // non-identifier character and compare tokens case-insensitively. This can
-  // false-positive on a denylisted name appearing as a column alias or inside
-  // a string literal — an acceptable trade-off for never missing a real
-  // reference to one of these tables.
-  const tokens = sql.toLowerCase().split(/[^a-z0-9_]+/);
-  return DENYLISTED_TABLES.find((table) => tokens.includes(table)) ?? null;
 }
 
 /**

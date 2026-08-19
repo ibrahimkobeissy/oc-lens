@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { readOpencodeConfig } from "@/lib/config/read";
+import { redactConfig } from "@/lib/config/redact";
 import { getConnection, query } from "@/lib/db/connection";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { schemaVersion } from "@/lib/db/schema-guard";
@@ -22,6 +24,10 @@ interface WorkspaceRow {
 
 interface TableRow {
   name: string;
+}
+
+interface ProjectWorktreeRow {
+  worktree: string | null;
 }
 
 const MAX_PROJECT_ID_LENGTH = 512;
@@ -67,7 +73,13 @@ export async function GET(request: Request, context: RouteContext): Promise<Next
     }
 
     const pricing = readPricing();
-    const sessions = listSessions(connection.db, { projectId: id }, pricing);
+    const projectWorktrees = query<ProjectWorktreeRow>(
+      connection.db,
+      "SELECT worktree FROM project WHERE worktree IS NOT NULL AND worktree <> '' ORDER BY worktree",
+    ).flatMap((row) => row.worktree === null ? [] : [row.worktree]);
+    const config = readOpencodeConfig({ projectWorktrees });
+    const mcpServers = config ? redactConfig(config).mcpServers.map((server) => server.name) : [];
+    const sessions = listSessions(connection.db, { projectId: id, mcpServers }, pricing);
     const summary = listProjects(connection.db, { projectId: id }, pricing, sessions).data.find((project) => project.id === id);
     if (!summary) return errorResponse("project_not_found", `Project ${id} was not found.`, 404);
 

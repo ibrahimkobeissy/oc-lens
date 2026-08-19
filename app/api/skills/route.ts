@@ -45,7 +45,7 @@ export async function GET(request: Request): Promise<NextResponse<SkillsRouteRes
     const generatedAt = Date.now();
     const filter: PartQueryFilter = range === "all"
       ? {}
-      : { from: generatedAt - RANGE_DAYS[range] * DAY_MS, to: generatedAt };
+      : { from: generatedAt - RANGE_DAYS[range] * DAY_MS, to: generatedAt + 1 };
     const skills = skillUsage(connection.db, filter);
     return NextResponse.json({
       data: skills.data,

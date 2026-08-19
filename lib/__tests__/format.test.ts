@@ -73,4 +73,9 @@ describe("formatDuration", () => {
   it("formats hours and minutes", () => {
     expect(formatDuration(3_900_000)).toBe("1h 5m");
   });
+
+  it("never renders 'Xm 60s' when the seconds remainder rounds up to a full minute", () => {
+    expect(formatDuration(119_600)).toBe("2m 0s");
+    expect(formatDuration(3_599_600)).toBe("1h 0m");
+  });
 });

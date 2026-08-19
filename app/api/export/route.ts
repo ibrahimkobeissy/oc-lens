@@ -541,7 +541,7 @@ function streamedResponse(
     yield emit(`{"data":{"generatedAt":${generatedAt},"schemaVersion":${JSON.stringify(schemaVersion)},"rangeFrom":${options.from ?? "null"},"rangeTo":${options.to ?? "null"},"counts":${JSON.stringify(counts)}`);
 
     if (options.scopes.has("sessions")) {
-      const result = listSessions(db, { from: options.from, to: options.to }, pricing);
+      const result = listSessions(db, { from: options.from, to: options.to, mcpServers: mcpServers(db) }, pricing);
       warnings.push(result.warnings);
       yield emit(`,"sessions":${JSON.stringify(result.data)}`);
     }

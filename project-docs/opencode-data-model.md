@@ -206,6 +206,24 @@ Observed distribution across 47 parts: `text` 14 · `step-start` 10 · `reasonin
 - `tool` names are **lowercase** (`read`, `write`, `edit`, `bash`, `grep`, `glob`, `webfetch`, `todowrite`, `task`, `skill`, `question`). cc-lens's `TOOL_CATEGORIES` map is keyed on Claude Code's PascalCase names and **must be rewritten**, not ported.
 - MCP tools appear as `<server>_<tool>` (e.g. `serena_find_symbol`) — **ambiguous**, since server and tool names can both contain underscores. Resolve server names from the config `mcp` block (or `GET /mcp`) and longest-prefix match. **Never split on the first underscore.** See OCL-071.
 
+#### ✅ VERIFIED 2026-08-20 — `state.input` key names per tool
+
+Read from the maintainer's real `opencode.db` (13 sessions, 508 tool calls, opencode 1.17.7) through oc-lens's own redaction-safe diagnostics endpoint, which reports key *names* and counts only and never values.
+
+**Every tool recorded a non-empty `state.input` — 508 of 508 calls.** This corrects an assumption the generated fixture had encouraged: the fixture emits `input: {}` for `glob`, `grep`, `task`, `todowrite`, `question` and the MCP tools, which is a fixture limitation and **not** how opencode behaves.
+
+| Tool | `state.input` keys observed | Calls |
+|---|---|---|
+| `read` | `filePath`, `offset`, `limit` | 435 |
+| `bash` | `command`, `description`, `timeout`, `workdir` | 26 |
+| `grep` | `pattern`, `path`, `include` | 22 |
+| `glob` | `pattern`, `path` | 15 |
+| `todowrite` | `todos` | 4 |
+| `task` | `description`, `prompt`, `subagent_type` | 3 |
+| `write` | `content`, `filePath` | 3 |
+
+Consequences for anything comparing calls to each other: `read` carries `offset`/`limit`, so two reads of different chunks of one file are legitimately different calls; and no key resembling a nonce, request id, or timestamp appeared in any tool, so identical calls do hash identically. `edit` was not exercised in this sample, so its key set remains unobserved live (the fixture uses `filePath` + `content`). No `question`, `skill`, or MCP call appeared either, so those stay unverified.
+
 #### ⚠️ FIXTURE-VERIFIED ONLY — `skill` invocation name
 
 The generated OCL-013 fixture stores the invoked skill name at `part.data.state.input.name` for `part.data.tool = "skill"`. OCL-102 uses that exact key and buckets missing, blank, or non-string values as the literal `unknown`. This convention is **not verified against an upstream live opencode skill call**: the maintainer's observed live sample did not establish the skill-specific input shape, so this must not be promoted to ✅ live-verified without a probe.

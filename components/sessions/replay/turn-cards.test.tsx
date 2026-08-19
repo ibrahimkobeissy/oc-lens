@@ -132,3 +132,85 @@ describe("replay turn cards", () => {
     expect(scheduled).toHaveLength(0);
   });
 });
+
+describe("loop marking is per call, not per turn", () => {
+  /** A turn that reads four different files — the shape that was wrongly banded whole. */
+  function multiReadTurn(): ReplayTurn {
+    return {
+      messageId: "message-multi",
+      role: "assistant",
+      agent: "build",
+      timeCreated: 1,
+      timeCompleted: 2,
+      durationMs: 1,
+      tokens: null,
+      cost: { amount: 0, priced: false },
+      parts: ["a", "b", "c", "d"].map((suffix) => ({
+        id: `part-${suffix}`,
+        data: { type: "text", text: `read ${suffix}` },
+      })),
+    };
+  }
+
+  it("marks only the repeated call, leaving unrelated calls in the same turn alone", () => {
+    const marks = new Map([["part-b", { position: 2, total: 3, partIds: ["x0", "part-b", "x2"] }]]);
+    const html = renderToStaticMarkup(<TurnCard turn={multiReadTurn()} loopParts={marks} />);
+
+    // Exactly one part carries the marker, not all four.
+    expect(html.match(/data-looped="true"/g)?.length).toBe(2); // the turn header flag plus the one part
+    expect(html).toContain("Same call, run 3× in this session");
+    expect(html).toContain("this is run 2");
+    expect(html).toContain("1 repeated call");
+    expect(html).not.toContain("4 repeated calls");
+  });
+
+  it("counts several repeats in one turn without implying the whole turn looped", () => {
+    const marks = new Map([
+      ["part-a", { position: 1, total: 2, partIds: ["part-a", "y1"] }],
+      ["part-c", { position: 1, total: 2, partIds: ["part-c", "y2"] }],
+    ]);
+    const html = renderToStaticMarkup(<TurnCard turn={multiReadTurn()} loopParts={marks} />);
+    expect(html).toContain("2 repeated calls");
+    // The turn itself is never given the old full-height warning border.
+    expect(html).not.toContain("border-l-warning");
+  });
+
+  it("renders no loop affordance at all when nothing in the turn repeated", () => {
+    const html = renderToStaticMarkup(<TurnCard turn={multiReadTurn()} loopParts={new Map()} />);
+    expect(html).not.toContain("repeated call");
+    expect(html).not.toContain("data-looped");
+  });
+});
+
+describe("a marked run can reach its other runs", () => {
+  it("offers a jump to every other run, since they can be hundreds of calls away", () => {
+    const turnWithRepeat: ReplayTurn = {
+      messageId: "message-repeat", role: "assistant", agent: "build", timeCreated: 1, timeCompleted: 2,
+      durationMs: 1, tokens: null, cost: { amount: 0, priced: false },
+      parts: [{ id: "run-b", data: { type: "text", text: "the second run" } }],
+    };
+    const marks = new Map([
+      ["run-b", { position: 2, total: 3, partIds: ["run-a", "run-b", "run-c"] }],
+    ]);
+    const html = renderToStaticMarkup(
+      <TurnCard turn={turnWithRepeat} loopParts={marks} onJumpToPart={() => undefined} />,
+    );
+    expect(html).toContain("this is run 2");
+    expect(html).toContain("Go to run 1");
+    expect(html).toContain("Go to run 3");
+    // Never a button back to the run you are already looking at.
+    expect(html).not.toContain("Go to run 2");
+  });
+
+  it("omits the jump controls when no handler is wired, rather than rendering dead buttons", () => {
+    const turnWithRepeat: ReplayTurn = {
+      messageId: "message-repeat", role: "assistant", agent: "build", timeCreated: 1, timeCompleted: 2,
+      durationMs: 1, tokens: null, cost: { amount: 0, priced: false },
+      parts: [{ id: "run-b", data: { type: "text", text: "the second run" } }],
+    };
+    const marks = new Map([["run-b", { position: 2, total: 2, partIds: ["run-a", "run-b"] }]]);
+    const html = renderToStaticMarkup(<TurnCard turn={turnWithRepeat} loopParts={marks} />);
+    expect(html).toContain("this is run 2");
+    expect(html).not.toContain("Go to run");
+  });
+});

@@ -15,6 +15,7 @@ const GROUP_LABELS: Record<string, string> = {
   tools: "Tools",
   todos: "Todos",
   costs: "Costs",
+  loops: "Loops",
   agents: "Agents",
   export: "Export",
   settings: "Settings",

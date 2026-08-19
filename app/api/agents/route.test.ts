@@ -51,13 +51,13 @@ describe("GET /api/agents", () => {
     expect(response.status).toBe(200);
     if (!("data" in payload)) throw new Error("expected agents envelope");
     const build = payload.data.agents.find((agent) => agent.agent === "build");
-    expect(build?.toolMix.find((tool) => tool.tool === "read")?.calls).toBe(114);
-    expect(build?.toolMix.reduce((total, tool) => total + tool.calls, 0)).toBe(1_482);
-    expect(build?.errorCount).toBe(202);
+    expect(build?.toolMix.find((tool) => tool.tool === "read")?.calls).toBe(125);
+    expect(build?.toolMix.reduce((total, tool) => total + tool.calls, 0)).toBe(1_512);
+    expect(build?.errorCount).toBe(206);
     expect(payload.data.agents.find((agent) => agent.agent === "unknown")?.sessionCount).toBeGreaterThanOrEqual(10);
     expect(payload.data.agents.every((agent) => agent.cost.priced === false)).toBe(true);
-    expect(payload.data.activity.reduce((total, point) => total + point.messageCount, 0)).toBe(4_043);
-    expect(payload.data.switches).toHaveLength(120);
+    expect(payload.data.activity.reduce((total, point) => total + point.messageCount, 0)).toBe(4_079);
+    expect(payload.data.switches).toHaveLength(126);
     expect(payload.data.switches.map((event) => event.seq)).toEqual(
       [...payload.data.switches.map((event) => event.seq)].sort((left, right) => left - right),
     );

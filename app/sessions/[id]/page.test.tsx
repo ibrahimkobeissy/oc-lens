@@ -44,6 +44,22 @@ vi.mock("@/hooks/use-oc", () => ({
       return { data: { data: replayData, meta: { ...meta, warnings: state.replayWarnings } }, error: undefined, isLoading: false, mutate: vi.fn() };
     }
     if (route.endsWith("/tree")) return { data: undefined, error: undefined, isLoading: false, mutate: vi.fn() };
+    if (route.startsWith("/api/loops")) {
+      return {
+        data: {
+          data: {
+            incidents: [],
+            coverage: { toolCalls: 0, signaturable: 0, unsignaturable: 0, unsignaturableTools: [] },
+            totalRepeatedTurnCost: { amount: 0, priced: false },
+            totalWastedCalls: 0,
+          },
+          meta: { ...meta, warnings: [] },
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    }
     if (state.filesMode === "loading") return { data: undefined, error: undefined, isLoading: true, mutate: state.filesMutate };
     if (state.filesMode === "error") return { data: undefined, error: { message: "files failed" }, isLoading: false, mutate: state.filesMutate };
     const changes = state.filesMode === "empty" ? [] : [{ sessionId: "ses/one", filePath: "/repo/src/a.ts", tool: "write", timeCreated: 1_500, partId: "part/one" }];

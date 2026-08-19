@@ -12,6 +12,8 @@ import {
   PROVIDER_MODELS,
   AGENTS,
   GLOBAL_PROJECT_ID,
+  LOOP_SCENARIOS,
+  LOOP_TURN_USAGE,
 } from "./manifest";
 import { POPULATED_DB_PATH, EMPTY_DB_PATH } from "./paths";
 
@@ -139,11 +141,14 @@ function nextToolCall(rng: Rng, counters: Counters, tStart: number): GeneratedTo
     input = { filePath };
     title = filePath;
   } else if (tool === "bash") {
-    input = { command: "echo fixture" };
-    title = "echo fixture";
+    // Counter-varied like the file paths above: a real agent does not run one
+    // byte-identical command hundreds of times, and if the fixture did, every
+    // planted loop assertion would drown in incidental repeats.
+    input = { command: `echo fixture ${counters.parts}` };
+    title = `echo fixture ${counters.parts}`;
   } else if (tool === "webfetch") {
-    input = { url: "https://example.com" };
-    title = "https://example.com";
+    input = { url: `https://example.com/doc-${counters.parts}` };
+    title = `https://example.com/doc-${counters.parts}`;
   }
 
   let status: GeneratedTool["status"];
@@ -167,6 +172,87 @@ function nextToolCall(rng: Rng, counters: Counters, tStart: number): GeneratedTo
 
   return { tool, callId, status, input, output, title, timeStart, timeEnd };
 }
+
+/**
+ * One scripted tool call in a planted loop scenario.
+ *
+ * `input: null` omits the `input` key from `state` entirely — a distinct shape
+ * from `input: {}`. Both occur in practice and both must be treated as
+ * *unsignaturable* (repetition cannot be claimed) rather than as equal to each
+ * other, so the fixture carries both.
+ */
+interface LoopCall {
+  tool: string;
+  input: Record<string, unknown> | null;
+  status: "completed" | "error";
+  output: string;
+}
+
+const LOOP_EDIT_PATH = "/home/dev/web-app/src/auth/session.ts";
+const LOOP_READ_PATH = "/home/dev/web-app/src/config/env.ts";
+const LOOP_WRITE_PATH = "/home/dev/web-app/src/routes/index.ts";
+const LOOP_BASH_COMMAND = "pnpm test --filter auth";
+
+function repeat<T>(n: number, make: (i: number) => T): T[] {
+  return Array.from({ length: n }, (_, i) => make(i));
+}
+
+/** The scripted calls behind manifest `LOOP_SCENARIOS`. No rng — these are ground truth. */
+const LOOP_CALLS: Record<keyof typeof LOOP_SCENARIOS, LoopCall[]> = {
+  errorRetry: repeat<LoopCall>(4, () => ({
+    tool: "edit",
+    input: { filePath: LOOP_EDIT_PATH, content: "export const SESSION_TTL = 3600;" },
+    status: "error",
+    output: "Error: old_string not found in file",
+  })),
+  redundantRepeat: repeat<LoopCall>(5, () => ({
+    tool: "read",
+    input: { filePath: LOOP_READ_PATH },
+    status: "completed",
+    output: "export const API_URL = process.env.API_URL;",
+  })),
+  // A→B→A→B on one path: each content written twice, so the agent ends where it started.
+  oscillation: repeat<LoopCall>(4, (i) => ({
+    tool: "write",
+    input: {
+      filePath: LOOP_WRITE_PATH,
+      content: i % 2 === 0 ? "export { handler } from './a';" : "export { handler } from './b';",
+    },
+    status: "completed",
+    output: "Wrote file successfully.",
+  })),
+  // Two `input: {}` and two with the key absent — identical-looking, but unknowable.
+  unsignaturable: repeat<LoopCall>(4, (i) => ({
+    tool: "glob",
+    input: i < 2 ? {} : null,
+    status: "completed",
+    output: "3 files",
+  })),
+  interleavedRepeat: [
+    { tool: "bash", input: { command: LOOP_BASH_COMMAND }, status: "completed", output: "1 test failing" },
+    { tool: "read", input: { filePath: "/home/dev/web-app/src/auth/token.ts" }, status: "completed", output: "export const token = null;" },
+    { tool: "bash", input: { command: LOOP_BASH_COMMAND }, status: "completed", output: "1 test failing" },
+    { tool: "grep", input: null, status: "completed", output: "2 matches" },
+    { tool: "bash", input: { command: LOOP_BASH_COMMAND }, status: "completed", output: "1 test failing" },
+  ],
+  // Ordinary iterative work — 5 distinct reads, then 3 edits that never repeat a content.
+  control: [
+    ...repeat<LoopCall>(5, (i) => ({
+      tool: "read",
+      input: { filePath: `/home/dev/web-app/src/control/file-${i}.ts` },
+      status: "completed",
+      output: "ok",
+    })),
+    ...repeat<LoopCall>(3, (i) => ({
+      tool: "edit",
+      input: { filePath: "/home/dev/web-app/src/control/target.ts", content: `// revision ${i}` },
+      status: "completed",
+      output: "Wrote file successfully.",
+    })),
+  ],
+};
+
+const LOOP_SCENARIO_KEYS = Object.keys(LOOP_SCENARIOS) as Array<keyof typeof LOOP_SCENARIOS>;
 
 function main(): void {
   mkdirSync(path.dirname(POPULATED_DB_PATH), { recursive: true });
@@ -564,11 +650,174 @@ function buildPopulatedDb(): void {
     }
   }
 
+  // ── Planted loop scenarios (manifest LOOP_SCENARIOS) ─────────────────────
+  // Appended after the random population and generated with **no rng draws at
+  // all**, so sessions 0–119 stay byte-identical to a fixture built without
+  // this block. Every hand-counted per-session expectation in the existing
+  // suite therefore keeps holding; only all-time aggregates grow.
+  //
+  // They are also dated past the random span (SPAN_DAYS + 5 onward), so
+  // date-range filters over the populated period do not sweep them up.
+  const LOOP_PROJECT = PROJECT_SEEDS[1] as ProjectSeed; // proj_web — matches the scripted file paths
+  const LOOP_MODEL = PROVIDER_MODELS[0] as (typeof PROVIDER_MODELS)[number];
+  const LOOP_AGENT = "build";
+
+  LOOP_SCENARIO_KEYS.forEach((key, scenarioIdx) => {
+    const scenario = LOOP_SCENARIOS[key];
+    const sessionId = scenario.sessionId;
+    const timeCreated = EPOCH_START_MS + (SPAN_DAYS + 5 + scenarioIdx) * DAY_MS;
+
+    let sessionUsage = zeroUsage();
+    let turnTime = timeCreated + 1000;
+
+    const userMsgId = `msg_${counters.messages.toString().padStart(6, "0")}`;
+    counters.messages++;
+    insertMessage.run(
+      userMsgId,
+      sessionId,
+      turnTime,
+      turnTime,
+      JSON.stringify({
+        role: "user",
+        time: { created: turnTime },
+        agent: LOOP_AGENT,
+        model: { providerID: LOOP_MODEL.providerID, modelID: LOOP_MODEL.modelID },
+        summary: { diffs: [] },
+      }),
+    );
+    insertPart.run(
+      `prt_${counters.parts.toString(36).padStart(7, "0")}`,
+      userMsgId,
+      sessionId,
+      turnTime,
+      turnTime,
+      JSON.stringify({ type: "text", text: `Fixture loop scenario: ${key}` }),
+    );
+    counters.parts++;
+
+    // One assistant turn per call, each with identical fixed usage, so a
+    // detector's wasted-cost figure is exactly callCount × turn price.
+    LOOP_CALLS[key].forEach((call, callIdx) => {
+      const msgId = `msg_${counters.messages.toString().padStart(6, "0")}`;
+      counters.messages++;
+      const startedAt = turnTime + 1000;
+      const completedAt = startedAt + 2000;
+      const usage: TokenUsage = { ...LOOP_TURN_USAGE };
+      sessionUsage = addUsage(sessionUsage, usage);
+      const tokens = {
+        total: usage.input + usage.output + usage.reasoning,
+        input: usage.input,
+        output: usage.output,
+        reasoning: usage.reasoning,
+        cache: { write: usage.cacheWrite, read: usage.cacheRead },
+      };
+
+      insertMessage.run(
+        msgId,
+        sessionId,
+        completedAt,
+        completedAt,
+        JSON.stringify({
+          parentID: userMsgId,
+          role: "assistant",
+          mode: LOOP_AGENT,
+          agent: LOOP_AGENT,
+          path: { cwd: LOOP_PROJECT.worktree, root: LOOP_PROJECT.worktree },
+          cost: 0,
+          tokens,
+          modelID: LOOP_MODEL.modelID,
+          providerID: LOOP_MODEL.providerID,
+          time: { created: startedAt, completed: completedAt },
+          finish: "stop",
+        }),
+      );
+
+      insertPart.run(
+        `prt_${counters.parts.toString(36).padStart(7, "0")}`,
+        msgId,
+        sessionId,
+        startedAt,
+        startedAt,
+        JSON.stringify({ type: "step-start" }),
+      );
+      counters.parts++;
+
+      if (call.status === "error") counters.errorToolCalls++;
+      insertPart.run(
+        `prt_${counters.parts.toString(36).padStart(7, "0")}`,
+        msgId,
+        sessionId,
+        startedAt,
+        startedAt,
+        JSON.stringify({
+          type: "tool",
+          tool: call.tool,
+          callID: `call_loop_${key}_${callIdx}`,
+          state: {
+            status: call.status,
+            // `input: null` models "opencode recorded no input" — omit the key.
+            ...(call.input === null ? {} : { input: call.input }),
+            output: call.output,
+            metadata: {},
+            title: call.tool,
+            time: { start: startedAt, end: startedAt + 1500 },
+          },
+        }),
+      );
+      counters.parts++;
+
+      insertPart.run(
+        `prt_${counters.parts.toString(36).padStart(7, "0")}`,
+        msgId,
+        sessionId,
+        completedAt,
+        completedAt,
+        JSON.stringify({ type: "step-finish", reason: "stop", cost: 0, tokens }),
+      );
+      counters.parts++;
+
+      turnTime = completedAt;
+    });
+
+    insertSession.run(
+      sessionId,
+      LOOP_PROJECT.id,
+      null,
+      `loop-${scenarioIdx}`,
+      LOOP_PROJECT.worktree,
+      LOOP_PROJECT.worktree.slice(1),
+      `Loop scenario: ${key}`,
+      sessionUsage.input,
+      sessionUsage.output,
+      sessionUsage.reasoning,
+      sessionUsage.cacheRead,
+      sessionUsage.cacheWrite,
+      LOOP_AGENT,
+      JSON.stringify({ id: LOOP_MODEL.modelID, providerID: LOOP_MODEL.providerID, variant: "default" }),
+      timeCreated,
+      turnTime,
+      null,
+    );
+
+    insertSessionMessage.run(
+      "agent-switched",
+      counters.sessionMessages++,
+      JSON.stringify({ sessionId, to: LOOP_AGENT, time: timeCreated }),
+    );
+    insertSessionMessage.run(
+      "model-switched",
+      counters.sessionMessages++,
+      JSON.stringify({ sessionId, to: LOOP_MODEL.modelID, time: timeCreated }),
+    );
+  });
+
   db.exec("COMMIT;");
   db.close();
 
   process.stdout.write(
-    `Fixture built: ${NUM_SESSIONS} sessions, ${counters.messages} messages, ${counters.parts} parts, ` +
+    `Fixture built: ${NUM_SESSIONS + LOOP_SCENARIO_KEYS.length} sessions ` +
+      `(${NUM_SESSIONS} random + ${LOOP_SCENARIO_KEYS.length} planted loop scenarios), ` +
+      `${counters.messages} messages, ${counters.parts} parts, ` +
       `${counters.todos} todos, ${counters.errorToolCalls} error tool calls.\n`,
   );
 }

@@ -17,7 +17,7 @@ describe("OCL-015 agent queries", () => {
 
   it("decodes ordered agent switch events", () => withFixture((db) => {
     const switches = agentSwitchEvents(db).data;
-    expect(switches).toHaveLength(120);
+    expect(switches).toHaveLength(126);
     expect(switches.every((event) => event.sessionId !== null && event.timeCreated !== null)).toBe(true);
     expect(switches.map((event) => event.seq)).toEqual([...switches.map((event) => event.seq)].sort((a, b) => a - b));
   }));

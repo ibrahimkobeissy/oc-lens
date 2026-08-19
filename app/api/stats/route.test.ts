@@ -41,7 +41,7 @@ describe("OCL-030 GET /api/stats", () => {
     const elapsed = performance.now() - started;
     const all = await allResponse.json();
     expect(allResponse.status).toBe(200);
-    expect(all.data).toMatchObject({ totalSessions: 120, totalCost: { priced: false }, unknownAgentCount: 10, unknownModelCount: 10 });
+    expect(all.data).toMatchObject({ totalSessions: 126, totalCost: { priced: false }, unknownAgentCount: 10, unknownModelCount: 10 });
     expect(all.data).toHaveProperty("dailyActivity");
     expect(all.data).toHaveProperty("dailyTokens");
     expect(all.data).toHaveProperty("hourOfDay");

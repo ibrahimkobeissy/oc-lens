@@ -79,3 +79,62 @@ describe("tool call grouping", () => {
     expect(effectiveExpanded(null, false, false)).toBe(false);
   });
 });
+
+describe("loop marking inside a tool group", () => {
+  function readPart(id: string, filePath: string): ReplayPart {
+    return {
+      id,
+      data: {
+        type: "tool",
+        tool: "read",
+        callId: `call-${id}`,
+        status: "completed",
+        input: { filePath },
+        output: "ok",
+        title: filePath,
+        timeStart: 1,
+        timeEnd: 2,
+      },
+    };
+  }
+
+  const parts = ["a", "b", "c", "d", "e"].map((suffix) => readPart(`part-${suffix}`, `/repo/${suffix}.tsx`));
+
+  function turnOf(): ReplayTurn {
+    return {
+      messageId: "message-group",
+      role: "assistant",
+      agent: "build",
+      timeCreated: 1,
+      timeCompleted: 2,
+      durationMs: 1,
+      tokens: null,
+      cost: { amount: 0, priced: false },
+      parts,
+    };
+  }
+
+  it("marks the one repeated call inside a five-call group, not the whole group", () => {
+    const marks = new Map([["part-c", { position: 1, total: 3, partIds: ["part-c", "x1", "x2"] }]]);
+    const html = renderToStaticMarkup(
+      <ToolGroup parts={parts} turn={turnOf()} defaultExpanded loopParts={marks} />,
+    );
+    expect(html.match(/data-looped="true"/g)?.length).toBe(1);
+    expect(html).toContain("Same call, run 3× in this session");
+    expect(html).toContain("1 also run elsewhere");
+  });
+
+  it("still says a repeat is inside when the group is collapsed", () => {
+    const marks = new Map([["part-c", { position: 1, total: 3, partIds: ["part-c", "x1", "x2"] }]]);
+    const html = renderToStaticMarkup(<ToolGroup parts={parts} turn={turnOf()} loopParts={marks} />);
+    expect(html).toContain("1 also run elsewhere");
+  });
+
+  it("marks nothing when no call in the group repeated", () => {
+    const html = renderToStaticMarkup(
+      <ToolGroup parts={parts} turn={turnOf()} defaultExpanded loopParts={new Map()} />,
+    );
+    expect(html).not.toContain("data-looped");
+    expect(html).not.toContain("also run elsewhere");
+  });
+});

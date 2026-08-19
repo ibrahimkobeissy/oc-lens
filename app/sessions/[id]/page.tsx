@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Archive, Bot, CalendarDays, FolderKanban, MessageSquare, Wrench } from "lucide-react";
 
 import { FileTimeline } from "@/components/sessions/file-timeline";
+import { SessionLoops } from "@/components/sessions/replay/session-loops";
 import { SessionSidebar } from "@/components/sessions/replay/session-sidebar";
 import { TokenAccumulationChart } from "@/components/sessions/replay/token-accumulation-chart";
-import { WindowedTurnStream, type WindowedTurnStreamHandle } from "@/components/sessions/replay/turn-cards";
+import { WindowedTurnStream, replayTurnIndexForPart, type LoopPartMark, type WindowedTurnStreamHandle } from "@/components/sessions/replay/turn-cards";
 import { SubagentTree } from "@/components/sessions/subagent-tree";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
@@ -19,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOc } from "@/hooks/use-oc";
 import { schemaVersion } from "@/lib/db/schema-guard";
+import { DEFAULT_UI_MIN_REPEATS } from "@/lib/loops";
 import { formatDuration, formatNumber } from "@/lib/format";
 import type { OcWarning } from "@/types/oc";
 
@@ -51,11 +53,37 @@ export default function SessionReplayPage() {
   const route = `/api/sessions/${encodeURIComponent(id)}/replay` as const;
   const treeRoute = `/api/sessions/${encodeURIComponent(id)}/tree` as const;
   const filesRoute = `/api/sessions/${encodeURIComponent(id)}/files` as const;
+  // Defaults to the detector's own threshold. Marking bare pairs by default was
+  // tried and reverted — it lit up whole groups of unrelated reads — but the
+  // control stays here so the pair-level view is one click away rather than gone.
+  const [minRepeats, setMinRepeats] = useState<number>(DEFAULT_UI_MIN_REPEATS);
+  const loopsRoute = `/api/loops?sessionId=${encodeURIComponent(id)}&minRepeats=${minRepeats}` as const;
   const replay = useOc(route, { polling: false });
   const tree = useOc(treeRoute, { enabled: (replay.data?.data.childIds.length ?? 0) > 0, polling: false });
   const files = useOc(filesRoute, { enabled: replay.data !== undefined && replay.error === undefined, polling: false });
+  const loops = useOc(loopsRoute, { enabled: replay.data !== undefined && replay.error === undefined, polling: false });
   const turnStreamRef = useRef<WindowedTurnStreamHandle>(null);
   const jumpToTurn = useCallback((index: number) => turnStreamRef.current?.scrollToTurn(index), []);
+  // A jump from the loop panel retargets the stream, so the part is highlighted
+  // and focused exactly as an incoming `?part=` deep link would.
+  const [loopTargetPartId, setLoopTargetPartId] = useState<string | null>(null);
+  const turns = replay.data?.data.turns;
+  const jumpToPart = useCallback((partId: string) => {
+    setLoopTargetPartId(partId);
+    const index = turns === undefined ? -1 : replayTurnIndexForPart(turns, partId);
+    if (index >= 0) turnStreamRef.current?.scrollToTurn(index);
+  }, [turns]);
+  // Only the repeated calls themselves are marked, each knowing which repeat it
+  // is — banding a whole turn implied its unrelated calls were loops too.
+  const loopParts = useMemo(() => {
+    const marks = new Map<string, LoopPartMark>();
+    for (const incident of loops.data?.data.incidents ?? []) {
+      incident.partIds.forEach((partId, index) => {
+        marks.set(partId, { position: index + 1, total: incident.partIds.length, partIds: incident.partIds });
+      });
+    }
+    return marks;
+  }, [loops.data]);
 
   if (replay.isLoading || (!replay.data && !replay.error)) return <LoadingReplay />;
   if (replay.error?.isDatabaseNotFound) return <Onboarding />;
@@ -82,7 +110,8 @@ export default function SessionReplayPage() {
     {files.isLoading ? <div role="status" aria-label="Loading file timeline"><Skeleton className="h-48 rounded-lg" /></div> : null}
     {files.error ? <ErrorState title="File timeline could not be loaded" message={files.error.message} onRetry={() => void files.mutate()} /> : null}
     {files.data ? <FileTimeline changes={files.data.data.changes} projectWorktree={files.data.data.projectWorktree} /> : null}
+    {loops.data ? <SessionLoops analysis={loops.data.data} onJumpToPart={jumpToPart} minRepeats={minRepeats} onMinRepeatsChange={setMinRepeats} /> : null}
     <TokenAccumulationChart replay={data} />
-    {data.turns.length === 0 ? <EmptyState title="No replay turns" description="This session has no recorded messages to replay." /> : <div className="flex min-w-0 flex-col gap-4 lg:flex-row"><SessionSidebar replay={data} onTurnJump={jumpToTurn} /><div className="min-w-0 flex-1"><WindowedTurnStream ref={turnStreamRef} turns={data.turns} targetPartId={searchParams.get("part")} /></div></div>}
+    {data.turns.length === 0 ? <EmptyState title="No replay turns" description="This session has no recorded messages to replay." /> : <div className="flex min-w-0 flex-col gap-4 lg:flex-row"><SessionSidebar replay={data} onTurnJump={jumpToTurn} /><div className="min-w-0 flex-1"><WindowedTurnStream ref={turnStreamRef} turns={data.turns} targetPartId={loopTargetPartId ?? searchParams.get("part")} loopParts={loopParts} onJumpToPart={jumpToPart} /></div></div>}
   </div>;
 }

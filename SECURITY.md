@@ -26,6 +26,12 @@ oc-lens's own config file at `~/.config/oc-lens/config.json` — user-entered $/
 
 `opencode.jsonc` provider blocks can hold API keys. The settings reader (OCL-110) redacts by **allowlist**, not blocklist — only known-safe keys are emitted; everything else, including unrecognised keys, is replaced with `"[redacted]"`, since an unrecognised key may be a token.
 
+## Tool inputs are hashed, never surfaced
+
+Loop detection compares tool calls by a signature of `part.data.state.input`. That input holds shell command lines and whole file contents, so `lib/loops/signature.ts` emits only `tool:sha256(...)` — no code path returns raw input, and no incident carries it.
+
+`GET /api/diagnostics/loops` is designed to be copied off the machine that produced it, so it is shape-only: tool names, input **key** names, the JSON types of those keys, counts, and histograms. It carries no ids, paths, titles, commands, or file contents. `lib/diagnostics/__tests__/loop-report.test.ts` asserts the negative directly — the serialised report must not contain any planted value, any generated path or command, any skill name (those are input *values*), any row id, or any absolute path.
+
 ## Schema guard
 
 `lib/db/schema-guard.ts` asserts the tables and columns every query module depends on before oc-lens ever renders a number from the database. On any mismatch it returns a structured `SchemaMismatch` naming exactly what differs — it never silently degrades or guesses at a shape it hasn't verified.

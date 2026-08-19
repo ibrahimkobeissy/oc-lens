@@ -83,9 +83,11 @@ The **Loops** page answers a question the other pages cannot: where did the agen
 
 | Kind | What it means |
 | --- | --- |
-| Error retry | The same call failed over and over |
+| Error retry | The same call failed over and over — including a shell command that kept exiting non-zero |
 | Redundant repeat | The same call succeeded over and over, returning nothing new |
 | Oscillation | One file rewritten back and forth between contents it already had |
+
+A call counts as *failed* when the tool errored **or** when it recorded a non-zero exit code. That distinction matters: opencode marks a shell command as `completed` whenever the tool itself ran, regardless of what the command returned, so a build retried until it passes is invisible to a status-only check. Tools that record no exit code fall back to tool status rather than being guessed at from output text.
 
 Two calls are "the same" when the tool name and a hash of the recorded tool input match. The input itself is hashed and never stored or displayed, because tool inputs hold shell command lines and whole file contents.
 

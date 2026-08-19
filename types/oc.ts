@@ -847,6 +847,15 @@ export interface LoopDiagnosticsTool {
   repeatHistogram: Array<{ repeats: number; signatures: number }>; // derived
   /** Input key *names* only, most frequent first. Never their values. */
   inputKeys: Array<{ key: string; occurrences: number; jsonTypes: string[] }>; // derived
+  /**
+   * `state.metadata` key *names* only. Separate from `inputKeys` because this is
+   * where a tool records what *happened* — an exit code, a truncation flag —
+   * which is the only honest way to tell a failing command from a passing one
+   * when `state.status` says `completed` either way.
+   */
+  metadataKeys: Array<{ key: string; occurrences: number; jsonTypes: string[] }>; // derived
+  /** How many calls recorded a non-empty `state.output`, without reading any of it. */
+  callsWithOutput: number; // derived
   /** True when inputKeys was capped, so a reader knows the list is partial. */
   inputKeysTruncated: boolean; // derived
 }

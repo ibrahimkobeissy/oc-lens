@@ -224,6 +224,24 @@ Read from the maintainer's real `opencode.db` (13 sessions, 508 tool calls, open
 
 Consequences for anything comparing calls to each other: `read` carries `offset`/`limit`, so two reads of different chunks of one file are legitimately different calls; and no key resembling a nonce, request id, or timestamp appeared in any tool, so identical calls do hash identically. `edit` was not exercised in this sample, so its key set remains unobserved live (the fixture uses `filePath` + `content`). No `question`, `skill`, or MCP call appeared either, so those stay unverified.
 
+#### ✅ VERIFIED 2026-08-20 — `state.metadata` key names, and the exit code
+
+Same read-only, values-free method as the `state.input` table above.
+
+| Tool | `state.metadata` keys observed |
+|---|---|
+| `read` | `display` (object), `loaded` (array), `preview` (string), `truncated` (boolean) |
+| `bash` | `description` (string), **`exit` (number)**, `output` (string), `truncated` (boolean) |
+| `grep` | `matches` (number), `truncated` (boolean) |
+| `glob` | `count` (number), `truncated` (boolean) |
+| `todowrite` | `todos` (array), `truncated` (boolean) |
+| `task` | `model` (object), `parentSessionId` (string), `sessionId` (string), `truncated` (boolean) |
+| `write` | `diagnostics` (object), `exists` (boolean), `filepath` (string), `truncated` (boolean) |
+
+**`bash` records the process exit code at `state.metadata.exit`, and this is the only honest way to tell a failed command from a successful one.** `state.status` is `completed` whenever the *tool* ran, regardless of what the command inside it returned — every one of the 26 real `bash` calls was `completed`. A build retried until it passes is therefore invisible to a status-only check. `lib/loops/outcome.ts` narrows this single field (numeric and finite only) and treats a non-zero value as a failure; tools that record no exit code fall back to `state.status` rather than being guessed at from output text.
+
+`truncated` appears on every tool. `grep`'s `matches` and `glob`'s `count` are potentially useful "found nothing" signals, unused so far.
+
 #### ⚠️ FIXTURE-VERIFIED ONLY — `skill` invocation name
 
 The generated OCL-013 fixture stores the invoked skill name at `part.data.state.input.name` for `part.data.tool = "skill"`. OCL-102 uses that exact key and buckets missing, blank, or non-string values as the literal `unknown`. This convention is **not verified against an upstream live opencode skill call**: the maintainer's observed live sample did not establish the skill-specific input shape, so this must not be promoted to ✅ live-verified without a probe.

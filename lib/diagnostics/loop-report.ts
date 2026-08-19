@@ -34,28 +34,63 @@ const THRESHOLDS = [2, 3, 4, 5] as const;
 
 const KINDS: LoopKind[] = ["error-retry", "redundant-repeat", "oscillation"];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function jsonType(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
   return typeof value;
 }
 
+interface KeyShape {
+  occurrences: Map<string, number>;
+  types: Map<string, Set<string>>;
+}
+
 interface ToolAccumulator {
   calls: number;
   signaturable: number;
+  callsWithOutput: number;
   /** signature -> per-session counts, so repeats are counted within a session, never across. */
   signatureBySession: Map<string, Map<string, number>>;
-  keyOccurrences: Map<string, number>;
-  keyTypes: Map<string, Set<string>>;
+  input: KeyShape;
+  metadata: KeyShape;
+}
+
+function keyShape(): KeyShape {
+  return { occurrences: new Map(), types: new Map() };
+}
+
+/** Records key *names* and their JSON types. The values are never touched. */
+function recordKeys(shape: KeyShape, record: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(record)) {
+    shape.occurrences.set(key, (shape.occurrences.get(key) ?? 0) + 1);
+    const types = shape.types.get(key) ?? new Set<string>();
+    types.add(jsonType(value));
+    shape.types.set(key, types);
+  }
+}
+
+function summariseKeys(shape: KeyShape): Array<{ key: string; occurrences: number; jsonTypes: string[] }> {
+  return [...shape.occurrences]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([key, occurrences]) => ({
+      key,
+      occurrences,
+      jsonTypes: [...(shape.types.get(key) ?? new Set<string>())].sort(),
+    }));
 }
 
 function accumulator(): ToolAccumulator {
   return {
     calls: 0,
     signaturable: 0,
+    callsWithOutput: 0,
     signatureBySession: new Map(),
-    keyOccurrences: new Map(),
-    keyTypes: new Map(),
+    input: keyShape(),
+    metadata: keyShape(),
   };
 }
 
@@ -72,13 +107,7 @@ function summariseTool(tool: string, acc: ToolAccumulator): LoopDiagnosticsTool 
     }
   }
 
-  const keys = [...acc.keyOccurrences]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([key, occurrences]) => ({
-      key,
-      occurrences,
-      jsonTypes: [...(acc.keyTypes.get(key) ?? new Set<string>())].sort(),
-    }));
+  const keys = summariseKeys(acc.input);
 
   return {
     tool,
@@ -91,6 +120,8 @@ function summariseTool(tool: string, acc: ToolAccumulator): LoopDiagnosticsTool 
       .map(([repeats, signatures]) => ({ repeats, signatures })),
     inputKeys: keys.slice(0, MAX_INPUT_KEYS_PER_TOOL),
     inputKeysTruncated: keys.length > MAX_INPUT_KEYS_PER_TOOL,
+    metadataKeys: summariseKeys(acc.metadata).slice(0, MAX_INPUT_KEYS_PER_TOOL),
+    callsWithOutput: acc.callsWithOutput,
   };
 }
 
@@ -127,17 +158,23 @@ export function loopDiagnostics(
     tools.set(decoded.value.tool, acc);
     acc.calls++;
 
+    if (decoded.value.output !== null && decoded.value.output.length > 0) acc.callsWithOutput++;
+
+    // `state.metadata` is read straight off the row: the decoder does not carry
+    // it, and only its key names leave this function.
+    try {
+      const raw: unknown = JSON.parse(row.data);
+      const state = isRecord(raw) ? raw["state"] : undefined;
+      const metadata = isRecord(state) ? state["metadata"] : undefined;
+      if (isRecord(metadata)) recordKeys(acc.metadata, metadata);
+    } catch {
+      // A malformed row is already counted by the decoder's own warning.
+    }
+
     const input = decoded.value.input;
     if (!isSignaturable(input)) continue;
     acc.signaturable++;
-
-    // Key names and their JSON types only — the values are never touched.
-    for (const [key, value] of Object.entries(input)) {
-      acc.keyOccurrences.set(key, (acc.keyOccurrences.get(key) ?? 0) + 1);
-      const types = acc.keyTypes.get(key) ?? new Set<string>();
-      types.add(jsonType(value));
-      acc.keyTypes.set(key, types);
-    }
+    recordKeys(acc.input, input);
 
     const signature = callSignature(decoded.value.tool, input);
     if (signature === null) continue;

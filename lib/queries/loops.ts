@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { query } from "@/lib/db/connection";
 import { decodePartData, decodeMessageData, mergeWarnings } from "@/lib/decode";
 import { costForMessageData } from "@/lib/pricing/breakdown";
-import { callSignature, contentSignature, targetPath } from "@/lib/loops";
+import { callSignature, contentSignature, isFailedCall, targetPath, toolExitCode } from "@/lib/loops";
 import type {
   LoopAnalysis,
   LoopIncident,
@@ -69,6 +69,8 @@ interface Call {
   signature: string | null;
   content: string | null;
   path: string | null;
+  /** True when the tool errored *or* the command it ran exited non-zero. */
+  failed: boolean;
 }
 
 const zeroTokens = (): OcTokens => ({ input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 });
@@ -261,7 +263,7 @@ function splitOnMutations(ordered: Call[], sessionCalls: Call[]): Call[][] {
       (call) =>
         call.path === path &&
         call.content !== null &&
-        call.status === "completed" &&
+        !call.failed &&
         !own.has(call.partId),
     )
     .map((call) => call.timeCreated)
@@ -317,6 +319,7 @@ export function detectLoops(
       signature,
       content: contentSignature(decoded.value.input),
       path: targetPath(decoded.value.input),
+      failed: isFailedCall(decoded.value.status, toolExitCode(row.data)),
     });
   }
 
@@ -352,8 +355,10 @@ export function detectLoops(
       // A repeat stops being a repeat once the file underneath it changed.
       for (const run of splitOnMutations(ordered, sessionCalls)) {
         if (run.length < minRepeats) continue;
-        // Only an all-failing run is a retry loop; a mix means something did land.
-        const kind: LoopKind = run.every((c) => c.status === "error") ? "error-retry" : "redundant-repeat";
+        // Outcome, not tool status: opencode marks a shell command that exited
+        // non-zero as `completed`, so a build retried until it passes would
+        // otherwise be filed as a harmless repeat.
+        const kind: LoopKind = run.every((c) => c.failed) ? "error-retry" : "redundant-repeat";
         incidents.push(incidentFrom(kind, signature, run, costs, sessionCalls));
       }
     }

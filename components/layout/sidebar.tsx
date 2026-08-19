@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ROUTES, ROUTE_GROUPS } from "@/lib/routes";
+import { ROUTES, ROUTE_GROUPS, matchRouteTrail } from "@/lib/routes";
 import { useSidebar } from "@/components/layout/sidebar-context";
 
 const GROUP_LABELS: Record<string, string> = {
@@ -23,6 +23,7 @@ const GROUP_LABELS: Record<string, string> = {
 export function Sidebar() {
   const pathname = usePathname();
   const { collapsed, toggleCollapsed } = useSidebar();
+  const activeHref = matchRouteTrail(pathname).at(-1)?.href;
 
   return (
     <aside
@@ -51,7 +52,7 @@ export function Sidebar() {
               )}
               {groupRoutes.map((route) => {
                 const Icon = route.icon;
-                const isActive = route.enabled && (route.href === "/" ? pathname === "/" : pathname.startsWith(route.href));
+                const isActive = route.enabled && route.href === activeHref;
                 if (!route.enabled) {
                   return (
                     <div

@@ -309,3 +309,105 @@ describe("what counts as a loop by default", () => {
     });
   });
 });
+
+describe("a failing command loop — the case the product exists for", () => {
+  function seedBash(db: DatabaseSync, runs: Array<{ at: number; exit?: number; status?: string; command?: string }>): void {
+    db.exec(FIXTURE_SCHEMA_SQL);
+    db.prepare(
+      "INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated) VALUES ('s1','global','s1','/','s1','1.17.7',0,999)",
+    ).run();
+    db.prepare("INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES ('m1','s1',0,0,?)").run(
+      JSON.stringify({ role: "assistant", modelID: "m", providerID: "p", tokens: { input: 10, output: 1, reasoning: 0, cache: { read: 0, write: 0 } }, time: { created: 0, completed: 1 } }),
+    );
+    runs.forEach((run, index) => {
+      const metadata = run.exit === undefined ? { truncated: false } : { exit: run.exit, truncated: false };
+      db.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?,'m1','s1',?,?,?)").run(
+        `p${index}`, run.at, run.at,
+        JSON.stringify({
+          type: "tool",
+          tool: "bash",
+          callID: `c${index}`,
+          state: {
+            // opencode marks the tool completed even when the command failed.
+            status: run.status ?? "completed",
+            input: { command: run.command ?? "pnpm build" },
+            output: "build output",
+            metadata,
+            title: "bash",
+            time: { start: run.at, end: run.at + 1 },
+          },
+        }),
+      );
+    });
+  }
+
+  it("classifies a build retried three times, all exiting non-zero, as an error retry", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      seedBash(db, [{ at: 10, exit: 1 }, { at: 20, exit: 1 }, { at: 30, exit: 1 }]);
+      const incidents = detectLoops(db).data.incidents;
+      expect(incidents).toHaveLength(1);
+      expect(incidents[0]?.kind).toBe("error-retry");
+      expect(incidents[0]?.tool).toBe("bash");
+      expect(incidents[0]?.calls).toBe(3);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("does not call it a retry when the command eventually succeeded", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      seedBash(db, [{ at: 10, exit: 1 }, { at: 20, exit: 1 }, { at: 30, exit: 0 }]);
+      const incidents = detectLoops(db).data.incidents;
+      expect(incidents).toHaveLength(1);
+      expect(incidents[0]?.kind).toBe("redundant-repeat");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("treats an all-zero-exit repeat as a plain repeat, not a failure", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      seedBash(db, [{ at: 10, exit: 0 }, { at: 20, exit: 0 }, { at: 30, exit: 0 }]);
+      expect(detectLoops(db).data.incidents[0]?.kind).toBe("redundant-repeat");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("falls back to tool status when no exit code was recorded", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      seedBash(db, [
+        { at: 10, status: "error" },
+        { at: 20, status: "error" },
+        { at: 30, status: "error" },
+      ]);
+      expect(detectLoops(db).data.incidents[0]?.kind).toBe("error-retry");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("ranks the failing build above an unrelated redundant repeat", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      seedBash(db, [
+        { at: 10, exit: 0, command: "pnpm test" },
+        { at: 15, exit: 0, command: "pnpm test" },
+        { at: 20, exit: 0, command: "pnpm test" },
+        { at: 30, exit: 1 },
+        { at: 40, exit: 1 },
+        { at: 50, exit: 1 },
+      ]);
+      const incidents = detectLoops(db).data.incidents;
+      expect(incidents).toHaveLength(2);
+      expect(incidents[0]?.kind).toBe("error-retry");
+      expect(incidents[1]?.kind).toBe("redundant-repeat");
+    } finally {
+      db.close();
+    }
+  });
+});

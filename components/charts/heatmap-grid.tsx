@@ -80,9 +80,10 @@ export function HeatmapGrid({ weeks, emptyMessage = "No activity to show.", onCe
           week.map((cell, dayIndex) => {
             const title = cell.value === null ? cell.label : `${cell.label}: ${cell.value}`;
             const style: CSSProperties = { ...intensityStyle(cell.value === null ? null : cell.value / max), gridColumn: weekIndex + 2, gridRow: dayIndex + 2 };
+            const key = `${weekIndex}-${dayIndex}`;
             return onCellClick && cell.value !== null ? (
               <button
-                key={dayIndex}
+                key={key}
                 type="button"
                 aria-label={title}
                 title={title}
@@ -91,7 +92,7 @@ export function HeatmapGrid({ weeks, emptyMessage = "No activity to show.", onCe
                 style={style}
               />
             ) : (
-              <span key={dayIndex} aria-hidden="true" title={title} className="aspect-square w-full min-w-0 rounded-sm border border-border/50" style={style} />
+              <span key={key} aria-hidden="true" title={title} className="aspect-square w-full min-w-0 rounded-sm border border-border/50" style={style} />
             );
           }),
         )}

@@ -28,12 +28,32 @@ export function formatDuration(ms: number | null): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   const totalSeconds = ms / 1000;
   if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}s`;
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const remainingSeconds = Math.round(totalSeconds % 60);
+  const roundedTotalSeconds = Math.round(totalSeconds);
+  const totalMinutes = Math.floor(roundedTotalSeconds / 60);
+  const remainingSeconds = roundedTotalSeconds % 60;
   if (totalMinutes < 60) return `${totalMinutes}m ${remainingSeconds}s`;
   const hours = Math.floor(totalMinutes / 60);
   const remainingMinutes = totalMinutes % 60;
   return `${hours}h ${remainingMinutes}m`;
+}
+
+/**
+ * Formats a byte count as a human string with progressively larger units,
+ * e.g. 1536 -> "1.5 KB", 5 * 1024 * 1024 -> "5.0 MB". The single shared byte
+ * formatter — every byte display in the app (Overview stat grid, Storage
+ * panel) must go through this so the same value never renders two different
+ * ways.
+ */
+export function formatBytes(value: number): string {
+  if (value < 1_024) return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let amount = value / 1_024;
+  let unit = units[0]!;
+  for (let index = 1; index < units.length && amount >= 1_024; index += 1) {
+    amount /= 1_024;
+    unit = units[index]!;
+  }
+  return `${amount.toFixed(amount >= 10 ? 0 : 1)} ${unit}`;
 }
 
 /**

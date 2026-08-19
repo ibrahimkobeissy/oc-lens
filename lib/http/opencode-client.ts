@@ -71,9 +71,9 @@ function safeState(value: unknown): string {
 }
 
 function collection(value: unknown): Array<[string | null, unknown]> | null {
-  if (Array.isArray(value)) return value.slice(0, MAX_ITEMS).map((entry) => [null, entry]);
+  if (Array.isArray(value)) return value.map((entry) => [null, entry]);
   if (!isRecord(value)) return null;
-  return Object.entries(value).slice(0, MAX_ITEMS);
+  return Object.entries(value);
 }
 
 function summarize(value: unknown, includeItems: boolean): Pick<LiveEndpointHealth, "items" | "itemCount"> {
@@ -81,7 +81,9 @@ function summarize(value: unknown, includeItems: boolean): Pick<LiveEndpointHeal
   if (!entries) return { items: [], itemCount: null };
   if (!includeItems) return { items: [], itemCount: entries.length };
 
-  const items = entries.flatMap(([key, entry]) => {
+  // `itemCount` reports the true collection size (types/oc.ts); only the
+  // rendered `items` list is bounded to MAX_ITEMS to cap response payload size.
+  const items = entries.slice(0, MAX_ITEMS).flatMap(([key, entry]) => {
     const record = isRecord(entry) ? entry : null;
     const name = cleanName(record?.name ?? record?.id ?? key);
     if (!name) return [];

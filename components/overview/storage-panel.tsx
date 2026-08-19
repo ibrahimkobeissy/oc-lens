@@ -7,19 +7,11 @@ import { ErrorState } from "@/components/states/error-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOc } from "@/hooks/use-oc";
+import { formatBytes as formatByteSize } from "@/lib/format";
 import type { StorageBreakdown } from "@/types/oc";
 
 function formatBytes(bytes: number | null): string {
-  if (bytes === null) return "—";
-  if (bytes < 1_024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1_024;
-  let unit = units[0]!;
-  for (let index = 1; index < units.length && value >= 1_024; index += 1) {
-    value /= 1_024;
-    unit = units[index]!;
-  }
-  return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
+  return bytes === null ? "—" : formatByteSize(bytes);
 }
 
 function StorageContent({ storage }: { storage: StorageBreakdown }) {

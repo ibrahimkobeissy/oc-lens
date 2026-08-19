@@ -48,11 +48,13 @@ const DISPLAY_NAMES: Record<string, string> = {
 
 /** Unrecognised tool names fall to `other` — an honest gap, never hidden. */
 export function categorizeTool(name: string): ToolCategory {
-  return TOOL_CATEGORIES[name.toLowerCase()] ?? "other";
+  const key = name.toLowerCase();
+  return Object.hasOwn(TOOL_CATEGORIES, key) ? TOOL_CATEGORIES[key]! : "other";
 }
 
 export function toolDisplayName(name: string): string {
-  return DISPLAY_NAMES[name.toLowerCase()] ?? name;
+  const key = name.toLowerCase();
+  return Object.hasOwn(DISPLAY_NAMES, key) ? DISPLAY_NAMES[key]! : name;
 }
 
 export interface ToolCategorizationBatch {
@@ -70,9 +72,9 @@ export function categorizeToolsBatch(names: string[]): ToolCategorizationBatch {
   const unknownCounts = new Map<string, number>();
 
   for (const name of names) {
-    const known = TOOL_CATEGORIES[name.toLowerCase()];
-    if (known) {
-      categories[name] = known;
+    const key = name.toLowerCase();
+    if (Object.hasOwn(TOOL_CATEGORIES, key)) {
+      categories[name] = TOOL_CATEGORIES[key]!;
     } else {
       categories[name] = "other";
       unknownCounts.set(name, (unknownCounts.get(name) ?? 0) + 1);

@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { StatCard } from "@/components/ui/stat-card";
+import { formatBytes, formatCost } from "@/lib/format";
 import type { OcTokens, OverviewStats } from "@/types/oc";
 
 function compact(value: number): string {
@@ -20,16 +21,7 @@ function duration(value: number | null): string {
 }
 
 function bytes(value: number | null): string {
-  if (value === null) return "loading";
-  if (value < 1_024) return `${value} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let amount = value / 1_024;
-  let unit = units[0]!;
-  for (let index = 1; index < units.length && amount >= 1_024; index += 1) {
-    amount /= 1_024;
-    unit = units[index]!;
-  }
-  return `${amount.toFixed(amount >= 10 ? 0 : 1)} ${unit}`;
+  return value === null ? "loading" : formatBytes(value);
 }
 
 function tokenTotal(tokens: OcTokens): number {
@@ -48,7 +40,7 @@ function CostCard({ stats }: { stats: OverviewStats }) {
       </div>
     );
   }
-  return <StatCard label="Estimated cost" value={`$${stats.totalCost.amount.toFixed(2)}`} subLabel="From your model prices" />;
+  return <StatCard label="Estimated cost" value={formatCost(stats.totalCost)} subLabel="From your model prices" />;
 }
 
 export function StatGrid({ stats, storageBytes }: { stats: OverviewStats; storageBytes: number | null }) {

@@ -121,11 +121,11 @@ describe("GET /api/sessions", () => {
     ["?model=unknown&limit=100", 10],
     ["?model=opencode/qwen3-coder&limit=100", 21],
     ["?archived=true&limit=100", 5],
-    ["?archived=false&limit=100", 115],
+    ["?archived=false&limit=100", 121],
     ["?isSubagent=true&limit=100", 8],
-    ["?is-subagent=false&limit=100", 112],
-    ["?hasError=true&limit=100", 106],
-    ["?has-error=false&limit=100", 14],
+    ["?is-subagent=false&limit=100", 118],
+    ["?hasError=true&limit=100", 107],
+    ["?has-error=false&limit=100", 19],
   ])("applies fixture filter %s with its hand-counted total", async (query, expected) => {
     const { body } = await list(query);
     expect(body.data?.totalCount).toBe(expected);
@@ -166,8 +166,8 @@ describe("GET /api/sessions", () => {
   });
 
   it.each([
-    ["timeCreated", "ses_0119"],
-    ["timeUpdated", "ses_0119"],
+    ["timeCreated", "ses_0125"],
+    ["timeUpdated", "ses_0125"],
     ["timeArchived", "ses_0032"],
     ["durationMs", "ses_0000"],
     ["messages", "ses_0000"],
@@ -202,7 +202,7 @@ describe("GET /api/sessions", () => {
       ...(first.body.data?.sessions.map((session) => session.id) ?? []),
       ...(second.body.data?.sessions.map((session) => session.id) ?? []),
     ]).size).toBe(14);
-    expect(second.body.data?.totalCount).toBe(120);
+    expect(second.body.data?.totalCount).toBe(126);
   });
 
   it("uses active fixture pricing for exact session costs and numeric cost sorting", async () => {

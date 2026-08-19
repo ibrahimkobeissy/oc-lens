@@ -2,6 +2,7 @@
 
 import { ocFetcher, ocSWRConfig, type OcApiError } from "@/lib/swr";
 import type {
+  LoopAnalysis,
   ActivityStats,
   AgentsResponse,
   CostBreakdown,
@@ -41,6 +42,7 @@ type StaticRoute =
   | "/api/settings"
   | "/api/health"
   | "/api/agents"
+  | "/api/loops"
   | "/api/export";
 
 /** Every OCL-010 API route, with arbitrary validated server-side query parameters. */
@@ -99,6 +101,8 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
                         ? HealthResponse
                       : WithoutQuery<R> extends "/api/agents"
                         ? AgentsResponse
+                      : WithoutQuery<R> extends "/api/loops"
+                        ? LoopAnalysis
                       : WithoutQuery<R> extends "/api/export"
                             ? ExportResponse
                             : never;

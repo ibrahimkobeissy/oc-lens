@@ -130,7 +130,7 @@ describe("OCL-014 project and overview queries", () => {
       const history = versionHistory(db).data;
       expect(history).toHaveLength(1);
       expect(history[0]?.version).toBe("1.17.7");
-      expect(history[0]?.sessionCount).toBe(120);
+      expect(history[0]?.sessionCount).toBe(126);
     });
   });
 });
@@ -160,7 +160,7 @@ describe("OCL-014 timezone-aware activity", () => {
     withFixture((db) => {
       const hours = hourOfDay(db, { timeZone: "Europe/Paris" }).data;
       expect(hours).toHaveLength(24);
-      expect(hours.reduce((total, bucket) => total + bucket.count, 0)).toBe(120);
+      expect(hours.reduce((total, bucket) => total + bucket.count, 0)).toBe(126);
       expect(dayOfWeek(db, { timeZone: "Europe/Paris" }).data).toHaveLength(7);
       expect(dailyTokens(db, { timeZone: "Europe/Paris" }).data.length).toBeGreaterThan(0);
       expect(streaks(db, "Europe/Paris").data.totalActiveDays).toBeGreaterThan(0);

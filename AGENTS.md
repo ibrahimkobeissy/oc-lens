@@ -8,6 +8,8 @@ A local-only, **read-only** analytics dashboard for opencode: reads `~/.local/sh
 
 The v1 backlog is implemented — `app/`, `components/`, `lib/`, `bin/`, and `test/` are all populated — and oc-lens is published to npm; `npx oc-lens` runs it. It's verified against the database schema produced by opencode 1.17.7; a schema guard refuses to render against an incompatible schema rather than show wrong numbers. The commands below are real — run them.
 
+**Post-v1 work in progress: loop detection** (`/loops`, `lib/loops/`, `lib/queries/loops.ts`, `lib/diagnostics/`). This is **not in the frozen backlog** — the maintainer stated after v1 shipped that spotting when the model loops for nothing, or loops on errors, is the main reason oc-lens exists. Rank future work against that, not against the backlog alone.
+
 ## Commands
 
 | Command | Does |
@@ -30,7 +32,7 @@ Repo layout (backlog §3), as implemented:
 ```
 app/          # Next.js App Router: pages + API routes
 components/   # ui/ (shadcn) · layout/ · charts/ · <feature>/
-lib/          # db/ · decode/ · queries/ · pricing/ · tools/
+lib/          # db/ · decode/ · queries/ · pricing/ · tools/ · loops/ · diagnostics/
 types/oc.ts   # domain types + API contracts — FROZEN (OCL-010)
 test/fixtures/# generated fixture DBs (OCL-013)
 bin/          # CLI entrypoint (OCL-130)
@@ -47,6 +49,10 @@ Flow: a page calls an API route → a module in `lib/queries/` runs SQL aggregat
 - **`types/oc.ts` is frozen** (OCL-010). Changing it is its own ticket, not a drive-by.
 - **`node:sqlite` (`DatabaseSync`), not `better-sqlite3`** (D7) — zero native deps so `npx oc-lens` needs no prebuild matrix. It is a younger API; OCL-011 isolates it so a swap is a one-file change.
 - **Three data states must render**: empty, sparse, populated. No `NaN`, no `Infinity`, no `$0.00` where the honest answer is "not priced". Unknown enum values get an explicit `unknown` bucket, never a silent `0`.
+- **Loop detection has a specific, defended definition.** A "loop" is the *same* call repeated — matched on tool name plus a hash of `part.data.state.input`, never on the tool name alone. Reading five different files is ordinary work and must never be reported. The threshold starts at **3**: on real data every 2-run pair had 52–77 unrelated calls between its runs. A re-read of a file modified in between is edit-then-verify, not repetition, and `splitOnMutations` exists to keep it that way. Marking in replay is strictly **per call** — banding a whole turn was tried and it made ordinary turns look like loops.
+- **The fixture's empty tool inputs are a fixture artifact, not opencode behaviour.** The generator writes `input: {}` for `glob`/`grep`/`task`/`todowrite`/`question` and the MCP tools; real opencode records inputs for *every* tool (data-model §5, verified 2026-08-20). Never conclude "opencode does not record X" from the fixture alone.
+- **`repeatedTurnCost` is an upper bound, not savings.** opencode records cost per message, never per tool call, so it is split across a message's calls and is dominated by context tokens the turn would have paid anyway. Never label it "wasted spend".
+- **Anything leaving the machine must be shape-only.** `GET /api/diagnostics/loops` reports tool names, input *key* names, JSON types, and counts — never values, since tool inputs hold shell command lines and file contents. Its redaction is asserted by test, not by convention.
 - **Never read `account`, `credential`, `auth.json`, or `account.json`** — no value from them may appear in any response (data-model §6). This is stricter than, and independent of, the guardrails below.
 
 ## Report every milestone back to the vault (mandatory)

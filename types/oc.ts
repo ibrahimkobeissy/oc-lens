@@ -714,6 +714,143 @@ export interface ExportResponse {
   replays?: SessionReplay[]; // present when 'replay' is in the requested scope
 }
 
+// ─── Loop detection (post-v1 amendment) ────────────────────────────────────
+
+/**
+ * Documented amendment to this frozen file, per backlog.md §4.3. Loop detection
+ * is post-v1 scope: the maintainer's stated primary objective is spotting when
+ * the model loops for nothing or loops on errors. Nothing here changes an
+ * existing field.
+ *
+ * All of it is derived — opencode records no notion of a "loop". The evidence is
+ * ordered `part` rows plus `part.data.state.status`, and nothing else.
+ */
+
+/**
+ * Why a group of calls was flagged. Kept explicit rather than collapsed into a
+ * boolean, because the honest UI wording differs per kind and because
+ * `oscillation` must not be reported as two `redundant-repeat` incidents.
+ */
+export type LoopKind =
+  /** Consecutive failures of the same call — "looping on errors". */
+  | "error-retry"
+  /** The same successful call repeated — tokens spent for no new information. */
+  | "redundant-repeat"
+  /** One path rewritten between contents it already had (A→B→A) — work being undone. */
+  | "oscillation";
+
+/**
+ * One detected incident inside one session.
+ *
+ * `signature` is `tool` + a hash of the canonicalised `part.data.state.input`.
+ * The input itself is **never** carried on this type: tool inputs hold `bash`
+ * commands and whole file contents, so only the hash may leave the server.
+ */
+export interface LoopIncident {
+  kind: LoopKind; // derived
+  sessionId: string; // part.session_id
+  tool: string; // part.data.tool
+  signature: string; // derived: tool + sha1(canonical part.data.state.input), truncated
+  calls: number; // derived: tool calls forming this incident
+  /** Calls after the first — the ones that produced nothing new. See `repeatedTurnCost`. */
+  wastedCalls: number; // derived: calls - 1
+  partIds: string[]; // part.id, in chronological order
+  /**
+   * Other tool calls that happened between the first and last repeat. A build
+   * retried three times in a row has a low count; two reads of one file fifty
+   * turns apart has a high one and is far more likely to be ordinary work.
+   */
+  interveningCalls: number; // derived
+  firstAt: number; // part.time_created of the first call (epoch ms)
+  lastAt: number; // part.time_created of the last call (epoch ms)
+  /**
+   * Cost of the turns holding the repeated calls — **not** money that would be
+   * saved by removing them. opencode records cost per message, never per tool
+   * call, so a message's cost is split evenly across its tool calls; that share
+   * is dominated by context tokens the turn would have paid regardless. Treat it
+   * as an upper bound. `priced` is false unless every contributing message had a
+   * usable price.
+   */
+  repeatedTurnCost: OcCost; // derived
+  repeatedTurnTokens: OcTokens; // derived: same even split as repeatedTurnCost
+}
+
+/** What could not be examined, so the UI never implies a clean bill of health it cannot give. */
+export interface LoopCoverage {
+  toolCalls: number; // derived: tool parts in range
+  signaturable: number; // derived: tool parts carrying a non-empty state.input
+  /**
+   * Tool parts opencode recorded with no input at all (absent or `{}`). These are
+   * excluded from detection entirely — two such calls look identical but nothing
+   * is known about them, so claiming they repeat would be a fabrication.
+   */
+  unsignaturable: number; // derived
+  /** Tool names that were never signaturable, so repeats in them are invisible. */
+  unsignaturableTools: string[]; // derived
+}
+
+export interface LoopAnalysis {
+  incidents: LoopIncident[]; // derived, ranked by wasted cost then wasted calls
+  coverage: LoopCoverage; // derived
+  totalRepeatedTurnCost: OcCost; // derived: sum over incidents; unpriced unless every incident is priced
+  totalWastedCalls: number; // derived
+}
+
+/**
+ * Diagnostics report — calibration evidence meant to be carried off the machine
+ * that produced it, to a machine with enough history to tune thresholds against.
+ *
+ * **It contains no values of any kind.** Only tool names, input *key* names, the
+ * JSON types of those keys, counts, and histograms. No ids, paths, titles,
+ * commands, contents, or timestamps of individual rows — tool inputs hold shell
+ * command lines and whole files, so nothing derived from a value may appear.
+ */
+export interface LoopDiagnosticsReport {
+  /** Restated in the payload so a reader of the file alone knows what it may contain. */
+  redaction: {
+    valuesIncluded: false;
+    note: string;
+  };
+  scale: {
+    sessions: number;
+    messages: number;
+    parts: number;
+    toolCalls: number;
+  };
+  /** `session.version` values observed, so a shape can be tied to an opencode release. */
+  opencodeVersions: Array<{ version: string; sessions: number }>;
+  tools: LoopDiagnosticsTool[];
+  coverage: LoopCoverage;
+  /** Incident counts at several `minRepeats` values, to choose a threshold from evidence. */
+  thresholdSweep: Array<{
+    minRepeats: number;
+    incidents: number;
+    wastedCalls: number;
+    byKind: Array<{ kind: LoopKind; incidents: number }>;
+  }>;
+}
+
+export interface LoopDiagnosticsTool {
+  tool: string; // part.data.tool
+  calls: number; // derived
+  signaturable: number; // derived: calls whose state.input was a non-empty object
+  /**
+   * Distinct signatures over the signaturable calls. A ratio close to 1.0 means
+   * inputs are effectively unique per call — the signature that opencode
+   * stamps something volatile (a nonce or timestamp) into the input, which would
+   * make repeats undetectable for this tool.
+   */
+  distinctSignatures: number; // derived
+  /** Largest number of times one signature recurred within a single session. */
+  maxRepeatInSession: number; // derived
+  /** `{ "2": 5 }` = five signatures recurred exactly twice within one session. */
+  repeatHistogram: Array<{ repeats: number; signatures: number }>; // derived
+  /** Input key *names* only, most frequent first. Never their values. */
+  inputKeys: Array<{ key: string; occurrences: number; jsonTypes: string[] }>; // derived
+  /** True when inputKeys was capped, so a reader knows the list is partial. */
+  inputKeysTruncated: boolean; // derived
+}
+
 // ─── Named per-route response types (see the route table above) ────────────
 
 export type StatsRouteResponse = OcResponse<OverviewStats>;
@@ -736,4 +873,7 @@ export type StorageRouteResponse = OcResponse<StorageBreakdown>;
 export type SettingsRouteResponse = OcResponse<SettingsResponse>;
 export type HealthRouteResponse = OcResponse<HealthResponse>;
 export type AgentsRouteResponse = OcResponse<AgentsResponse>;
+/** Post-v1 loop detection. */
+export type LoopsRouteResponse = OcResponse<LoopAnalysis>;
+export type LoopDiagnosticsRouteResponse = OcResponse<LoopDiagnosticsReport>;
 export type ExportRouteResponse = OcResponse<ExportResponse>;

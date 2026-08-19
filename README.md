@@ -5,7 +5,7 @@ Local, read-only analytics for your [opencode](https://opencode.ai/) history.
 > [!IMPORTANT]
 > oc-lens opens opencode's SQLite database in read-only mode. It never writes to the database, opencode configuration, or session files. Its only write is your optional model-price configuration at `~/.config/oc-lens/config.json`. See [SECURITY.md](SECURITY.md) for the enforced guarantees.
 
-`opencode web` is the browser interface for working with live sessions, and `opencode stats` is a terminal summary. oc-lens complements them with history analytics: activity and streaks, token and user-priced cost trends, project and agent breakdowns, tool adoption and failures, todos, subagent trees, exports, and conversation replay.
+`opencode web` is the browser interface for working with live sessions, and `opencode stats` is a terminal summary. oc-lens complements them with history analytics: activity and streaks, token and user-priced cost trends, project and agent breakdowns, tool adoption and failures, todos, subagent trees, loop detection, exports, and conversation replay.
 
 Everything runs on your machine. There is no account, cloud sync, or telemetry.
 
@@ -71,10 +71,45 @@ Until every model involved has a price, affected totals say **not priced** or id
 - Native opencode todo browsing and status filters
 - Cost trends by model, project, and agent using your prices
 - Agent usage, handoffs, and nested subagent trees
+- Loop detection: repeated tool calls, failed retries, and files rewritten back and forth
 - Local JSON/ZIP export with cancellation and progress
 - Redacted environment settings and editable local pricing
 - Empty, sparse, populated, missing-database, and schema-mismatch states
 - Persistent light and dark themes
+
+## Loop detection
+
+The **Loops** page answers a question the other pages cannot: where did the agent repeat itself without getting anywhere. Three shapes are reported.
+
+| Kind | What it means |
+| --- | --- |
+| Error retry | The same call failed over and over |
+| Redundant repeat | The same call succeeded over and over, returning nothing new |
+| Oscillation | One file rewritten back and forth between contents it already had |
+
+Two calls are "the same" when the tool name and a hash of the recorded tool input match. The input itself is hashed and never stored or displayed, because tool inputs hold shell command lines and whole file contents.
+
+What is deliberately **not** reported matters as much:
+
+- Calls to different targets. Reading five different files is ordinary work, not a loop.
+- A call that ran only twice. The threshold starts at 3, because a pair is nearly always legitimate — re-reading a file after a context compaction, for example.
+- A re-read of a file that was modified in between, which is edit-then-verify, not repetition.
+- Calls whose input opencode did not record. They cannot be compared, so the page reports how many it could not check rather than implying a clean result.
+
+Each incident links into replay, where the individual repeated calls are marked in place with controls to jump between the runs. Session replay carries the same panel and threshold control, scoped to that session.
+
+> [!NOTE]
+> The "repeated turns cost" figure is the cost of the turns that contained the repeats, not money you would save. opencode records cost per message rather than per tool call, so a message's cost is split across its calls and is dominated by context tokens the turn would have paid anyway. Treat it as an upper bound.
+
+### Calibration export
+
+`GET /api/diagnostics/loops` returns shape-only evidence for tuning thresholds on a machine with more history than the one you are on:
+
+```sh
+curl -s http://127.0.0.1:3000/api/diagnostics/loops > oc-lens-diagnostics.json
+```
+
+It contains tool names, input **key** names, the JSON types of those keys, counts, histograms, and incident counts across several thresholds. It contains **no values** — no ids, paths, titles, commands, or file contents — so it is safe to carry off the machine that produced it. The redaction policy is restated inside the payload, and enforced by test.
 
 ## Screenshots
 

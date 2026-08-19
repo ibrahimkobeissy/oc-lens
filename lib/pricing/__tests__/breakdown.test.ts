@@ -183,14 +183,14 @@ describe("costBreakdown", () => {
         WHERE json_valid(data) AND json_extract(data, '$.role') = 'assistant'
       `).get() as { amount: number };
 
-      expect(sessionTotals.amount).toBeCloseTo(4.78954, 6);
-      expect(validMessageTotals.amount).toBeCloseTo(4.786188, 6);
+      expect(sessionTotals.amount).toBeCloseTo(4.82254, 6);
+      expect(validMessageTotals.amount).toBeCloseTo(4.819188, 6);
       expect(sessionTotals.amount - validMessageTotals.amount).toBeCloseTo(0.003352, 6);
 
       const result = costBreakdown(fixture, config);
       expect(result.totalCost).toEqual({ amount: 0, priced: false });
       expect(result.bySession.find((entry) => entry.sessionId === "ses_0000")?.cost).toEqual({ amount: 0, priced: false });
-      expect(result.byAgent.find((entry) => entry.agent === "build")?.cost.amount).toBeCloseTo(2.960916, 6);
+      expect(result.byAgent.find((entry) => entry.agent === "build")?.cost.amount).toBeCloseTo(2.993916, 6);
       expect(result.byAgent.find((entry) => entry.agent === "plan")?.cost.amount).toBeCloseTo(1.825272, 6);
       expect(result.byAgent.find((entry) => entry.agent === "unknown")?.cost).toEqual({ amount: 0, priced: false });
     });

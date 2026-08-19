@@ -4,9 +4,9 @@ A local-only, **read-only** analytics dashboard for opencode: reads `~/.local/sh
 
 **Planned stack** (decision D6): Next.js 16 App Router · React 19 · TypeScript strict · Tailwind 4 · shadcn/ui · Recharts · SWR · Vitest. Node ≥ 22.5 required.
 
-## Status: pre-implementation
+## Status: v1 shipped
 
-**No application code exists yet.** The repo currently holds only `project-docs/` and the gitignored `.reference/` checkout. Tooling is scaffolded by tickets OCL-001/002/003 — until those land, the commands below are the *contract*, not something you can run. Do not report them as passing before `package.json` exists.
+The v1 backlog is implemented — `app/`, `components/`, `lib/`, `bin/`, and `test/` are all populated — and oc-lens is published to npm; `npx oc-lens` runs it. It's verified against the database schema produced by opencode 1.17.7; a schema guard refuses to render against an incompatible schema rather than show wrong numbers. The commands below are real — run them.
 
 ## Commands
 
@@ -25,7 +25,7 @@ These are binding, not background. Do not infer from memory what they specify.
 
 ## Architecture
 
-Target layout (backlog §3) — most of it does not exist yet:
+Repo layout (backlog §3), as implemented:
 
 ```
 app/          # Next.js App Router: pages + API routes

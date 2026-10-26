@@ -3,7 +3,7 @@ import type { ChildProcess } from "node:child_process";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { browserCommand, openBrowser, parseArgs, readStartupMetadata, selectPort, serverSpawnOptions, startupLines, waitForServer } from "./cli-lib.js";
+import { browserCommand, main, openBrowser, parseArgs, readStartupMetadata, selectPort, serverSpawnOptions, startupLines, vulnerableNodeReason, waitForServer } from "./cli-lib.js";
 
 /** Minimal fake satisfying only what `waitForServer` actually touches (`.exitCode`, `.once("error"/"exit")`). */
 function fakeChild(exitCode: number | null = null): ChildProcess {
@@ -85,5 +85,25 @@ describe("OCL-130 CLI", () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }));
     await expect(waitForServer("http://local", child, { fetchImpl, timeoutMs: 1_000 })).rejects.toThrow(/exited before becoming ready/);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("treats only Node2Shell-fixed runtimes (CVE-2026-111497) as safe", () => {
+    for (const safe of ["v22.23.4", "v22.24.0", "v24.22.1", "v24.23.0", "v26.12.1", "v27.0.0"]) expect(vulnerableNodeReason(safe)).toBeNull();
+    for (const unsafe of ["v22.5.0", "v22.23.3", "v24.22.0", "v26.12.0", "v20.19.0"]) expect(vulnerableNodeReason(unsafe)).toMatch(/fix is in|end-of-life/);
+    expect(vulnerableNodeReason("v23.11.1")).toMatch(/end-of-life/);
+    expect(vulnerableNodeReason("v25.9.0")).toMatch(/end-of-life/);
+  });
+
+  it("refuses to start the server on a vulnerable Node.js, but still answers --version", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      expect(await main([], "v24.22.0")).toBe(1);
+      expect(error.mock.calls[0]?.[0]).toContain("Upgrade Node.js to 22.23.4, 24.22.1, 26.12.1");
+      expect(await main(["--version"], "v24.22.0")).toBe(0);
+    } finally {
+      error.mockRestore();
+      log.mockRestore();
+    }
   });
 });

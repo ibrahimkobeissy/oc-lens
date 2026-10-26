@@ -16,7 +16,7 @@ A shape marked ⚠️ UNVERIFIED requires the probe named by its ticket. Run tha
 
 ## Development
 
-Node.js 22.5 or newer and pnpm are required.
+Node.js 22.23.4+, 24.22.1+, or 26.12.1+ (the Node2Shell fix, CVE-2026-111497) and pnpm are required.
 
 ```sh
 pnpm install

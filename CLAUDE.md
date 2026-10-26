@@ -2,7 +2,7 @@
 
 A local-only, **read-only** analytics dashboard for opencode: reads `~/.local/share/opencode/opencode.db` and shows sessions, tokens, cost, tools, errors, agents, projects, activity, and conversation replay. The analytics layer is the product — `opencode web` already exists and is not what this is.
 
-**Planned stack** (decision D6): Next.js 16 App Router · React 19 · TypeScript strict · Tailwind 4 · shadcn/ui · Recharts · SWR · Vitest. Node ≥ 22.5 required.
+**Planned stack** (decision D6): Next.js 16 App Router · React 19 · TypeScript strict · Tailwind 4 · shadcn/ui · Recharts · SWR · Vitest. Node 22.23.4+, 24.22.1+, or 26.12.1+ required (the Node2Shell fix, CVE-2026-111497).
 
 ## Status: v1 shipped
 

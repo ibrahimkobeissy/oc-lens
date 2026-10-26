@@ -11,7 +11,7 @@ Everything runs on your machine. There is no account, cloud sync, or telemetry.
 
 ## Requirements
 
-- Node.js 22.5 or newer
+- Node.js 22.23.4+, 24.22.1+, or 26.12.1+ — earlier releases are affected by Node2Shell (CVE-2026-111497), so the CLI refuses to start on them
 - An opencode SQLite database (normally `~/.local/share/opencode/opencode.db`)
 - Model prices you enter yourself if you want cost figures
 

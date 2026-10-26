@@ -257,7 +257,35 @@ export async function runServer(options, { packageRoot = PACKAGE_ROOT, spawn = n
   }
 }
 
-export async function main(argv = process.argv.slice(2)) {
+/**
+ * The first release of each Node.js line that fixes Node2Shell (CVE-2026-111497),
+ * an out-of-bounds write in the bundled Brotli decoder fixed on 2026-10-21. A line
+ * missing here (23, 25) is end-of-life and never received the fix.
+ */
+const NODE2SHELL_FIXED = { 22: [22, 23, 4], 24: [24, 22, 1], 26: [26, 12, 1] };
+const NODE2SHELL_LATEST_FIXED_LINE = 26;
+
+/** `null` when `version` (e.g. "v24.22.1") includes the Node2Shell fix, else why it does not. */
+export function vulnerableNodeReason(version = process.version) {
+  const parts = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version)?.slice(1).map(Number);
+  if (!parts) return `Unrecognised Node.js version ${version}.`;
+  const [major] = parts;
+  if (major > NODE2SHELL_LATEST_FIXED_LINE) return null;
+  const fixed = NODE2SHELL_FIXED[major];
+  if (!fixed) return `Node.js ${version} is an end-of-life line that never received the Node2Shell (CVE-2026-111497) fix.`;
+  for (let index = 0; index < 3; index += 1) {
+    if (parts[index] !== fixed[index]) {
+      return parts[index] > fixed[index] ? null : `Node.js ${version} is affected by Node2Shell (CVE-2026-111497); the fix is in ${fixed.join(".")}.`;
+    }
+  }
+  return null;
+}
+
+export function nodeUpgradeMessage(reason) {
+  return `${reason}\nUpgrade Node.js to 22.23.4, 24.22.1, 26.12.1, or later before running oc-lens.`;
+}
+
+export async function main(argv = process.argv.slice(2), nodeVersion = process.version) {
   let options;
   try {
     options = parseArgs(argv);
@@ -270,5 +298,9 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (options.help) { console.log(helpText()); return 0; }
   if (options.version) { console.log(readPackageVersion()); return 0; }
+  // oc-lens is a long-running HTTP server; refuse to start one on a runtime with a
+  // known remote-code-execution bug rather than merely warn and carry on.
+  const vulnerable = vulnerableNodeReason(nodeVersion);
+  if (vulnerable) { console.error(`[oc-lens] ${nodeUpgradeMessage(vulnerable)}`); return 1; }
   return runServer(options);
 }

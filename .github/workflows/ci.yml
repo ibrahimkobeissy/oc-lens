@@ -29,6 +29,8 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
+          # Never the runner's cached patch release: the CLI refuses Node without the Node2Shell fix.
+          check-latest: true
 
       - name: Install pinned pnpm
         run: npm install --global pnpm@11.18.0

@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
+import { listSessionEvents, type SessionEventRow } from "@/lib/db/canonical";
 import { query } from "@/lib/db/connection";
-import { decodeMessageData, decodePartData, decodeSessionModel, isPlaceholderTitle, mergeWarnings } from "@/lib/decode";
+import { decodeMessageData, decodePartData, decodeSessionEvent, decodeSessionModel, isPlaceholderTitle, mergeWarnings } from "@/lib/decode";
 import { costForMessageData } from "@/lib/pricing/breakdown";
-import { resolveMcpTool } from "@/lib/tools";
+import { isSubagentTool, resolveMcpTool } from "@/lib/tools";
 import type { OcCost, OcTokens, OcWarning, PricingConfig, ReplayPart, ReplayTurn, SessionReplay, SessionSummary, SubagentNode } from "@/types/oc";
 
 export interface ReplayQueryResult<T> { data: T; warnings: OcWarning[] }
@@ -53,9 +54,15 @@ function summary(db: DatabaseSync, session: SessionRow, messages: MessageRow[], 
     tokens: tokens(session), cost: UNPRICED,
     hasReasoning: decodedParts.some((part) => part.data.type === "reasoning"), hasCompaction: decodedParts.some((part) => part.data.type === "compaction"),
     usesMcp: decodedParts.some((part) => part.data.type === "tool" && resolveMcpTool(part.data.tool, mcpServers) !== null),
-    usesSubagent: decodedParts.some((part) => part.data.type === "tool" && part.data.tool === "task") || query<{ id: string }>(db, "SELECT id FROM session WHERE parent_id = ? LIMIT 1", [session.id]).length > 0,
+    usesSubagent: decodedParts.some((part) => part.data.type === "tool" && isSubagentTool(part.data.tool)) || query<{ id: string }>(db, "SELECT id FROM session WHERE parent_id = ? LIMIT 1", [session.id]).length > 0,
     usesWebfetch: decodedParts.some((part) => part.data.type === "tool" && part.data.tool === "webfetch"),
   }, warnings: decodedModel.warnings };
+}
+
+/** One opencode 2.x lifecycle record as a replay turn. Shared with the export stream so both place and shape events identically. */
+export function sessionEventTurn(event: SessionEventRow, warnings: OcWarning[]): ReplayTurn {
+  const decoded = decodeSessionEvent(event.kind, event.data); warnings.push(...decoded.warnings);
+  return { messageId: event.id, role: "event", agent: null, timeCreated: event.time_created, timeCompleted: null, durationMs: null, tokens: null, cost: UNPRICED, parts: [{ id: event.id, data: decoded.value }] };
 }
 
 export function getReplay(db: DatabaseSync, sessionId: string, mcpServers: string[] = [], pricing?: PricingConfig): ReplayQueryResult<SessionReplay | null> {
@@ -66,7 +73,7 @@ export function getReplay(db: DatabaseSync, sessionId: string, mcpServers: strin
   const byMessage = new Map<string, PartRow[]>();
   for (const part of parts) byMessage.set(part.message_id, [...(byMessage.get(part.message_id) ?? []), part]);
   const warnings: OcWarning[] = [];
-  const turns: ReplayTurn[] = messages.map((message) => {
+  const messageTurns: ReplayTurn[] = messages.map((message) => {
     const decoded = decodeMessageData(message.data); warnings.push(...decoded.warnings);
     const replayParts: ReplayPart[] = (byMessage.get(message.id) ?? []).map((part) => { const result = decodePartData(part.data); warnings.push(...result.warnings); return { id: part.id, data: result.value }; });
     const created = decoded.value.timeCreated ?? message.time_created;
@@ -75,6 +82,19 @@ export function getReplay(db: DatabaseSync, sessionId: string, mcpServers: strin
     const cost = pricing ? costForMessageData(message.data, pricing) : UNPRICED;
     return { messageId: message.id, role: decoded.value.role, agent: decoded.value.agent, timeCreated: created, timeCompleted: completed, durationMs: completed === null ? null : completed - created, tokens: messageTokens, cost, parts: replayParts };
   });
+  // opencode 2.x lifecycle records (idle, system updates, switches) sit between
+  // turns. Each is placed before the first message created after it, so message
+  // order is untouched and an event sharing a message's millisecond follows it.
+  const events = listSessionEvents(db, sessionId);
+  const turns: ReplayTurn[] = events.length === 0 ? messageTurns : [];
+  if (events.length > 0) {
+    let next = 0;
+    const pushEventsBefore = (time: number) => {
+      for (; next < events.length && events[next]!.time_created < time; next++) turns.push(sessionEventTurn(events[next]!, warnings));
+    };
+    messageTurns.forEach((turn, index) => { pushEventsBefore(messages[index]!.time_created); turns.push(turn); });
+    pushEventsBefore(Number.POSITIVE_INFINITY);
+  }
   const accumulation = zeroTokens();
   const tokenAccumulation = turns.map((turn, atTurnIndex) => {
     for (const part of turn.parts) if (part.data.type === "step-finish" && part.data.tokens) add(accumulation, part.data.tokens);

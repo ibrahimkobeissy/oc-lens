@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { ensureCanonicalViews } from "./canonical";
 import { findDenylistedTable } from "./denylist";
 import { locateDb, type LocateOptions } from "./locate";
 import { checkSchema, type SchemaMismatch } from "./schema-guard";
@@ -46,6 +47,7 @@ export function getConnection(locateOptions?: LocateOptions): ConnectResult {
     return { ok: false, reason: "schema-mismatch", mismatch };
   }
 
+  ensureCanonicalViews(db);
   cached = db;
   return { ok: true, db };
 }
@@ -59,6 +61,9 @@ export function resetConnectionForTests(): void {
 /**
  * The only sanctioned way to run a query against the opencode connection.
  * Rejects any SQL naming a denylisted table before it ever reaches SQLite.
+ * On an opencode 2.x or mixed database it first installs the canonical TEMP
+ * views (lib/db/canonical.ts), so `session`/`message`/`part`/`todo` read the
+ * merged history whichever way the connection was opened.
  * The cast at `stmt.all(...)` is the documented decoder boundary between the
  * driver's loosely-typed row shape and our typed query-module return values.
  */
@@ -67,6 +72,7 @@ export function query<T>(db: DatabaseSync, sql: string, params: readonly SqlPara
   if (denylisted) {
     throw new Error(`Refusing to run SQL referencing the denylisted table "${denylisted}"`);
   }
+  ensureCanonicalViews(db);
   const stmt = db.prepare(sql);
   return stmt.all(...params) as unknown as T[];
 }

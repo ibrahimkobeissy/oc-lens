@@ -10,7 +10,7 @@ import { ExportPanel, PreviewGrid, ScopeSelector } from "./export-panel";
 describe("ExportPanel", () => {
   it("renders every scope and explicit JSON/ZIP actions without an import affordance", () => {
     mockUseOc.mockReturnValue({
-      data: { data: { counts: { sessions: 12, messages: 40, parts: 90, todos: 3 } }, meta: { warnings: [] } },
+      data: { data: { counts: { sessions: 12, messages: 40, parts: 90, todos: 3, events: 0 } }, meta: { warnings: [] } },
       error: undefined,
       isLoading: false,
       mutate: vi.fn(),
@@ -28,7 +28,7 @@ describe("ExportPanel", () => {
   it("renders scope and preview grids responsively with finite counts", () => {
     const selector = renderToStaticMarkup(<ScopeSelector selected={["sessions"]} onToggle={() => undefined} />);
     const preview = renderToStaticMarkup(
-      <PreviewGrid scopes={["sessions", "replay"]} counts={{ sessions: 2, messages: 5, parts: 9, todos: 0 }} />,
+      <PreviewGrid scopes={["sessions", "replay"]} counts={{ sessions: 2, messages: 5, parts: 9, todos: 0, events: 0 }} />,
     );
 
     expect(selector.match(/type="checkbox"/g)).toHaveLength(EXPORT_SCOPES.length);
@@ -42,7 +42,7 @@ describe("ExportPanel", () => {
     expect(renderToStaticMarkup(<ExportPanel />)).toContain("Loading export preview");
 
     mockUseOc.mockReturnValue({
-      data: { data: { counts: { sessions: 0, messages: 0, parts: 0, todos: 0 } }, meta: { warnings: [] } },
+      data: { data: { counts: { sessions: 0, messages: 0, parts: 0, todos: 0, events: 0 } }, meta: { warnings: [] } },
       error: undefined,
       isLoading: false,
       mutate: vi.fn(),

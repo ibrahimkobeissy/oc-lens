@@ -34,6 +34,8 @@ export function jumpToReplayTurn(turn: Pick<ReplayTurn, "messageId">, index: num
 }
 
 function turnLabel(turn: ReplayTurn, index: number): string {
+  const event = turn.parts.find((part) => part.data.type === "session-event");
+  if (event?.data.type === "session-event") return `${index + 1}. ${event.data.summary.slice(0, 64)}`;
   const text = turn.parts.find((part) => part.data.type === "text");
   const preview = text?.data.type === "text" ? text.data.text.trim().replace(/\s+/g, " ") : "";
   return preview ? `${index + 1}. ${preview.slice(0, 64)}` : `${index + 1}. ${turn.role === "unknown" ? "unknown role" : turn.role}`;

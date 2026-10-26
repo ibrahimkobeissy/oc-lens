@@ -5,6 +5,7 @@ import { decodePartData } from "@/lib/decode/part";
 import { decodeSessionModel, isPlaceholderTitle } from "@/lib/decode/session";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { costBreakdown } from "@/lib/pricing/breakdown";
+import { isSubagentTool } from "@/lib/tools/categories";
 import { resolveMcpTool } from "@/lib/tools/mcp";
 import type { OcTokens, OcWarning, PricingConfig, SessionDetail, SessionSummary } from "@/types/oc";
 
@@ -142,7 +143,7 @@ export function listSessions(db: DatabaseSync, filter: SessionFilter = {}, prici
     if (decoded.value.type === "tool") {
       state.toolCalls += 1;
       if (decoded.value.status === "error") state.errors += 1;
-      state.task ||= decoded.value.tool === "task";
+      state.task ||= isSubagentTool(decoded.value.tool);
       state.webfetch ||= decoded.value.tool === "webfetch";
       state.mcp ||= resolveMcpTool(decoded.value.tool, mcpServers) !== null;
     }

@@ -6,7 +6,7 @@ A local-only, **read-only** analytics dashboard for opencode: reads `~/.local/sh
 
 ## Status: v1 shipped
 
-The v1 backlog is implemented — `app/`, `components/`, `lib/`, `bin/`, and `test/` are all populated — and oc-lens is published to npm; `npx oc-lens` runs it. It's verified against the database schema produced by opencode 1.17.7; a schema guard refuses to render against an incompatible schema rather than show wrong numbers. The commands below are real — run them.
+The v1 backlog is implemented — `app/`, `components/`, `lib/`, `bin/`, and `test/` are all populated — and oc-lens is published to npm; `npx oc-lens` runs it. It's verified against the database schemas produced by opencode 1.17.7 (`session`/`message`/`part`) and opencode 2.1.4 (`session_v2`/`session_message`), including 1.x databases upgraded to 2.x that hold both; a schema guard refuses to render against an incompatible schema rather than show wrong numbers. The commands below are real — run them.
 
 **Post-v1 work in progress: loop detection** (`/loops`, `lib/loops/`, `lib/queries/loops.ts`, `lib/diagnostics/`). This is **not in the frozen backlog** — the maintainer stated after v1 shipped that spotting when the model loops for nothing, or loops on errors, is the main reason oc-lens exists. Rank future work against that, not against the backlog alone.
 
@@ -54,41 +54,8 @@ Flow: a page calls an API route → a module in `lib/queries/` runs SQL aggregat
 - **The fixture's empty tool inputs are a fixture artifact, not opencode behaviour.** The generator writes `input: {}` for `glob`/`grep`/`task`/`todowrite`/`question` and the MCP tools; real opencode records inputs for *every* tool (data-model §5, verified 2026-08-20). Never conclude "opencode does not record X" from the fixture alone.
 - **`repeatedTurnCost` is an upper bound, not savings.** opencode records cost per message, never per tool call, so it is split across a message's calls and is dominated by context tokens the turn would have paid anyway. Never label it "wasted spend".
 - **Anything leaving the machine must be shape-only.** `GET /api/diagnostics/loops` reports tool names, input *key* names, JSON types, and counts — never values, since tool inputs hold shell command lines and file contents. Its redaction is asserted by test, not by convention.
+- **opencode 2.x is read through TEMP views, not by rewriting queries.** `lib/db/canonical.ts` installs connection-private views named `session`/`message`/`part`/`todo` that shadow the 1.x tables and project `session_v2` + `session_message` into the 1.x row shapes (data-model §8). Query modules keep reading the 1.x names; a mixed database is deduplicated there, once. Lifecycle records (`idle`, `system`, …) are deliberately *not* messages — replay reads them from `oc_session_event`.
 - **Never read `account`, `credential`, `auth.json`, or `account.json`** — no value from them may appear in any response (data-model §6). This is stricter than, and independent of, the guardrails below.
-
-## Report every milestone back to the vault (mandatory)
-
-The build runs here, but the **thinking and the record of it live in the second brain** at `/home/ibrahim/Documents/second-brain`. That vault is where this project was designed and where its history is kept. A milestone that is not written back is lost — nobody is reading this repo's git log from over there.
-
-**This is an explicit, user-sanctioned exception to the "stay inside the project directory" rule in the section below.** Writing to the two vault files named here is authorized. Nothing else outside this repo is.
-
-**What counts as a milestone** — do not report per-ticket noise:
-
-- A backlog **wave** completed (not a single ticket).
-- A **locked decision (D1–D7) changed, or a new ruling made** that contradicts the backlog.
-- A **probe run that updates `project-docs/opencode-data-model.md`** — especially anything that resolves the ⚠️ UNVERIFIED shapes, since the vault's design notes rest on them.
-- **Scope moving**: something in v1 dropped, or a non-goal taken on.
-- A blocker that stops the build.
-
-**Where to write** — these two files only:
-
-| File | What to do |
-| --- | --- |
-| `vault/02-personal/areas/oc-lens/oc-lens.md` | append one dated line under `## 📈 Log & Progress` |
-| `vault/02-personal/areas/oc-lens/todo-kanban.md` | move the card between the `## Todo` / `## In Progress` / `## Done` swimlanes |
-
-**House style for anything written into the vault** (its conventions, not this repo's):
-
-- **Never hard-wrap prose.** One paragraph = one continuous line, no manual newlines mid-paragraph. Obsidian reflows it; hard wraps freeze the text at ~80 columns.
-- **Always leave a blank line before a table**, or it renders as raw `| … |`.
-- Link other notes with `[[wikilinks]]`; use absolute dates (`2026-08-01`), never "yesterday".
-- Write the honest outcome, including corrections to earlier claims. The existing log already contains a `**Correction to the recon note:**` entry — that is the expected standard, not an exception.
-
-**Hard rules:**
-
-- **Never run git in the vault** — not `add`, not `commit`, not `push`. Read-only git is fine. The user stages and commits there manually, always.
-- **Never copy source code into the vault.** It is a whiteboard for thinking, not a mirror of this repo. Link to paths here instead.
-- Touch **only** the two files above. Do not create notes, edit other Areas, or reorganize anything.
 
 ## Security Guardrails
 

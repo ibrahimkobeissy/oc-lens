@@ -7,8 +7,9 @@ import { SettingsContent } from "./settings-content";
 function settings(configured: boolean): SettingsResponse {
   return {
     dbPath: "/tmp/opencode/opencode.db",
-    schemaVersion: "opencode-1.17.7",
+    schemaVersion: "opencode-1.17.7+2.1.4",
     opencodeVersion: "1.17.7",
+    dbGeneration: "v1",
     storage: { dbBytes: 1_024, walBytes: 128, logBytes: null, reposBytes: 512, totalBytes: 1_664 },
     config: configured ? {
       agents: ["build", "plan"],
@@ -24,7 +25,7 @@ describe("OCL-111 settings content", () => {
     const markup = renderToStaticMarkup(<SettingsContent settings={settings(true)} />);
 
     for (const value of [
-      "/tmp/opencode/opencode.db", "opencode-1.17.7", "1.17.7", "build", "plan", "docs", "remote",
+      "/tmp/opencode/opencode.db", "opencode-1.17.7+2.1.4", "1.17.7", "build", "plan", "docs", "remote",
       "example-plugin", "Redacted configuration", "[redacted]", "1.0 KB",
     ]) expect(markup).toContain(value);
     expect(markup).toContain('href="/settings/pricing"');

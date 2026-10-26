@@ -18,7 +18,7 @@ vi.mock("@/hooks/use-oc", () => ({
         activity: [{ date: "2026-08-01", agent: "unknown", messageCount: 2 }],
         switches: [{ seq: 1, sessionId: "session-one", agent: "review", timeCreated: Date.UTC(2026, 7, 1) }],
       },
-      meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7", warnings: [] },
+      meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7+2.1.4", warnings: [] },
     },
     error: undefined,
     isLoading: false,

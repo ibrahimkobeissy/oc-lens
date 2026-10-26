@@ -82,7 +82,7 @@ describe("GET /api/sessions/[id]/replay", () => {
     expect(payload.data.tokenAccumulation.map((point) => point.atTurnIndex)).toEqual(
       Array.from({ length: LONG_SESSION_MESSAGE_COUNT }, (_, index) => index),
     );
-    expect(payload.meta.schemaVersion).toBe("opencode-1.17.7");
+    expect(payload.meta.schemaVersion).toBe("opencode-1.17.7+2.1.4");
   });
 
   it("keeps unknown part types in the response and reports their decoder warning", async () => {

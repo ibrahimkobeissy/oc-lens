@@ -9,6 +9,7 @@ import { partDomId, registerReplayPartRenderer, replayPartRenderer, type ReplayP
 import "./compaction-card";
 import "./patch-card";
 import "./reasoning-part";
+import "./session-event-card";
 import "./step-parts";
 import { groupConsecutiveToolParts, LoopMark, ToolGroup, type LoopPartMark } from "./tool-group";
 import "./tool-part";
@@ -80,7 +81,13 @@ export function AssistantTurnCard({ turn, position, setSize, targetPartId, targe
   return <article aria-label={unknown ? "Unknown-role turn" : "Assistant turn"} aria-posinset={position} aria-setsize={setSize} data-message-id={turn.messageId} data-targeted={targeted || undefined} tabIndex={targeted ? -1 : undefined} data-looped={loopedCount > 0 || undefined} className={cn("mr-auto max-w-4xl rounded-xl border bg-card p-4", unknown && "border-dashed", targeted && "ring-2 ring-primary ring-offset-2 ring-offset-background")}><header className="mb-3 flex items-start justify-between gap-3"><div className="flex items-center gap-2 font-medium"><Bot aria-hidden="true" className="size-4 text-primary" />{unknown ? "Unknown role" : "Assistant"}{loopedCount > 0 ? <span title="Only the marked calls below are repeats; the rest of this turn is unrelated" className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium tracking-wide text-foreground"><Repeat2 aria-hidden="true" className="size-3" />{loopedCount} repeated call{loopedCount === 1 ? "" : "s"}</span> : null}</div><TurnMeta turn={turn} showDuration={false} /></header><div className="mb-3"><TurnMetrics turn={turn} /></div><PartList turn={turn} targetPartId={targetPartId} loopParts={loopParts} onJumpToPart={onJumpToPart} /></article>;
 }
 
+/** An opencode 2.x lifecycle record between turns — a marker, not a conversation turn. */
+export function EventTurnCard({ turn, position, setSize, targeted = false }: TurnCardProps) {
+  return <article aria-label="Session event" aria-posinset={position} aria-setsize={setSize} data-message-id={turn.messageId} data-targeted={targeted || undefined} tabIndex={targeted ? -1 : undefined} className={cn("mx-auto max-w-3xl", targeted && "rounded-md ring-2 ring-primary ring-offset-2 ring-offset-background")}><PartList turn={turn} /></article>;
+}
+
 export function TurnCard(props: TurnCardProps) {
+  if (props.turn.role === "event") return <EventTurnCard {...props} />;
   return props.turn.role === "user" ? <UserTurnCard {...props} /> : <AssistantTurnCard {...props} />;
 }
 

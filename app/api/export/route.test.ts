@@ -78,7 +78,7 @@ describe("OCL-120 GET /api/export", () => {
     expect(exported.counts).toEqual(preview.counts);
     expect(exported.sessions).toHaveLength(exported.counts.sessions);
     expect(exported.replays).toHaveLength(exported.counts.sessions);
-    expect(exported.replays?.reduce((sum, replay) => sum + replay.turns.length, 0)).toBe(exported.counts.messages);
+    expect(exported.replays?.reduce((sum, replay) => sum + replay.turns.length, 0)).toBe(exported.counts.messages + exported.counts.events);
     expect(exported.replays?.reduce((sum, replay) => sum + replay.turns.reduce((turnSum, turn) => turnSum + turn.parts.length, 0), 0)).toBe(exported.counts.parts);
     expect(exported.replays?.some((replay) => replay.session.hasCompaction)).toBe(true);
     expect(exported.todos?.sessions.reduce((sum, session) => sum + session.todos.length, 0)).toBe(exported.counts.todos);
@@ -125,7 +125,7 @@ describe("OCL-120 GET /api/export", () => {
 
     const output = new TextDecoder().decode(Buffer.concat(chunks));
     const exported = data(JSON.parse(output) as ExportRouteResponse);
-    expect(exported.counts).toEqual({ sessions: 1, messages: 1, parts: 12_000, todos: 0 });
+    expect(exported.counts).toEqual({ sessions: 1, messages: 1, parts: 12_000, todos: 0, events: 0 });
     expect(exported.replays?.[0]?.turns[0]?.parts).toHaveLength(12_000);
     expect(output).not.toContain(SECRET_ACCOUNT);
     expect(output).not.toContain(SECRET_CREDENTIAL);
@@ -150,7 +150,7 @@ describe("OCL-120 GET /api/export", () => {
 
     useDb(dateDbPath);
     const auckland = data((await parsed("?preview=1&from=2024-01-02&to=2024-01-02&tz=Pacific%2FAuckland")).body);
-    expect(auckland.counts).toEqual({ sessions: 1, messages: 1, parts: 1, todos: 1 });
+    expect(auckland.counts).toEqual({ sessions: 1, messages: 1, parts: 1, todos: 1, events: 0 });
     expect(auckland.rangeFrom).toBe(Date.UTC(2024, 0, 1, 11));
     expect(auckland.rangeTo).toBe(Date.UTC(2024, 0, 2, 11));
     useDb(dateDbPath);
@@ -160,7 +160,7 @@ describe("OCL-120 GET /api/export", () => {
 
     useDb(dateDbPath);
     const utc = data((await parsed("?preview=1&from=2024-01-02&to=2024-01-02&tz=UTC")).body);
-    expect(utc.counts).toEqual({ sessions: 0, messages: 0, parts: 0, todos: 0 });
+    expect(utc.counts).toEqual({ sessions: 0, messages: 0, parts: 0, todos: 0, events: 0 });
     useDb(dateDbPath);
     const utcActivity = data((await parsed("?scope=activity&from=2024-01-02&to=2024-01-02&tz=UTC")).body);
     expect(utcActivity.activity?.dailyActivity).toEqual([]);
@@ -261,7 +261,7 @@ describe("OCL-120 GET /api/export", () => {
     useDb(emptyPath);
 
     const exported = data((await parsed("?scope=sessions,replay,todos")).body);
-    expect(exported.counts).toEqual({ sessions: 0, messages: 0, parts: 0, todos: 0 });
+    expect(exported.counts).toEqual({ sessions: 0, messages: 0, parts: 0, todos: 0, events: 0 });
     expect(exported.sessions).toEqual([]);
     expect(exported.replays).toEqual([]);
     expect(exported.todos).toEqual({ sessions: [], rollup: { pending: 0, inProgress: 0, completed: 0, unknown: 0 } });

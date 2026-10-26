@@ -44,7 +44,7 @@ export interface OcWarning {
 
 export interface OcMeta {
   generatedAt: number; // derived: epoch ms, server clock at response time
-  schemaVersion: string; // derived: lib/db/schema-guard.ts's pinned schemaVersion constant, e.g. "opencode-1.17.7"
+  schemaVersion: string; // derived: lib/db/schema-guard.ts's pinned schemaVersion constant, e.g. "opencode-1.17.7+2.1.4"
   warnings: OcWarning[];
 }
 
@@ -223,7 +223,7 @@ export interface OcPartToolData {
 export interface OcPartCompactionData {
   type: "compaction";
   auto: boolean; // part.data.auto — triggered automatically vs. user-invoked
-  overflow: boolean; // part.data.overflow — triggered because the context window overflowed
+  overflow: boolean | null; // part.data.overflow — triggered because the context window overflowed; null when not recorded (every opencode 2.x compaction, data-model §8)
   tailStartId: string | null; // part.data.tail_start_id — message.id of the first message retained after the compacted head, absent on some real rows
 }
 
@@ -249,6 +249,27 @@ export interface OcPartUnknownData {
   raw: unknown; // part.data verbatim
 }
 
+/**
+ * The opencode 2.x `session_message` record types oc-lens decodes as lifecycle
+ * events rather than turns (data-model §8). `unknown` is the explicit bucket for
+ * a type added upstream after this list — rendered, counted, never dropped.
+ */
+export type SessionEventKind = "system" | "idle" | "agent-switched" | "model-switched" | "location-switched" | "skill" | "shell" | "unknown";
+
+/**
+ * One opencode 2.x lifecycle record, surfaced in replay between turns. Never
+ * produced from a 1.x `part` row, and never counted as a message.
+ */
+export interface OcPartSessionEventData {
+  type: "session-event";
+  kind: SessionEventKind;
+  rawKind: string; // session_message.type verbatim — differs from `kind` only when kind is "unknown"
+  summary: string; // derived: one-line description, e.g. "Agent switched to plan"
+  detail: string | null; // derived: longer body (system text, shell output, idle error), null when the record has none
+  outcome: string | null; // session_message.data.outcome (idle) or .status (shell); null for other kinds
+  exitCode: number | null; // session_message.data.exit (shell only); null when absent
+}
+
 export type OcPartData =
   | OcPartTextData
   | OcPartReasoningData
@@ -257,6 +278,7 @@ export type OcPartData =
   | OcPartToolData
   | OcPartCompactionData
   | OcPartPatchData
+  | OcPartSessionEventData
   | OcPartUnknownData;
 
 export interface OcPart {
@@ -508,9 +530,12 @@ export interface ReplayPart {
   data: OcPartData;
 }
 
+/** A replay row: a message turn, or an opencode 2.x lifecycle record (`event`) placed between turns. */
+export type ReplayTurnRole = MessageRole | "event";
+
 export interface ReplayTurn {
-  messageId: string; // message.id
-  role: MessageRole; // message.data.role
+  messageId: string; // message.id, or session_message.id for an `event` turn
+  role: ReplayTurnRole; // message.data.role; "event" for a 2.x lifecycle record (its single part is a session-event)
   agent: string | null; // message.data.agent
   timeCreated: number; // message.data.time.created
   timeCompleted: number | null; // message.data.time.completed — null (not 0) when absent
@@ -524,7 +549,7 @@ export interface SessionReplay {
   session: SessionSummary;
   parentId: string | null; // session.parent_id
   childIds: string[]; // derived: session rows where parent_id === this session's id
-  turns: ReplayTurn[]; // ordered by message.time_created then message.id
+  turns: ReplayTurn[]; // ordered by message.time_created then message.id; 2.x lifecycle events interleaved by time
   tokenAccumulation: Array<{ atTurnIndex: number; tokens: OcTokens }>; // derived: running total walking each turn's step-finish parts
 }
 
@@ -666,7 +691,8 @@ export interface StorageBreakdown {
 export interface SettingsResponse {
   dbPath: string | null; // derived: lib/db/locate.ts's resolved path, null when not found
   schemaVersion: string; // derived: lib/db/schema-guard.ts's pinned constant
-  opencodeVersion: string | null; // derived: most common session.version in the DB
+  opencodeVersion: string | null; // derived: session.version of the most recently created session
+  dbGeneration: "v1" | "v2" | "mixed" | null; // derived: lib/db/canonical.ts detectGeneration — opencode 1.x, 2.x, or a 1.x database upgraded to 2.x; null when no DB is connected
   storage: StorageBreakdown;
   config: RedactedConfig | null; // derived: null when no opencode.jsonc was found
 }
@@ -696,8 +722,9 @@ export interface HealthResponse {
 export interface ExportManifestCounts {
   sessions: number;
   messages: number;
-  parts: number;
+  parts: number; // part rows plus `events` — each lifecycle event streams as one turn with one part
   todos: number;
+  events: number; // derived: opencode 2.x lifecycle records streamed as extra replay turns; always 0 on a 1.x database
 }
 
 export interface ExportResponse {

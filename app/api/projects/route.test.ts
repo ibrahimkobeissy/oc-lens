@@ -68,7 +68,7 @@ describe("GET /api/projects", () => {
     );
     expect(payload.data.find((project) => project.id === "global")?.displayName).toBe("global");
     expect(payload.data.every((project) => project.cost.priced === false)).toBe(true);
-    expect(payload.meta.schemaVersion).toBe("opencode-1.17.7");
+    expect(payload.meta.schemaVersion).toBe("opencode-1.17.7+2.1.4");
   });
 
   it("returns explicit database and schema states", async () => {

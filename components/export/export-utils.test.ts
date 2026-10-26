@@ -10,7 +10,7 @@ function response(): ExportResponse {
     schemaVersion: "2026-08-01",
     rangeFrom: Date.UTC(2026, 6, 1),
     rangeTo: Date.UTC(2026, 7, 1),
-    counts: { sessions: 2, messages: 5, parts: 9, todos: 1 },
+    counts: { sessions: 2, messages: 5, parts: 9, todos: 1, events: 0 },
     sessions: [],
     activity: { dailyActivity: [], hourOfDay: [], dayOfWeek: [], streaks: { currentStreakDays: 0, longestStreakDays: 0, longestStreakStart: null, longestStreakEnd: null, mostActiveDay: null, totalActiveDays: 0, firstSessionDate: null } },
     todos: { sessions: [], rollup: { pending: 0, inProgress: 0, completed: 0, unknown: 0 } },
@@ -46,7 +46,7 @@ describe("export helpers", () => {
       generatedAt: Date.UTC(2026, 7, 1, 12),
       generatedAtIso: "2026-08-01T12:00:00.000Z",
       range: { from: Date.UTC(2026, 6, 1), to: Date.UTC(2026, 7, 1) },
-      counts: { sessions: 2, messages: 5, parts: 9, todos: 1 },
+      counts: { sessions: 2, messages: 5, parts: 9, todos: 1, events: 0 },
       scopes: ["sessions", "activity", "todos"],
     });
     expect(JSON.parse(await zip.file("sessions.json")!.async("string"))).toEqual([]);

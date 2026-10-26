@@ -85,10 +85,12 @@ export async function GET(request: Request, context: RouteContext): Promise<Next
 
     const activity = dailyActivity(connection.db, { projectId: id, timeZone });
     const models = projectModelBreakdown(connection.db, id, pricing);
+    // opencode 2.x rebuilt `workspace` without `project_id`/`branch` (data-model §8),
+    // so the branch list is read only where the 1.x columns actually exist.
     const hasWorkspace = query<TableRow>(
       connection.db,
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'workspace'",
-    ).length > 0;
+      "SELECT name FROM pragma_table_info('workspace') WHERE name IN ('project_id', 'branch')",
+    ).length === 2;
     const workspaceRows = hasWorkspace
       ? query<WorkspaceRow>(
           connection.db,

@@ -39,9 +39,9 @@ export function previewText(scope: ExportScope, counts: ExportManifestCounts): s
     case "sessions": return `${counts.sessions.toLocaleString("en-US")} sessions`;
     case "stats": return `Aggregates ${counts.sessions.toLocaleString("en-US")} sessions`;
     case "activity": return `${counts.sessions.toLocaleString("en-US")} session starts`;
-    case "tools": return `${counts.parts.toLocaleString("en-US")} parts scanned`;
+    case "tools": return `${(counts.parts - counts.events).toLocaleString("en-US")} parts scanned`;
     case "todos": return `${counts.todos.toLocaleString("en-US")} todos`;
-    case "replay": return `${counts.messages.toLocaleString("en-US")} turns · ${counts.parts.toLocaleString("en-US")} parts`;
+    case "replay": return `${(counts.messages + counts.events).toLocaleString("en-US")} turns · ${counts.parts.toLocaleString("en-US")} parts`;
   }
 }
 

@@ -1,4 +1,4 @@
-export { TOOL_CATEGORIES, categorizeTool, categorizeToolsBatch, toolDisplayName } from "./categories";
+export { TOOL_CATEGORIES, categorizeTool, categorizeToolsBatch, isSubagentTool, toolDisplayName } from "./categories";
 export type { ToolCategorizationBatch } from "./categories";
 export { resolveMcpTool } from "./mcp";
 export type { ResolvedMcpTool } from "./mcp";

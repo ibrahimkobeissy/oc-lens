@@ -53,7 +53,8 @@ export function decodeMessageData(raw: string | null): Decoded<OcMessageData> {
   if (obj.tokens !== undefined && tokens === null) {
     warnings.push(warning("malformed-message-tokens", "message.data.tokens did not contain finite non-negative input/output/reasoning/cache.read/cache.write values"));
   }
-  const hasPricingFields = obj.providerID !== undefined || obj.modelID !== undefined || obj.tokens !== undefined;
+  // `usage: "none"` marks an opencode 2.x step that reported no usage (lib/db/canonical.ts) — absent, not incomplete.
+  const hasPricingFields = obj.usage !== "none" && (obj.providerID !== undefined || obj.modelID !== undefined || obj.tokens !== undefined);
   if (obj.role === "assistant" && hasPricingFields && (!providerID || !modelID || tokens === null)) {
     warnings.push(warning("incomplete-pricing-evidence", "An assistant message did not contain a complete provider/model/native-token pricing record"));
   }

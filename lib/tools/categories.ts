@@ -9,6 +9,10 @@ import type { OcWarning, ToolCategory } from "@/types/oc";
  * `invalid` maps to `other` deliberately, not as a fallback: it's opencode's
  * own sentinel for a tool call that didn't resolve to a real tool, so `other`
  * is the honest category, not a gap in this table.
+ *
+ * opencode 2.x renamed or added built-ins (data-model §8, observed on a real
+ * 2.1.4 database): `shell` replaces `bash`, `subagent` replaces `task`, and
+ * `execute` runs model-written code that itself calls tools.
  */
 export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   read: "file",
@@ -16,6 +20,8 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   edit: "file",
   patch: "file",
   bash: "exec",
+  shell: "exec",
+  execute: "exec",
   grep: "search",
   glob: "search",
   list: "search",
@@ -23,6 +29,7 @@ export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
   todowrite: "planning",
   todoread: "planning",
   task: "delegation",
+  subagent: "delegation",
   skill: "delegation",
   question: "planning",
   invalid: "other",
@@ -34,6 +41,8 @@ const DISPLAY_NAMES: Record<string, string> = {
   edit: "Edit",
   patch: "Patch",
   bash: "Bash",
+  shell: "Shell",
+  execute: "Execute",
   grep: "Grep",
   glob: "Glob",
   list: "List",
@@ -41,10 +50,16 @@ const DISPLAY_NAMES: Record<string, string> = {
   todowrite: "Todo Write",
   todoread: "Todo Read",
   task: "Task",
+  subagent: "Subagent",
   skill: "Skill",
   question: "Question",
   invalid: "Invalid",
 };
+
+/** The tools that delegate to a child session: 1.x `task`, 2.x `subagent`. */
+export function isSubagentTool(name: string): boolean {
+  return name === "task" || name === "subagent";
+}
 
 /** Unrecognised tool names fall to `other` — an honest gap, never hidden. */
 export function categorizeTool(name: string): ToolCategory {

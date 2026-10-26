@@ -23,12 +23,12 @@ export function SchemaMismatch({
         </p>
         <h1 className="text-2xl font-semibold tracking-tight">This database is not compatible</h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-          {message ?? "oc-lens stopped before running analytics because the database shape differs from the version it was verified against."}
+          {message ?? "oc-lens stopped before running analytics because the database shape differs from every opencode schema it was verified against (1.x, 2.x, and 1.x databases upgraded to 2.x)."}
         </p>
 
         <dl className="mt-6 grid gap-4 rounded-lg border border-border bg-muted p-4 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs text-muted-foreground">Pinned schema version</dt>
+            <dt className="text-xs text-muted-foreground">Supported opencode schemas</dt>
             <dd className="mt-1 font-mono text-foreground">{schemaVersion}</dd>
           </div>
           {table && (

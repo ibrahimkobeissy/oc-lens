@@ -92,6 +92,6 @@ describe("checkSchema", () => {
   });
 
   it("exports the pinned schemaVersion", () => {
-    expect(schemaVersion).toBe("opencode-1.17.7");
+    expect(schemaVersion).toBe("opencode-1.17.7+2.1.4");
   });
 });

@@ -5,3 +5,4 @@ export { decodeTokens } from "./tokens";
 export type { DecodedPermission } from "./session";
 export type { Decoded } from "./warnings";
 export { mergeWarnings, warning } from "./warnings";
+export { decodeSessionEvent } from "./session-event";

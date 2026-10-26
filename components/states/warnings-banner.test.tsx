@@ -26,19 +26,19 @@ describe("buildReportIssueUrl", () => {
   ]);
 
   it("points at the project's issues page with a pre-filled title and body", () => {
-    const url = buildReportIssueUrl(warnings, "opencode-1.17.7");
+    const url = buildReportIssueUrl(warnings, "opencode-1.17.7+2.1.4");
     expect(url.startsWith("https://github.com/ibrahimkobeissy/oc-lens/issues/new?")).toBe(true);
 
     const params = new URL(url).searchParams;
     expect(params.get("title")).toBe("Data shape mismatch: malformed-session-model, unknown-part-type");
     const body = params.get("body") ?? "";
-    expect(body).toContain("opencode-1.17.7");
+    expect(body).toContain("opencode-1.17.7+2.1.4");
     expect(body).toContain("`unknown-part-type`: Unrecognised part.data.type: file (3)");
     expect(body).toContain("`malformed-session-model`: session.model did not match the expected {id,providerID,variant} shape (7)");
   });
 
   it("says so plainly when no raw example is available for a warning", () => {
-    const url = buildReportIssueUrl(warnings, "opencode-1.17.7");
+    const url = buildReportIssueUrl(warnings, "opencode-1.17.7+2.1.4");
     const body = new URL(url).searchParams.get("body") ?? "";
     expect(body).toContain("No raw example included");
   });
@@ -47,7 +47,7 @@ describe("buildReportIssueUrl", () => {
     const samples: Record<string, WarningSample> = {
       "unknown-part-type": { code: "unknown-part-type", found: true, sourceId: "prt_00001a", raw: '{\n  "type": "file"\n}', truncated: false },
     };
-    const url = buildReportIssueUrl(warnings, "opencode-1.17.7", samples);
+    const url = buildReportIssueUrl(warnings, "opencode-1.17.7+2.1.4", samples);
     const body = new URL(url).searchParams.get("body") ?? "";
     expect(body).toContain("prt_00001a");
     expect(body).toContain('"type": "file"');
@@ -60,7 +60,7 @@ describe("buildReportIssueUrl", () => {
     const samples: Record<string, WarningSample> = {
       "unknown-part-type": { code: "unknown-part-type", found: true, sourceId: "prt_00001a", raw: "…(truncated)", truncated: true },
     };
-    const url = buildReportIssueUrl(warnings, "opencode-1.17.7", samples);
+    const url = buildReportIssueUrl(warnings, "opencode-1.17.7+2.1.4", samples);
     const body = new URL(url).searchParams.get("body") ?? "";
     expect(body).toMatch(/truncated/i);
   });

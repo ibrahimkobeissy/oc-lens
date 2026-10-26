@@ -26,6 +26,8 @@ interface RawAssistantMessageData {
     reasoning?: unknown;
     cache?: { read?: unknown; write?: unknown };
   };
+  /** Set to "none" only by the opencode 2.x projection (lib/db/canonical.ts) for a step that recorded no usage. */
+  usage?: unknown;
 }
 
 const dayFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -67,6 +69,10 @@ export function pricingEvidence(raw: string | null): PricingEvidence {
   if (!isRecord(parsed)) return { kind: "invalid", data: null };
   const data = parsed as RawAssistantMessageData;
   if (data.role === "user") return { kind: "ignore" };
+  // An opencode 2.x step that failed at the provider, or is still in flight,
+  // records no `tokens` at all (data-model §8). Nothing was reported, so there
+  // is nothing to price — it is not broken evidence that unprices the rollup.
+  if (data.role === "assistant" && data.usage === "none" && data.tokens === undefined) return { kind: "ignore" };
   const hasPricingFields = data.providerID !== undefined || data.modelID !== undefined || data.tokens !== undefined;
   if (data.role !== "assistant") return hasPricingFields ? { kind: "invalid", data } : { kind: "ignore" };
   const providerID = typeof data.providerID === "string" ? data.providerID.trim() : "";

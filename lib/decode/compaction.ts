@@ -10,14 +10,22 @@ import type { OcPartCompactionData } from "@/types/oc";
  * with no `tail_start_id` key at all, so its absence decodes to `null`
  * rather than rejecting the whole part — only a *present but wrong-typed*
  * `tail_start_id` is still treated as malformed.
+ *
+ * `overflow` is absent on every opencode 2.x compaction: its `session_message`
+ * compaction record says why it ran (`reason: "auto" | "manual"`) but not
+ * whether the context overflowed (data-model §8). Absent decodes to `null`
+ * ("not recorded"), never to `false`; present-but-not-boolean is still malformed.
  */
 export function decodeCompactionData(obj: Record<string, unknown>): OcPartCompactionData | null {
   const { auto, overflow, tail_start_id: tailStartId } = obj;
-  if (typeof auto !== "boolean" || typeof overflow !== "boolean") {
+  if (typeof auto !== "boolean") {
+    return null;
+  }
+  if (overflow !== undefined && typeof overflow !== "boolean") {
     return null;
   }
   if (tailStartId !== undefined && tailStartId !== null && typeof tailStartId !== "string") {
     return null;
   }
-  return { type: "compaction", auto, overflow, tailStartId: tailStartId ?? null };
+  return { type: "compaction", auto, overflow: overflow ?? null, tailStartId: tailStartId ?? null };
 }

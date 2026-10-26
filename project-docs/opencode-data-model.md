@@ -1,6 +1,6 @@
 # opencode data model — verified reference
 
-**This is the evidence base for every data-layer ticket in [backlog.md](./backlog.md).** Everything marked ✅ VERIFIED was read directly out of the live opencode database on the maintainer's machine on 2026-08-01. Everything marked ⚠️ UNVERIFIED is claimed by upstream docs or by the vault synthesis note but was **not** observable in the sample available. Do not code against an ⚠️ shape without running the probe step named in its ticket first.
+**This is the evidence base for every data-layer ticket in [backlog.md](./backlog.md).** Everything marked ✅ VERIFIED was read directly out of the live opencode database on the maintainer's machine on 2026-08-01. **opencode 2.x replaced the transcript tables — see §8 (verified 2026-10-26) before touching any query.** Everything marked ⚠️ UNVERIFIED is claimed by upstream docs or by the vault synthesis note but was **not** observable in the sample available. Do not code against an ⚠️ shape without running the probe step named in its ticket first.
 
 ## 0. Environment as measured
 
@@ -279,3 +279,89 @@ Neither finding changes what counts as genuinely malformed: a `tail_start_id` or
 ## 7. HTTP API (optional, live features only)
 
 `opencode serve` exposes `GET /session`, `/session/:id/message`, `/session/:id/todo`, `/session/:id/diff`, `/project`, `/config`, `/agent`, `/mcp`, `/lsp`, an SSE stream at `/global/event`, and OpenAPI at `/doc`. **oc-lens does not require it.** It is used only by OCL-112 (live MCP/LSP/agent health), which must degrade to a clean "opencode server not running" state rather than erroring.
+
+## 8. opencode 2.x — `session_v2` + `session_message` — ✅ VERIFIED 2026-10-26
+
+Issue [#26](https://github.com/ibrahimkobeissy/oc-lens/issues/26). Evidence came from three sources, and each claim below names which one it rests on:
+
+1. **Exact DDL**: a database created by **opencode 2.1.4** itself (`opencode models --standalone` with every `XDG_*` directory pointed at an empty scratch directory). No user data involved. `test/fixtures/v2-fixture.ts` copies this DDL verbatim.
+2. **Payload shapes**: a values-free probe of the maintainer's real, upgraded `opencode.db` (opencode 2.1.4; 112 `session_v2` rows, 1,514 `session_message` rows), reading it read-only. Same method as the 2026-08-20 probes: only key paths, JSON types, row counts, and enum-like labels (`type`, `status`, `reason`, `finish`, `outcome`) were printed — never text, inputs, outputs, paths, or ids. The four denylisted tables were never selected from.
+3. **Upstream source** ([`packages/core/src/session/sql.ts`](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/sql.ts), [`packages/schema/src/session-message.ts`](https://github.com/anomalyco/opencode/blob/dev/packages/schema/src/session-message.ts), `dev` branch) — used only for shapes the probe did not observe, and marked **UPSTREAM-SOURCE ONLY** below. `dev` already differs from 2.1.4 (e.g. 2.1.4 writes a `recent` field on `compaction` that `dev`'s schema does not declare), so source is weaker evidence than the probe.
+
+**DB location is unchanged**: 2.1.4 created `$XDG_DATA_HOME/opencode/opencode.db`, and the maintainer's install uses `~/.local/share/opencode/opencode.db` — exactly `lib/db/locate.ts`'s existing order. No channel-specific path was observed, so none was added.
+
+### 8.1 Tables
+
+A **fresh 2.x database has no `session`, `message`, `part`, or `todo` table at all.** Its tables: `project`, `session_v2`, `session_message`, `session_inbox`, `session_pending`, `instruction_blob`/`_entry`/`_state`, `kv`, `event`, `event_sequence`, `permission`, `project_directory`, `worktree`, `workspace`, `migration`, and the denylisted `account`, `account_state`, `control_account`, `credential`. oc-lens reads only `project`, `session_v2`, and `session_message`.
+
+- `session_v2` carries **every** 1.x `session` column (so the schema guard checks the same list) plus `fork_session_id`, `fork_boundary`, `time_idle`, `time_viewed`, `idle_outcome` (`succeeded`/`failed`/`interrupted`/NULL), `time_suspended`, `resume_attempts`. **`title` is nullable** in 2.x.
+- `session_message`: `id` (`msg_…`, ascending), `session_id`, `type`, `seq` (unique per session — the ordering key), `time_created`, `time_updated`, `data` (JSON, with `type` and `id` stripped). On the real DB `time_created` always equalled `data.time.created`, and seq order never contradicted time order.
+- `workspace` was **rebuilt**: `id, provider, binding, created_at, last_used_at` — no `project_id`, no `branch`. The 1.x branch list is only read when those columns exist.
+- `project` gained `icon_url_override`, `time_active`, `time_archived`; every column oc-lens reads is unchanged.
+
+### 8.2 An upgraded database is mixed — and the overlap is exact
+
+Upgrading a 1.x install keeps the legacy tables and **copies** into the 2.x ones. Measured on the real DB:
+
+| Fact | Count |
+|---|---|
+| legacy `session` rows / also present in `session_v2` under the same id | 82 / 82 |
+| `session_v2` rows that exist only in 2.x | 30 |
+| legacy `message` rows / present in `session_message` under the same id | 615 / 610 |
+| legacy sessions whose `session_v2` row has different tokens or a later `time_updated` | 0 |
+| `session_message` rows inside legacy sessions that are *not* legacy messages | 58 (54 `system`, 4 `synthetic`), all timestamped at or before that session's last legacy message |
+
+So the migration maps 1.x → 2.x one-to-one by id: a legacy user message becomes `user`, a user message carrying a `compaction` part becomes a `compaction` row, a synthetic user message becomes `synthetic`, an assistant message becomes `assistant`. It also synthesises `system` rows inside legacy sessions that 1.x never had.
+
+**Deduplication rule** (`lib/db/canonical.ts`): `session_v2` is the session spine; a legacy-only session is added only if its id is missing from `session_v2`. A session's legacy `message`/`part` rows win, and a `session_message` row is projected only when its id is not a legacy message id **and** the session has no legacy messages or the row is newer than the session's last legacy message (a 1.x session continued under 2.x). This keeps the migration-synthesised rows out of 1.x analytics without dropping a post-upgrade continuation.
+
+### 8.3 `session_message.type` — observed distribution and shapes
+
+Observed on the real DB: `assistant` 1,253 · `user` 126 · `system` 55 · `idle` 47 · `synthetic` 27 · `compaction` 6. **Not observed:** `agent-switched`, `model-switched`, `location-switched`, `skill`, `shell` (all UPSTREAM-SOURCE ONLY).
+
+| type | keys observed (✅) or declared upstream (⚠️) | oc-lens reads it as |
+|---|---|---|
+| `user` | ✅ `text`, `time.created`, optional `files[]`, `agents[]` | user message + one `text` part. **No `agent`** — the next assistant step's agent stands in |
+| `synthetic` | ✅ `text`, `time`, optional `description`, `metadata` | user message + `text` part (the migration proves 1.x stored these as user messages) |
+| `assistant` | ✅ `agent`, `model{id,providerID,variant}`, `content[]`, `time{created,completed?,streamed?}`, optional `cost`, `tokens`, `finish`, `rawFinish`, `snapshot{start,end,files}`, `error{type,message,status?,response?}` | one assistant message **per step** (`finish` was `tool-calls` 1,134 / `stop` 92 / `error` 15) with `step-start` · content parts · `step-finish` |
+| `compaction` | ✅ `reason` (`auto` 6), `status` (`completed` 6), `summary`, `recent`, `time`; optional `model`, `cost`, `tokens` (1 of 6) | user message with a `compaction` part (`auto` from `reason`, **`overflow` absent → `null`**), plus an assistant `-summary` message carrying the summary text and the compaction request's usage — 1.x's own pairing |
+| `idle` | ✅ `outcome` (`succeeded` 32 / `failed` 14 / `interrupted` 1), `time`, optional `error` | lifecycle event, never a message |
+| `system` | ✅ `text`, `time`, optional `description`, `metadata` | lifecycle event |
+| `agent-switched` | ⚠️ `agent`, `previous?`, `time` | lifecycle event; also `agentSwitchEvents()` |
+| `model-switched` | ⚠️ `model`, `previous?`, `time` | lifecycle event |
+| `location-switched` | ⚠️ `location`, `projectID?`, `subpath?`, `previous?` | lifecycle event |
+| `skill` | ⚠️ `skill`, `name`, `text` | lifecycle event |
+| `shell` | ⚠️ `shellID`, `command`, `status`, `exit?`, `output?`, `time{created,completed?}` | lifecycle event (user-run `!command`, not a model tool call) |
+| anything else | — | lifecycle event of kind `unknown` + an `unknown-session-event` warning; never dropped |
+
+Lifecycle events are **not** projected into `message`: in 1.x every `message` row is a user/assistant turn, and counting `idle` markers as messages would silently inflate message counts, agent buckets, and activity charts. Replay reads them from the `oc_session_event` view and places each before the first message created after it.
+
+**Usage**: `tokens` is `{input, output, reasoning, cache{read, write}}` — the 1.x shape minus `total`. 16 real assistant steps (provider errors and in-flight steps) carry **no `tokens` and no `cost`**; they are projected with `usage: "none"` so pricing reads them as "nothing reported" instead of marking the whole rollup unpriced. `cost` was `0` on every row (D3 unchanged).
+
+### 8.4 `assistant.content[]` — ✅ VERIFIED
+
+Observed item types: `tool` 2,072 · `reasoning` 796 · `text` 409.
+
+- `text`: `{type, text}` → 1.x `text` part.
+- `reasoning`: `{type, text, time{created, completed}}`, sometimes `native{…}` or `state{reasoningField}` → 1.x `reasoning` part (`time.start/end` from `created/completed`).
+- `tool`: `{type, id, name, executed?, state, time{created, ran?, completed?}}`, where `state` is `{status, input, content?[{type:"text", text}], metadata?, error?{type, message}}`. Projected to the 1.x tool part: `tool` ← `name`, `callID` ← `id`, `state.output` ← the joined `content[].text`, `state.error` ← `error.message`, `state.time.start/end` ← `ran ?? created` / `completed`, `input` and `metadata` byte-for-byte (the loop signature and the exit code depend on them).
+
+`state.status` observed: `completed` 2,016 · `error` 56. Upstream also declares `running` and `streaming`; a `streaming` call records `input` as a **partial JSON string**, so it is projected as `pending` and is unsignaturable for loop detection. Error `type`s observed: `tool.execution` 53, `permission.rejected` 2, `tool.interrupted` 1.
+
+**Tool names changed in 2.x.** Observed: `shell` (894 — replaces `bash`; `metadata` = `{exit, status, truncated}`), `subagent` (21 — replaces `task`; `input` = `{agent, description, prompt, background?}`, `metadata.sessionID` = the child session), `execute` (11 — runs model-written code; `input.code`, `metadata.toolCalls[]`), plus the 1.x names (`read`, `write`, `edit`, `grep`, `glob`, `todowrite`, `question`, `skill`, `webfetch`, MCP `<server>_<tool>`) and `list_mcp_resources`. **`state.metadata.exit` is still the only honest failure signal**: all 894 `shell` calls had `status: "completed"`, 35 of them with a non-zero exit.
+
+Input-key changes that matter: `read`/`write`/`edit` name the file at `filePath` **or `path`** (73 reads, 8 writes, 5 edits used `path`), so `targetPath()` and the file-change timeline read both; `skill` names the skill at `name` (9) or `id` (3).
+
+**Todos**: 2.x has no `todo` table. The `todowrite` call's `state.metadata.todos` (and `state.input.todos`) is `[{content, status, priority}]`, so a 2.x session's list is derived from its last completed `todowrite` call. A legacy `todo` table, when present, wins for its sessions.
+
+**Snapshots** — ✅ VERIFIED: `assistant.snapshot` is `{start?, end?, files?}` (git tree hashes; `files` is a mix of relative and absolute paths). 960 steps carried one; only 39 listed changed files. A step with changed files is projected as a 1.x `patch` part (`hash` ← `end ?? start`), because it is the same working-tree diff 1.x stored that way: rendered as a labelled workspace snapshot, never used by the file-change timeline (§5).
+
+**Attachments** — ✅ VERIFIED EMPTY: all 126 real `user` rows had `files: []`/`agents: []` or none at all; nothing populated was observed and the `blob` tables were absent, so no attachment renderer was built. Upstream declares `FileAttachment`/`MediaRef` shapes; add a renderer only after a probe sees one.
+
+Not projected, and why: `native` provider blobs (opaque, provider-specific), `session_inbox`/`session_pending` (queued input, not history).
+
+### 8.5 Materialisation and export
+
+The 2.x projection is cached per connection in in-memory TEMP tables (`temp_store = MEMORY`) and rebuilt only when `PRAGMA data_version` shows another connection — opencode — committed. Re-deriving it from JSON on every query cost ~150 ms per full `part` scan on the maintainer's 2,845-part legacy + 3,138-part 2.x history, against ~40 ms for the raw legacy table; cached, pages measured roughly 2x faster after a one-off ~200 ms build.
+
+`GET /api/export` streams lifecycle events as replay turns in the same positions as `getReplay()`. `ExportManifestCounts.events` counts them (0 on a 1.x database) and `parts` includes them, one part each, so preview counts still equal what is streamed.

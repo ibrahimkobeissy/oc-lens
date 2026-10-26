@@ -31,3 +31,12 @@ Every table from the schema exists with zero rows — nothing else.
 ## Not in scope here
 
 `file`, `agent`, and `snapshot` parts are still ⚠️ UNVERIFIED (data-model.md §5) and are **not** in this fixture — a future ticket adds them once its own probe confirms the real shape; do not invent them here in the meantime. `compaction` and `patch` were both confirmed live on 2026-08-02 and are now included above.
+
+## opencode 2.x fixtures (`v2-fixture.ts`)
+
+`buildV2Fixture(path)` and `buildMixedFixture(path)` write small, hand-written databases on demand (tests build them into a temp dir; nothing is checked in). The DDL is copied verbatim from a database opencode 2.1.4 created itself, and every `session_message` payload uses only keys recorded in data-model.md §8 — never the 1.x fixture's payloads, which are not evidence for 2.x shapes.
+
+- **v2**: three `session_v2` sessions (one subagent child, one with a NULL title and no transcript) and a main transcript covering every observed record type plus `agent-switched` and one deliberately unknown type, a `shell` command retried three times with exit 1, a failed `read`, a `subagent` call, a `todowrite` call, a `write` naming its file at `path`, a compaction with usage, and an in-flight step with a streaming tool call and no usage.
+- **mixed**: the v2 content plus the legacy 1.x tables, laid out the way an upgrade leaves them: a migrated session present in both generations under the same ids, a migration-synthesised `system` row that must not be counted, a post-upgrade continuation that exists only in 2.x, and a legacy session not yet copied into `session_v2`.
+
+Both also contain the denylisted `account` and `credential` tables (with a sentinel `account` row), so the denylist is exercised against a 2.x layout.

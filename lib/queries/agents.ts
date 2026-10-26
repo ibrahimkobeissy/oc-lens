@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { ensureCanonicalViews } from "@/lib/db/canonical";
 import { query } from "@/lib/db/connection";
 import { decodeMessageData, decodePartData, mergeWarnings } from "@/lib/decode";
 import { costForMessageData, pricingEvidence } from "@/lib/pricing/breakdown";
@@ -8,7 +9,7 @@ import type { PartQueryFilter, QueryResult } from "./tools";
 interface SessionRow { id: string; agent: string | null; project_id: string; time_created: number; time_updated: number }
 interface MessageRow { id: string; session_id: string; time_created: number; data: string }
 interface PartRow { message_id: string; session_id: string; data: string }
-interface SwitchRow { seq: number; data: string }
+interface SwitchRow { seq: number; data: string; session_id?: string | null; time_created?: number | null }
 
 interface Bucket {
   sessions: Set<string>; messageCount: number; tokens: OcTokens; costAmount: number; hasPricedUsage: boolean; allUsagePriced: boolean;
@@ -72,13 +73,27 @@ export function agentUsage(db: DatabaseSync, filter: PartQueryFilter = {}, prici
   return { data, warnings: mergeWarnings([warnings]) };
 }
 
+/**
+ * `agent-switched` records. The 1.x fixture shape carries `{sessionId, to, time}`
+ * in `data`; opencode 2.x moves the session to a `session_id` column and records
+ * `{agent, previous?, time: {created}}` (upstream session-message.ts). Both are
+ * read; the 2.x columns exist only once `session_v2` does.
+ */
 export function agentSwitchEvents(db: DatabaseSync): QueryResult<AgentSwitchEvent[]> {
   const warnings: OcWarning[] = [];
-  const data = query<SwitchRow>(db, "SELECT seq, data FROM session_message WHERE type = 'agent-switched' ORDER BY seq").map((row) => {
+  const v2 = ensureCanonicalViews(db) !== "v1";
+  const sql = v2
+    ? "SELECT seq, data, session_id, time_created FROM main.session_message WHERE type = 'agent-switched' ORDER BY time_created, seq"
+    : "SELECT seq, data FROM session_message WHERE type = 'agent-switched' ORDER BY seq";
+  const data = query<SwitchRow>(db, sql).map((row) => {
     let raw: unknown; try { raw = JSON.parse(row.data); } catch { raw = null; }
-    if (typeof raw !== "object" || raw === null) { warnings.push({ code: "malformed-agent-switch", message: "An agent-switched event had malformed data", count: 1 }); return { seq: row.seq, sessionId: null, agent: "unknown", timeCreated: null }; }
+    if (typeof raw !== "object" || raw === null) { warnings.push({ code: "malformed-agent-switch", message: "An agent-switched event had malformed data", count: 1 }); return { seq: row.seq, sessionId: row.session_id ?? null, agent: "unknown", timeCreated: row.time_created ?? null }; }
     const value = raw as Record<string, unknown>;
-    return { seq: row.seq, sessionId: typeof value.sessionId === "string" ? value.sessionId : null, agent: typeof value.to === "string" ? value.to : "unknown", timeCreated: typeof value.time === "number" ? value.time : null };
+    const time = typeof value.time === "number" ? value.time
+      : typeof value.time === "object" && value.time !== null && typeof (value.time as Record<string, unknown>).created === "number" ? (value.time as Record<string, unknown>).created as number
+      : row.time_created ?? null;
+    const agent = typeof value.to === "string" ? value.to : typeof value.agent === "string" ? value.agent : "unknown";
+    return { seq: row.seq, sessionId: row.session_id ?? (typeof value.sessionId === "string" ? value.sessionId : null), agent, timeCreated: time };
   });
   return { data, warnings: mergeWarnings([warnings]) };
 }

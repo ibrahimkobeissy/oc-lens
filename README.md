@@ -15,7 +15,7 @@ Everything runs on your machine. There is no account, cloud sync, or telemetry.
 - An opencode SQLite database (normally `~/.local/share/opencode/opencode.db`)
 - Model prices you enter yourself if you want cost figures
 
-oc-lens is verified against the database schema produced by **opencode 1.17.7** (`opencode-1.17.7`). A schema guard checks required tables and columns before analytics run. If the database is missing, the UI shows the locations it checked. If its schema differs, the UI reports that the database is incompatible and refuses to render potentially wrong numbers; update oc-lens to a compatible release instead of trusting partial results.
+oc-lens is verified against the database schemas produced by **opencode 1.17.7** and **opencode 2.1.4** (`opencode-1.17.7+2.1.4`). A database that was upgraded from 1.x to 2.x keeps both formats side by side; oc-lens reads it as one history, counting each migrated session and message once. Settings → Environment shows which format was detected. A schema guard checks required tables and columns before analytics run. If the database is missing, the UI shows the locations it checked. If its schema differs, the UI reports that the database is incompatible and refuses to render potentially wrong numbers; update oc-lens to a compatible release instead of trusting partial results.
 
 ## Install and run
 

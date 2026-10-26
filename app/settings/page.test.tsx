@@ -6,12 +6,12 @@ vi.mock("@/hooks/use-oc", () => ({
     data: {
       data: {
         dbPath: "/tmp/opencode.db",
-        schemaVersion: "opencode-1.17.7",
+        schemaVersion: "opencode-1.17.7+2.1.4",
         opencodeVersion: "1.17.7",
         storage: { dbBytes: 10, walBytes: 0, logBytes: null, reposBytes: null, totalBytes: 10 },
         config: null,
       },
-      meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7", warnings: [] },
+      meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7+2.1.4", warnings: [] },
     },
     error: undefined,
     isLoading: false,
@@ -28,7 +28,7 @@ vi.mock("@/hooks/use-oc", () => ({
         agent: { available: false, items: [], itemCount: null },
         config: { available: false, items: [], itemCount: null },
       },
-      meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7", warnings: [] },
+      meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7+2.1.4", warnings: [] },
     },
     error: undefined,
     isLoading: false,

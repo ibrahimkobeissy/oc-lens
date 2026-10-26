@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { RedactedConfig, SettingsResponse } from "@/types/oc";
 
+const DB_GENERATION_LABEL: Record<NonNullable<SettingsResponse["dbGeneration"]> | "none", string> = {
+  v1: "opencode 1.x",
+  v2: "opencode 2.x",
+  mixed: "opencode 1.x upgraded to 2.x",
+  none: "Not connected",
+};
+
 function NameList({ values, empty }: { values: readonly string[]; empty: string }) {
   return values.length > 0 ? (
     <ul className="flex flex-wrap gap-2">
@@ -70,6 +77,10 @@ export function SettingsContent({ settings }: { settings: SettingsResponse }) {
             <div className="rounded-lg border border-border p-3">
               <dt className="text-xs text-muted-foreground">Schema version</dt>
               <dd className="mt-1 font-mono text-sm">{settings.schemaVersion}</dd>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-xs text-muted-foreground">Database format</dt>
+              <dd className="mt-1 font-mono text-sm">{DB_GENERATION_LABEL[settings.dbGeneration ?? "none"]}</dd>
             </div>
             <div className="rounded-lg border border-border p-3">
               <dt className="text-xs text-muted-foreground">Detected opencode version</dt>

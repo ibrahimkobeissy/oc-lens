@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { readOpencodeConfig } from "@/lib/config/read";
 import { redactConfig } from "@/lib/config/redact";
+import { ensureCanonicalViews, listSessionEvents } from "@/lib/db/canonical";
 import { getConnection, query } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
 import { decodeMessageData } from "@/lib/decode/message";
@@ -13,6 +14,7 @@ import { costBreakdown, costForMessageData } from "@/lib/pricing/breakdown";
 import { readPricing } from "@/lib/pricing/config";
 import { dailyActivity, dayOfWeek, hourOfDay, localDay } from "@/lib/queries/activity";
 import { getOverviewStats, versionHistory } from "@/lib/queries/projects";
+import { sessionEventTurn } from "@/lib/queries/replay";
 import { listSessions, projectDisplayName } from "@/lib/queries/sessions";
 import { readTodos } from "@/lib/queries/todos";
 import { featureAdoption, mcpUsage, skillUsage, toolActivity, toolErrors, toolUsage } from "@/lib/queries/tools";
@@ -230,7 +232,13 @@ function exportCounts(db: DatabaseSync, options: ExportOptions): ExportManifestC
       range.params,
     )[0]?.count ?? 0;
   };
-  return { sessions: count("session"), messages: count("message"), parts: count("part"), todos: count("todo") };
+  // opencode 2.x lifecycle records stream as extra replay turns; a 1.x database has none.
+  const events = ensureCanonicalViews(db) === "v1" ? 0 : query<CountRow>(
+    db,
+    `SELECT COUNT(*) AS count FROM oc_session_event item JOIN session s ON s.id = item.session_id${range.sql}`,
+    range.params,
+  )[0]?.count ?? 0;
+  return { sessions: count("session"), messages: count("message"), parts: count("part") + events, todos: count("todo"), events };
 }
 
 function projectWorktrees(db: DatabaseSync): string[] {
@@ -412,7 +420,7 @@ function replaySummary(
       COALESCE(SUM(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.state.status') = 'error' THEN 1 ELSE 0 END), 0) AS error_count,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'reasoning' THEN 1 ELSE 0 END), 0) AS has_reasoning,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'compaction' THEN 1 ELSE 0 END), 0) AS has_compaction,
-      COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.tool') = 'task' THEN 1 ELSE 0 END), 0) AS uses_task,
+      COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.tool') IN ('task', 'subagent') THEN 1 ELSE 0 END), 0) AS uses_task,
       COALESCE(MAX(CASE WHEN json_valid(data) AND json_extract(data, '$.type') = 'tool' AND json_extract(data, '$.tool') = 'webfetch' THEN 1 ELSE 0 END), 0) AS uses_webfetch
     FROM part WHERE session_id = ?
   `, [id])[0] ?? { tool_count: 0, error_count: 0, has_reasoning: 0, has_compaction: 0, uses_task: 0, uses_webfetch: 0 };
@@ -479,8 +487,22 @@ function* streamReplay(
   const accumulation = zeroTokens();
   const tokenAccumulation: Array<{ atTurnIndex: number; tokens: OcTokens }> = [];
 
-  for (let turnIndex = 0; turnIndex < replay.messages.length; turnIndex += 1) {
-    const message = replay.messages[turnIndex]!;
+  // Lifecycle events go before the first message created after them — the same
+  // placement getReplay() uses, so an export replays exactly like the UI.
+  const events = listSessionEvents(db, id);
+  let nextEvent = 0;
+  let turnIndex = 0;
+  const eventWarnings: OcWarning[] = [];
+  function* eventsBefore(time: number): Generator<Uint8Array> {
+    for (; nextEvent < events.length && events[nextEvent]!.time_created < time; nextEvent += 1) {
+      yield* boundedEncode(encoder, `${turnIndex === 0 ? "" : ","}${JSON.stringify(sessionEventTurn(events[nextEvent]!, eventWarnings))}`);
+      tokenAccumulation.push({ atTurnIndex: turnIndex, tokens: { ...accumulation } });
+      turnIndex += 1;
+    }
+  }
+
+  for (const message of replay.messages) {
+    yield* eventsBefore(message.row.time_created);
     const created = message.decoded.timeCreated ?? message.row.time_created;
     const completed = message.decoded.timeCompleted;
     const turnPrefix = JSON.stringify({
@@ -517,7 +539,10 @@ function* streamReplay(
     }
     yield* boundedEncode(encoder, "]}");
     tokenAccumulation.push({ atTurnIndex: turnIndex, tokens: { ...accumulation } });
+    turnIndex += 1;
   }
+  yield* eventsBefore(Number.POSITIVE_INFINITY);
+  warnings.push(eventWarnings);
   yield* boundedEncode(encoder, `],"tokenAccumulation":${JSON.stringify(tokenAccumulation)}}`);
 }
 

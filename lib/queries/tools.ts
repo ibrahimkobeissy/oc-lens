@@ -3,7 +3,7 @@ import { decodePartData } from "@/lib/decode";
 import { decodeMessageData } from "@/lib/decode/message";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { query } from "@/lib/db/connection";
-import { categorizeTool, categorizeToolsBatch, categorizeToolError, resolveMcpTool } from "@/lib/tools";
+import { categorizeTool, categorizeToolsBatch, categorizeToolError, isSubagentTool, resolveMcpTool } from "@/lib/tools";
 import type { FeatureAdoption, FeatureAdoptionRow, FileChangeSummary, McpServerSummary, OcPartToolData, OcWarning, SkillSummary, ToolActivityPoint, ToolErrorSummary, ToolSummary } from "@/types/oc";
 import { localDay } from "./activity";
 
@@ -120,10 +120,15 @@ export function mcpUsage(db: DatabaseSync, servers: string[], filter: PartQueryF
   return { data, warnings };
 }
 
+// 1.x and most 2.x calls name the skill at `input.name`; some real 2.1.4 calls
+// carry only `input.id` instead (data-model §8).
 function skillName(input: unknown): string {
   if (typeof input !== "object" || input === null) return "unknown";
-  const value = (input as Record<string, unknown>).name;
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : "unknown";
+  for (const key of ["name", "id"]) {
+    const value = (input as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.trim().length > 0) return value.trim();
+  }
+  return "unknown";
 }
 
 export function skillUsage(db: DatabaseSync, filter: PartQueryFilter = {}): QueryResult<SkillSummary[]> {
@@ -163,7 +168,8 @@ function absoluteFilePath(value: string): boolean {
 }
 
 function verifiedFilePath(row: PartRow & { tool: OcPartToolData }): string | null {
-  const inputPath = stringField(row.tool.input, "filePath");
+  // 2.x write/edit calls name the file at `path` as often as `filePath` (data-model §8).
+  const inputPath = stringField(row.tool.input, "filePath") ?? stringField(row.tool.input, "path");
   let metadataPath: string | null = null;
   try {
     const raw: unknown = JSON.parse(row.data);
@@ -270,7 +276,7 @@ export function featureAdoption(db: DatabaseSync, servers: string[] = [], filter
     if (session.parent_id !== null && inFeatureRange(session.time_created, filter)) addFeature(subagents, session.id, session.time_created);
   }
   for (const call of calls) {
-    if (call.tool.tool === "task") addFeature(subagents, call.session_id, call.time_created);
+    if (isSubagentTool(call.tool.tool)) addFeature(subagents, call.session_id, call.time_created);
     if (resolveMcpTool(call.tool.tool, servers)) addFeature(mcp, call.session_id, call.time_created);
     if (call.tool.tool === "webfetch") addFeature(webfetch, call.session_id, call.time_created);
     if (call.tool.tool === "skill") addFeature(skills, call.session_id, call.time_created);

@@ -14,7 +14,7 @@ vi.mock("@/hooks/use-oc", () => ({
     if (state.mode === "database") return { data: undefined, error: { message: "missing", isDatabaseNotFound: true, isSchemaMismatch: false }, isLoading: false, mutate: state.mutate };
     if (state.mode === "schema") return { data: undefined, error: { message: "wrong shape", isDatabaseNotFound: false, isSchemaMismatch: true }, isLoading: false, mutate: state.mutate };
     if (state.mode === "error") return { data: undefined, error: { message: "route failed", isDatabaseNotFound: false, isSchemaMismatch: false }, isLoading: false, mutate: state.mutate };
-    return { data: { data: { displayName: "Project One" }, meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7", warnings: [] } }, error: undefined, isLoading: false, mutate: state.mutate };
+    return { data: { data: { displayName: "Project One" }, meta: { generatedAt: 1, schemaVersion: "opencode-1.17.7+2.1.4", warnings: [] } }, error: undefined, isLoading: false, mutate: state.mutate };
   },
 }));
 

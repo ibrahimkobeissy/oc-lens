@@ -1,8 +1,13 @@
 import type { DatabaseSync } from "node:sqlite";
+import { SESSION_COLUMNS } from "./canonical";
 import { isDenylistedTable } from "./denylist";
 
-/** The opencode version this schema was verified against — project-docs/opencode-data-model.md §0. */
-export const schemaVersion = "opencode-1.17.7";
+/**
+ * The opencode schemas oc-lens is verified against — project-docs/opencode-data-model.md
+ * §0 (1.x, `session`/`message`/`part`) and §8 (2.x, `session_v2`/`session_message`).
+ * A database upgraded from 1.x carries both and is read as one history.
+ */
+export const schemaVersion = "opencode-1.17.7+2.1.4";
 
 export interface SchemaMismatch {
   table: string;
@@ -15,12 +20,11 @@ interface ExpectedTable {
 }
 
 // Column lists are exactly what project-docs/opencode-data-model.md documents
-// as verified for each table oc-lens reads (§1, §2, §3) — nothing invented
+// as verified for each table oc-lens reads (§1, §2, §3, §8) — nothing invented
 // beyond what's been observed. `message`/`part`/`session_message` carry their
 // real payload in the `data` JSON column, so only the envelope columns are
 // checked here; OCL-012's decoders are responsible for the JSON shape itself.
-const EXPECTED_TABLES: ExpectedTable[] = [
-  {
+const PROJECT_TABLE: ExpectedTable = {
     table: "project",
     columns: [
       "id",
@@ -33,7 +37,9 @@ const EXPECTED_TABLES: ExpectedTable[] = [
       "sandboxes",
       "commands",
     ],
-  },
+};
+
+const V1_TABLES: ExpectedTable[] = [
   {
     table: "session",
     columns: [
@@ -77,11 +83,19 @@ const EXPECTED_TABLES: ExpectedTable[] = [
   { table: "session_message", columns: ["type", "seq", "data"] },
 ];
 
+// opencode 2.x: `session_v2` must still carry every legacy session column the
+// canonical `session` view re-exposes (lib/db/canonical.ts), and
+// `session_message` is the whole transcript, so its full envelope is required.
+const V2_TABLES: ExpectedTable[] = [
+  { table: "session_v2", columns: [...SESSION_COLUMNS] },
+  { table: "session_message", columns: ["id", "session_id", "type", "seq", "time_created", "time_updated", "data"] },
+];
+
 interface TableInfoRow {
   name: string;
 }
 
-// `table` always comes from our own hardcoded EXPECTED_TABLES list above,
+// `table` always comes from our own hardcoded table lists above,
 // never user input — this guard is defense-in-depth, not the primary check,
 // so a future edit that threads a dynamic table name through checkSchema
 // can't silently bypass the same denylist every other query path enforces
@@ -105,14 +119,8 @@ function actualColumns(db: DatabaseSync, table: string): Set<string> {
   return new Set(rows.map((row) => row.name));
 }
 
-/**
- * Reads `sqlite_master` (and each table's `PRAGMA table_info`) and asserts the
- * tables/columns oc-lens's query modules depend on. Returns a structured
- * `SchemaMismatch` naming exactly what differs on the first mismatch found —
- * never silently degrades, never returns null for an actual mismatch.
- */
-export function checkSchema(db: DatabaseSync): SchemaMismatch | null {
-  for (const expected of EXPECTED_TABLES) {
+function firstMismatch(db: DatabaseSync, tables: readonly ExpectedTable[]): SchemaMismatch | null {
+  for (const expected of tables) {
     if (!tableExists(db, expected.table)) {
       return { table: expected.table, missingColumns: expected.columns };
     }
@@ -123,6 +131,22 @@ export function checkSchema(db: DatabaseSync): SchemaMismatch | null {
       return { table: expected.table, missingColumns };
     }
   }
-
   return null;
+}
+
+/**
+ * Reads `sqlite_master` (and each table's `PRAGMA table_info`) and asserts the
+ * tables/columns oc-lens's query modules depend on. The generation is chosen by
+ * the spine table: `session_v2` means opencode 2.x, and a legacy `session`
+ * table beside it means an upgraded (mixed) database whose 1.x tables must
+ * still be intact — a half-present legacy schema is a mismatch, never a
+ * silent partial read. Returns a structured `SchemaMismatch` naming exactly
+ * what differs on the first mismatch found — never silently degrades, never
+ * returns null for an actual mismatch.
+ */
+export function checkSchema(db: DatabaseSync): SchemaMismatch | null {
+  const hasV2 = tableExists(db, "session_v2");
+  const hasLegacy = tableExists(db, "session");
+  const tables = [PROJECT_TABLE, ...(hasV2 ? V2_TABLES : []), ...(hasLegacy || !hasV2 ? V1_TABLES : [])];
+  return firstMismatch(db, tables);
 }

@@ -74,9 +74,17 @@ export function contentSignature(input: unknown): string | null {
   return digest(content.slice(0, MAX_CANON_CHARS));
 }
 
-/** The mutation target this call writes to, or `null` if it is not a path-taking write. */
+/**
+ * The file this call targets, or `null` if it names none. opencode 1.x always
+ * used `filePath`; real opencode 2.x `read`/`write`/`edit` calls use either
+ * `filePath` or `path` (data-model §8), so both are read — otherwise a 2.x
+ * write would never split a re-read and edit-then-verify would look like a loop.
+ */
 export function targetPath(input: unknown): string | null {
   if (!isSignaturable(input)) return null;
-  const filePath = input["filePath"];
-  return typeof filePath === "string" && filePath.length > 0 ? filePath : null;
+  for (const key of ["filePath", "path"]) {
+    const value = input[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return null;
 }

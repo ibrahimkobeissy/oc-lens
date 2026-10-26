@@ -20,7 +20,7 @@ vi.mock("@/components/sessions/replay/turn-cards", () => ({
   WindowedTurnStream: () => <div>turn stream marker</div>,
 }));
 
-const meta = { generatedAt: 1, schemaVersion: "opencode-1.17.7", warnings: [] };
+const meta = { generatedAt: 1, schemaVersion: "opencode-1.17.7+2.1.4", warnings: [] };
 const replayData = {
   session: {
     id: "ses/one", slug: "one", title: "Replay One", projectId: "project", projectDisplayName: "Project", directory: "/repo",

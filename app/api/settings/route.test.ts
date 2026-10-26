@@ -100,7 +100,7 @@ describe("GET /api/settings", () => {
     expect(await response.json()).toEqual({
       error: {
         code: "schema_mismatch",
-        message: "The opencode database schema is not supported by opencode-1.17.7.",
+        message: "The opencode database schema is not supported by opencode-1.17.7+2.1.4.",
       },
     });
   });

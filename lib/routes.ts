@@ -11,6 +11,7 @@ import {
   Repeat,
   MessagesSquare,
   Settings,
+  ShieldAlert,
   Wrench,
 } from "lucide-react";
 
@@ -41,6 +42,7 @@ export const ROUTE_GROUPS = [
   "tools",
   "todos",
   "costs",
+  "audit",
   "loops",
   "agents",
   "export",
@@ -55,6 +57,7 @@ export const ROUTES: OcRoute[] = [
   { href: "/tools", label: "Tools", icon: Wrench, group: "tools", enabled: true },
   { href: "/todos", label: "Todos", icon: ListTodo, group: "todos", enabled: true },
   { href: "/costs", label: "Costs", icon: DollarSign, group: "costs", enabled: true },
+  { href: "/audit", label: "Provider audit", icon: ShieldAlert, group: "audit", enabled: true },
   { href: "/loops", label: "Loops", icon: Repeat, group: "loops", enabled: true },
   { href: "/agents", label: "Agents", icon: Bot, group: "agents", enabled: true },
   { href: "/agents/tree", label: "Subagent Tree", icon: GitBranch, group: "agents", enabled: true },
@@ -69,7 +72,7 @@ export const MOBILE_NAV_ROUTES: OcRoute[] = [
   ROUTES[2], // Sessions
   ROUTES[3], // Projects
   ROUTES[6], // Costs
-  ROUTES[10], // Settings
+  ROUTES[11], // Export
 ].filter((r): r is OcRoute => r !== undefined);
 
 /**

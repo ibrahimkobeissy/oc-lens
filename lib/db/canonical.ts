@@ -86,6 +86,8 @@ const V2_MESSAGE_SQL = `
 SELECT r.id, r.session_id, r.time_created, r.time_updated,
   json_patch('{}', json_object(
     'role', 'user',
+    -- opencode's own automatic resends (e.g. "continue" after a failed step); absent on real user turns.
+    'synthetic', CASE WHEN r.type = 'synthetic' THEN json('true') END,
     'time', json_object('created', COALESCE(r.data ->> '$.time.created', r.time_created)),
     -- v2 user rows record no agent; the agent that answered the prompt is the honest stand-in.
     'agent', (SELECT a.data ->> '$.agent' FROM main.session_message a

@@ -1,6 +1,7 @@
 "use client";
 
 import type { DailyUsageRow } from "@/lib/pricing/breakdown";
+import type { FailuresReport } from "@/lib/audit/failure-types";
 import { ocFetcher, ocSWRConfig, type OcApiError } from "@/lib/swr";
 import type {
   LoopAnalysis,
@@ -39,6 +40,7 @@ type StaticRoute =
   | "/api/todos"
   | "/api/costs"
   | "/api/costs/daily"
+  | "/api/audit/failures"
   | "/api/storage"
   | "/api/pricing"
   | "/api/settings"
@@ -95,6 +97,8 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
                     ? CostBreakdown
                   : WithoutQuery<R> extends "/api/costs/daily"
                     ? DailyUsageRow[]
+                  : WithoutQuery<R> extends "/api/audit/failures"
+                    ? FailuresReport
                     : WithoutQuery<R> extends "/api/storage"
                       ? StorageBreakdown
                       : WithoutQuery<R> extends "/api/pricing"

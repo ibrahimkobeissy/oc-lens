@@ -376,3 +376,13 @@ The 2.x projection is cached per connection in in-memory TEMP tables (`temp_stor
 4. **Round trip**: exports imported into an isolated opencode (`--standalone`, every `XDG_*` dir in a scratch directory) kept the session id and every message in order (11 and 137 messages). opencode's own CLI export produced truncated, invalid JSON for 6 of 60 large sessions; this route does not.
 
 Import order: a session with `parentID` imports only after its parent exists. A legacy-only session (no `session_v2` row) or a pure 1.x database has nothing in this format, so the route answers 409 `export_unavailable` rather than inventing a 2.x record.
+
+### 8.7 Failed provider calls and retries — ✅ VERIFIED 2026-10-28 (opencode 2.2.0)
+
+Values-free probe of the maintainer's DB plus the 2.2.0 binary. Read by `lib/queries/failures.ts` (`/audit`).
+
+- **A finally-failed model call is saved** as an assistant step with an `error`. 2.x: `error{type, message, status?, response?}` — types observed `provider.rate-limit` 13 (all `status` 429), `provider.internal` 1 (500), `provider.invalid-request` 1 (422), `provider.error` 2, `aborted` 3. 1.x: `error{name, data{message, statusCode?, isRetryable?, responseHeaders?, responseBody?, metadata?}}` — names `APIError` (401, and one with no status) and `MessageAbortedError`. `response`, `responseHeaders` and `responseBody` are **never read**: they are raw provider payloads.
+- **Failed steps record no usage**: 16 of 20 carry no `tokens`, the other 4 carry all-zero tokens. A failed step that *does* report usage is surfaced as a warning, never assumed away.
+- **Retries inside a step are not persisted.** 2.2.0 emits `session.retry.scheduled {sessionID, assistantMessageID, attempt, at, error}` and its UI copies it onto the message as `retry{attempt, at, error}`, but no stored message had that field and the `event` table was empty. The number of in-step retries cannot be recovered from the database.
+- **What is persisted after a failure**: `idle` with `outcome: "failed"` and the same `error` (15 rows), opencode's automatic resends as `synthetic` turns, the user's own resends as `user` turns, and the next successful step. The canonical view marks projected `synthetic` rows with `synthetic: true` so the two kinds of resend stay distinguishable.
+- **Measured resend cost**: on the maintainer's DB, the step that recovered after three rate limits (and 10 automatic resends) sent 46,407 input tokens; one after a 401 sent 104,325; both with 0 cache reads. That usage is an upper bound on what a failure cost, not waste: the original call would have paid most of the same context.

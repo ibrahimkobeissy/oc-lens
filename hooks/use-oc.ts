@@ -1,5 +1,6 @@
 "use client";
 
+import type { DailyUsageRow } from "@/lib/pricing/breakdown";
 import { ocFetcher, ocSWRConfig, type OcApiError } from "@/lib/swr";
 import type {
   LoopAnalysis,
@@ -37,6 +38,7 @@ type StaticRoute =
   | "/api/skills"
   | "/api/todos"
   | "/api/costs"
+  | "/api/costs/daily"
   | "/api/storage"
   | "/api/pricing"
   | "/api/settings"
@@ -91,6 +93,8 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
                     ? TodosResponse
                   : WithoutQuery<R> extends "/api/costs"
                     ? CostBreakdown
+                  : WithoutQuery<R> extends "/api/costs/daily"
+                    ? DailyUsageRow[]
                     : WithoutQuery<R> extends "/api/storage"
                       ? StorageBreakdown
                       : WithoutQuery<R> extends "/api/pricing"

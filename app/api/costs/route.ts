@@ -7,14 +7,11 @@ import { mergeWarnings } from "@/lib/decode/warnings";
 import { costBreakdown } from "@/lib/pricing/breakdown";
 import { readPricing } from "@/lib/pricing/config";
 import { storedCostInRange } from "@/lib/pricing/cost";
+import { parseCostsQuery } from "@/lib/pricing/range";
 import type { CostBreakdown, CostsRouteResponse } from "@/types/oc";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const DAY_MS = 86_400_000;
-const RANGE_DAYS = { "7d": 7, "30d": 30, "90d": 90 } as const;
-type CostsRange = keyof typeof RANGE_DAYS | "all";
 
 interface MessageDataRow {
   time_created: number;
@@ -23,19 +20,6 @@ interface MessageDataRow {
 
 function errorResponse(code: string, message: string, status: number): NextResponse<CostsRouteResponse> {
   return NextResponse.json({ error: { code, message } }, { status });
-}
-
-function isRange(value: string): value is CostsRange {
-  return value === "all" || Object.hasOwn(RANGE_DAYS, value);
-}
-
-function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(0);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function messageWarningsInRange(db: Parameters<typeof costBreakdown>[0], range: { from?: number; to?: number }) {
@@ -48,15 +32,10 @@ function messageWarningsInRange(db: Parameters<typeof costBreakdown>[0], range: 
 }
 
 export async function GET(request: Request): Promise<NextResponse<CostsRouteResponse>> {
-  const params = new URL(request.url).searchParams;
-  const rangeName = params.get("range") ?? "30d";
-  const timeZone = params.get("tz") ?? "UTC";
-  if (!isRange(rangeName)) {
-    return errorResponse("invalid_range", "Range must be one of 7d, 30d, 90d, or all.", 400);
-  }
-  if (!isTimeZone(timeZone)) {
-    return errorResponse("invalid_timezone", "Timezone must be a valid IANA timezone.", 400);
-  }
+  const generatedAt = Date.now();
+  const parsed = parseCostsQuery(new URL(request.url).searchParams, generatedAt);
+  if (!parsed.ok) return errorResponse(parsed.code, parsed.message, 400);
+  const { range, timeZone } = parsed;
 
   try {
     const connection = getConnection();
@@ -67,10 +46,6 @@ export async function GET(request: Request): Promise<NextResponse<CostsRouteResp
       return errorResponse("schema_mismatch", `The opencode database schema is not supported by ${schemaVersion}.`, 409);
     }
 
-    const generatedAt = Date.now();
-    const range = rangeName === "all"
-      ? {}
-      : { from: generatedAt - RANGE_DAYS[rangeName] * DAY_MS, to: generatedAt + 1 };
     const calculated = costBreakdown(connection.db, readPricing(), timeZone, range);
     const data: CostBreakdown = {
       ...calculated,

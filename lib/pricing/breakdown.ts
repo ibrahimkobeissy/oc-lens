@@ -260,3 +260,47 @@ export function costBreakdown(
     byAgent: bucketsToCostArray(byAgent, "agent"),
   };
 }
+
+/** One local calendar day of assistant usage. Not part of the frozen `types/oc.ts` contract (OCL-010). */
+export interface DailyUsageRow {
+  date: string; // YYYY-MM-DD in the request's timezone
+  messages: number; // assistant messages carrying usage evidence
+  tokens: OcTokens; // verified tokens only; a message whose token shape is broken adds none
+  pricedAmount: number; // sum over priced messages only
+  unpricedMessages: number; // messages that could not be priced (no price entered, or incomplete evidence)
+}
+
+/**
+ * The same message scan and evidence rules as `costBreakdown`, bucketed by day
+ * with tokens kept alongside cost. A day's priced amount and its unpriced count
+ * are reported separately so a partial sum is never shown as the day's total.
+ */
+export function dailyUsage(
+  db: DatabaseSync,
+  config: PricingConfig,
+  timeZone = "UTC",
+  range: { from?: number; to?: number } = {},
+): DailyUsageRow[] {
+  const byDay = new Map<string, DailyUsageRow>();
+  for (const message of query<MessageRow>(db, "SELECT session_id, time_created, data FROM message")) {
+    if ((range.from !== undefined && message.time_created < range.from) || (range.to !== undefined && message.time_created >= range.to)) continue;
+    const evidence = pricingEvidence(message.data);
+    if (evidence.kind === "ignore") continue;
+    const date = localDay(message.time_created, timeZone);
+    const row = byDay.get(date) ?? { date, messages: 0, tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 }, pricedAmount: 0, unpricedMessages: 0 };
+    const tokens = evidence.kind === "assistant" ? evidence.tokens : evidence.data === null ? null : verifiedTokens(evidence.data);
+    const cost: OcCost = evidence.kind === "assistant" ? costFor(evidence.tokens, `${evidence.providerID}/${evidence.modelID}`, config) : { amount: 0, priced: false };
+    row.messages += 1;
+    if (tokens) {
+      row.tokens.input += tokens.input;
+      row.tokens.output += tokens.output;
+      row.tokens.reasoning += tokens.reasoning;
+      row.tokens.cacheRead += tokens.cacheRead;
+      row.tokens.cacheWrite += tokens.cacheWrite;
+    }
+    if (cost.priced && Number.isFinite(cost.amount)) row.pricedAmount += cost.amount;
+    else row.unpricedMessages += 1;
+    byDay.set(date, row);
+  }
+  return [...byDay.values()].sort((left, right) => right.date.localeCompare(left.date));
+}

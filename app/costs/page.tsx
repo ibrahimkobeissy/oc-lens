@@ -7,6 +7,7 @@ import { CacheEfficiency } from "@/components/costs/cache-efficiency";
 import { CostCharts } from "@/components/costs/cost-charts";
 import { CostModelTable } from "@/components/costs/cost-model-table";
 import { CostSummary } from "@/components/costs/cost-summary";
+import { DailyCostTable } from "@/components/costs/daily-cost-table";
 import { PricingBanner } from "@/components/costs/pricing-banner";
 import { ChartSkeleton } from "@/components/states/chart-skeleton";
 import { EmptyState } from "@/components/states/empty-state";
@@ -35,6 +36,7 @@ export default function CostsPage() {
   const timeZone = useSyncExternalStore(subscribeBrowser, browserTimeZone, () => "UTC");
   const route = `/api/costs?range=${range}&tz=${encodeURIComponent(timeZone)}` as const;
   const { data, error, isLoading, isValidating, mutate } = useOc(route);
+  const daily = useOc(`/api/costs/daily?range=${range}&tz=${encodeURIComponent(timeZone)}`);
 
   if (isLoading || (!data && !error)) return <LoadingCosts />;
   if (error?.isDatabaseNotFound) return <Onboarding />;
@@ -49,7 +51,7 @@ export default function CostsPage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl font-semibold">Costs</h1><p className="mt-1 text-sm text-muted-foreground">Your token usage multiplied by prices you entered—never a bundled estimate.</p></div><label className="space-y-1 text-xs font-medium text-muted-foreground"><span className="block">Range</span><select aria-label="Cost range" className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground" value={range} onChange={(event) => setRange(event.target.value as CostRange)}><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option><option value="all">All time</option></select></label></header>
       {isValidating && <p role="status" className="text-xs text-muted-foreground">Refreshing cost data…</p>}
       <WarningsBanner warnings={data.meta.warnings} />
-      {costs.byModel.length === 0 ? <EmptyState icon={<CircleDollarSign />} title="No cost data in this range" description="Choose a wider range, or run an opencode session that reports model and token usage." /> : <><PricingBanner unpricedCount={unpriced} /><CostSummary costs={costs} /><CostModelTable models={costs.byModel} /><CacheEfficiency models={costs.byModel} /><CostCharts costs={costs} /></>}
+      {costs.byModel.length === 0 ? <EmptyState icon={<CircleDollarSign />} title="No cost data in this range" description="Choose a wider range, or run an opencode session that reports model and token usage." /> : <><PricingBanner unpricedCount={unpriced} /><CostSummary costs={costs} /><CostModelTable models={costs.byModel} />{daily.error ? <ErrorState title="Daily usage could not be loaded" message={daily.error.message} onRetry={() => void daily.mutate()} /> : daily.data ? <DailyCostTable rows={daily.data.data} /> : <TableSkeleton rows={4} columns={9} />}<CacheEfficiency models={costs.byModel} /><CostCharts costs={costs} /></>}
     </div>
   );
 }

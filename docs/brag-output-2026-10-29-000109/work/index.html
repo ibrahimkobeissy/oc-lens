@@ -1,0 +1,372 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>oc-lens brag</title>
+<style>
+@font-face{font-family:"FSans";src:url(assets/FiraSans-Regular-0fe48ade.woff2) format("woff2");font-weight:400}
+@font-face{font-family:"FSans";src:url(assets/FiraSans-Medium-e1aa3f0a.woff2) format("woff2");font-weight:600}
+@font-face{font-family:"FMono";src:url(assets/FiraMono-Regular-87c26294.woff2) format("woff2");font-weight:400}
+@font-face{font-family:"FMono";src:url(assets/FiraMono-Medium-86f75c8c.woff2) format("woff2");font-weight:600}
+:root{--bg:#f4f7fb;--ink:#14213d;--muted:#52627a;--brand:#1e40af;--blue:#2563eb;--red:#dc2626;--amber:#f59e0b;--marker:#fde047;--border:#dbe4f0}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+body{font-family:"FSans",sans-serif;color:var(--ink)}
+#stage{position:absolute;inset:0;overflow:hidden;background:var(--bg)}
+.abs{position:absolute;left:0;top:0;will-change:transform,opacity}
+.grid{position:absolute;inset:-64px;background-image:linear-gradient(rgba(30,64,175,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(30,64,175,.07) 1px,transparent 1px);background-size:64px 64px}
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.75}
+.scene{position:absolute;inset:0;display:none}
+.mono{font-family:"FMono",monospace}
+.h{font-family:"FMono",monospace;font-weight:600;letter-spacing:-.035em;line-height:1.04;color:var(--ink)}
+.line{overflow:hidden;padding-bottom:.08em}
+.line>span{display:inline-block;will-change:transform}
+.mark{background-image:linear-gradient(var(--marker),var(--marker));background-repeat:no-repeat;background-position:0 88%;padding:0 .08em}
+.chip{display:inline-flex;align-items:center;gap:14px;font-family:"FMono";font-weight:600;font-size:26px;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);background:#fff;border:2px solid #c7d6f5;border-radius:999px;padding:12px 26px 12px 14px;box-shadow:0 8px 24px rgba(30,64,175,.12)}
+.chip b{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--brand);color:#fff;font-size:20px;letter-spacing:0}
+.win{position:absolute;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 40px 90px -20px rgba(20,33,61,.35),0 0 0 1px rgba(20,33,61,.08)}
+.bar{height:48px;display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid var(--border);background:#fbfcfe}
+.bar i{width:14px;height:14px;border-radius:50%;display:block}
+.bar .url{margin-left:18px;font-family:"FMono";font-size:17px;color:var(--muted);background:#eef3fa;border-radius:8px;padding:5px 16px}
+.vp{position:absolute;left:0;top:48px;right:0;bottom:0;overflow:hidden;background:var(--bg)}
+.vp img{position:absolute;left:0;top:0;width:1440px;height:1200px;transform-origin:0 0}
+.ring{position:absolute;left:0;top:0;border-radius:12px;pointer-events:none}
+.card{position:absolute;width:820px;height:112px;background:#fff;border-radius:20px;display:flex;align-items:center;justify-content:space-between;padding:0 30px 0 34px;box-shadow:0 18px 40px -12px rgba(20,33,61,.28),0 0 0 1px rgba(20,33,61,.07)}
+.card .cmd{font-family:"FMono";font-size:40px;font-weight:600;color:var(--ink)}
+.card .cmd em{font-style:normal;color:var(--blue)}
+.card .bad{font-family:"FMono";font-weight:600;font-size:28px;color:var(--red);background:#fee2e2;border:2px solid #fecaca;border-radius:999px;padding:8px 20px}
+.logo{display:grid;place-items:center;background:linear-gradient(145deg,#2563eb,#1e40af);border-radius:28%;box-shadow:0 20px 50px -10px rgba(30,64,175,.55)}
+.wipe{position:absolute;top:-200px;height:1480px;width:2600px;background:linear-gradient(90deg,#1e40af,#2563eb 45%,#38bdf8);transform-origin:0 0;z-index:50;display:none}
+.sticker{position:absolute;font-family:"FMono";font-weight:600;font-size:34px;color:var(--ink);background:var(--marker);padding:14px 26px;border-radius:14px;box-shadow:0 14px 30px -8px rgba(20,33,61,.35);white-space:nowrap}
+.tag{position:absolute;font-family:"FMono";font-weight:600;font-size:24px;color:#fff;padding:8px 18px;border-radius:999px;white-space:nowrap;box-shadow:0 10px 24px -6px rgba(20,33,61,.35)}
+.tchip{position:absolute;display:flex;align-items:center;gap:22px;background:#fff;border-radius:28px;padding:30px 44px 30px 30px;font-family:"FMono";font-weight:600;font-size:52px;letter-spacing:-.02em;box-shadow:0 30px 60px -18px rgba(20,33,61,.35),0 0 0 1px rgba(20,33,61,.06);white-space:nowrap}
+.tchip .ic{width:84px;height:84px;border-radius:22px;display:grid;place-items:center}
+.pill{position:absolute;width:940px;background:#fff;border-radius:32px;box-shadow:0 40px 90px -20px rgba(30,64,175,.45),0 0 0 3px #c7d6f5;display:flex;align-items:center;padding:0 56px;height:170px;font-family:"FMono";font-weight:600;font-size:96px;letter-spacing:-.03em;white-space:pre}
+.cursor{display:inline-block;width:.55em;height:.95em;background:var(--blue);margin-left:6px;vertical-align:-.12em;border-radius:4px}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bgwrap" class="abs" style="width:1920px;height:1080px">
+    <div class="grid" id="grid"></div>
+    <div class="blob" id="b1" style="width:900px;height:900px;background:#93c5fd"></div>
+    <div class="blob" id="b2" style="width:800px;height:800px;background:#c4b5fd"></div>
+    <div class="blob" id="b3" style="width:700px;height:700px;background:#67e8f9"></div>
+    <div class="blob" id="b4" style="width:520px;height:520px;background:#fde68a"></div>
+  </div>
+
+  <!-- HOOK -->
+  <div class="scene" id="s1">
+    <div class="abs h" id="s1h" style="font-size:68px;width:1920px;text-align:center;top:96px">
+      <div class="line"><span>Your agent ran the <span class="mark" id="s1mark">same failing test</span></span></div>
+    </div>
+    <div id="cards"></div>
+    <div class="abs mono" id="stamp" style="font-weight:600;font-size:400px;line-height:1;color:var(--red);letter-spacing:-.06em;text-shadow:0 24px 60px rgba(220,38,38,.35)">4×</div>
+    <div class="abs mono" id="stampsub" style="font-weight:600;font-size:46px;color:var(--red);letter-spacing:.02em">in a row. for nothing.</div>
+  </div>
+
+  <!-- REVEAL -->
+  <div class="scene" id="s2">
+    <div class="win" id="ovwin" style="width:1560px;height:900px"><div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#4ade80"></i><span class="url">127.0.0.1:3000</span></div><div class="vp"><img src="assets/overview-light.png" id="ovimg"></div></div>
+    <div class="abs" id="brand" style="display:flex;align-items:center;gap:40px">
+      <div class="logo" id="logo" style="width:170px;height:170px"><svg width="104" height="104" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path id="pulse" d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></div>
+      <div class="h" id="wordmark" style="font-size:190px;letter-spacing:-.06em">oc-lens</div>
+    </div>
+    <div class="abs" id="tag" style="font-size:54px;width:1920px;text-align:center;font-weight:600;color:var(--ink)">See where your <span style="color:var(--blue)">opencode</span> tokens <span class="mark" id="s2mark">really go.</span></div>
+  </div>
+
+  <!-- LOOPS -->
+  <div class="scene" id="s3">
+    <div class="abs" id="s3chip" style="left:120px;top:250px"><span class="chip"><b>01</b>Loop detection</span></div>
+    <div class="abs h" id="s3h" style="left:120px;top:350px;font-size:92px">
+      <div class="line"><span>Catch the</span></div>
+      <div class="line"><span class="mark" id="s3mark">loop.</span></div>
+      <div class="line" style="font-size:52px;margin-top:22px;color:var(--muted)"><span>Not the useful work.</span></div>
+    </div>
+    <div class="win" id="lwin" style="width:1040px;height:760px"><div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#4ade80"></i><span class="url">127.0.0.1:3000/loops</span></div><div class="vp" id="lvp"><img src="assets/loops-light.png" id="limg"><div class="ring" id="lring" style="border:5px solid var(--red);box-shadow:0 0 0 10px rgba(220,38,38,.15)"></div></div></div>
+    <div class="sticker" id="lsticker">same call, same input</div>
+  </div>
+
+  <!-- AUDIT -->
+  <div class="scene" id="s4">
+    <div class="win" id="awin" style="width:1000px;height:760px"><div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#4ade80"></i><span class="url">127.0.0.1:3000/audit</span></div><div class="vp" id="avp"><img src="assets/audit-light.png" id="aimg"><div class="ring" id="aring" style="border:5px solid var(--amber);box-shadow:0 0 0 10px rgba(245,158,11,.18)"></div></div></div>
+    <div class="abs" id="s4chip" style="left:1170px;top:150px"><span class="chip"><b>02</b>Provider audit</span></div>
+    <div class="abs h" id="s4h" style="left:1170px;top:240px;font-size:84px">
+      <div class="line"><span>See what</span></div>
+      <div class="line"><span>failures</span></div>
+      <div class="line"><span class="mark" id="s4mark">really cost.</span></div>
+    </div>
+    <div class="abs" id="s4num" style="left:1170px;top:610px">
+      <div class="mono" id="counter" style="font-weight:600;font-size:132px;letter-spacing:-.05em;color:var(--brand);line-height:1">≈0</div>
+      <div style="font-size:38px;color:var(--muted);margin-top:14px;line-height:1.25">tokens the provider accepted,<br><span style="color:var(--ink);font-weight:600">never recorded</span> by opencode</div>
+    </div>
+  </div>
+
+  <!-- REPLAY -->
+  <div class="scene" id="s5">
+    <div class="abs" id="s5chip" style="left:120px;top:300px"><span class="chip"><b>03</b>Session replay</span></div>
+    <div class="abs h" id="s5h" style="left:120px;top:400px;font-size:84px">
+      <div class="line"><span>Every failure,</span></div>
+      <div class="line"><span class="mark" id="s5mark">marked</span><span>&nbsp;in</span></div>
+      <div class="line"><span>place.</span></div>
+    </div>
+    <div class="win" id="rwin" style="width:1040px;height:820px"><div class="bar"><i style="background:#f87171"></i><i style="background:#fbbf24"></i><i style="background:#4ade80"></i><span class="url">127.0.0.1:3000/sessions/…</span></div><div class="vp" id="rvp"><img src="assets/session-replay-light.png" id="rimg"><div class="ring" id="rring1" style="border:5px solid var(--amber)"></div><div class="ring" id="rring2" style="border:5px solid var(--red)"></div></div></div>
+    <div class="tag" id="rtag1" style="background:#b45309">slow start</div>
+    <div class="tag" id="rtag2" style="background:var(--red)">failed call</div>
+  </div>
+
+  <!-- TRUST -->
+  <div class="scene" id="s6">
+    <div class="abs h" id="s6h" style="font-size:76px;width:1920px;text-align:center;top:250px">
+      <div class="line"><span>Your history <span class="mark" id="s6mark">never leaves</span> your machine.</span></div>
+    </div>
+    <div class="tchip" id="tc1"><div class="ic" style="background:#dbeafe"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>Read-only</div>
+    <div class="tchip" id="tc2"><div class="ic" style="background:#dcfce7"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg></div>100% local</div>
+    <div class="tchip" id="tc3"><div class="ic" style="background:#ede9fe"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg></div>No telemetry</div>
+  </div>
+
+  <!-- OUTRO -->
+  <div class="scene" id="s7">
+    <div class="abs" id="obrand" style="display:flex;align-items:center;gap:26px">
+      <div class="logo" style="width:96px;height:96px"><svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg></div>
+      <div class="h" style="font-size:96px;letter-spacing:-.05em">oc-lens</div>
+      <div class="mono" style="font-size:34px;font-weight:600;color:#fff;background:var(--brand);border-radius:999px;padding:8px 22px;margin-left:8px">0.9.0</div>
+    </div>
+    <div class="pill" id="pill"><span style="color:#64748b">$&nbsp;</span><span id="typed"></span><span class="cursor" id="cursor"></span></div>
+    <div class="abs" id="ometa" style="width:1920px;text-align:center;font-size:40px;color:var(--muted)">Open source · MIT · <span class="mono" style="color:var(--ink);font-weight:600">github.com/ibrahimkobeissy/oc-lens</span></div>
+  </div>
+
+  <div class="wipe" id="wipe"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const cl = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const p = (t, a, b) => cl((t - a) / (b - a));
+const lerp = (a, b, x) => a + (b - a) * x;
+const eo = x => 1 - Math.pow(1 - x, 3);
+const eo5 = x => 1 - Math.pow(1 - x, 5);
+const ei = x => x * x * x;
+const eio = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const back = x => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+function T(el, o) {
+  const x = o.x ?? 0, y = o.y ?? 0, s = o.s ?? 1, r = o.r ?? 0;
+  let tr = `translate(${x}px,${y}px)`;
+  if (o.persp) tr = `perspective(${o.persp}px) ` + tr;
+  if (o.rx) tr += ` rotateX(${o.rx}deg)`;
+  if (o.ry) tr += ` rotateY(${o.ry}deg)`;
+  tr += ` rotate(${r}deg) scale(${s})`;
+  el.style.transform = tr;
+  if (o.o !== undefined) el.style.opacity = o.o;
+}
+const show = (id, on) => { $(id).style.display = on ? 'block' : 'none'; };
+// Masked line reveal: lines of `root` slide up from below, staggered.
+function lines(root, t, t0, stagger = .09, dur = .45, tOut = 99, outDur = .28) {
+  const ls = $(root).querySelectorAll('.line>span');
+  ls.forEach((sp, i) => {
+    const a = eo5(p(t, t0 + i * stagger, t0 + i * stagger + dur));
+    const b = ei(p(t, tOut + i * .04, tOut + i * .04 + outDur));
+    sp.style.transform = `translateY(${(1 - a) * 110 - b * 110}%)`;
+  });
+}
+const mark = (id, t, t0, dur = .35) => { $(id).style.backgroundSize = `${eo(p(t, t0, t0 + dur)) * 100}% 42%`; };
+// Camera into a screenshot inside a viewport of size W×H.
+function cam(img, W, H, cx, cy, s) {
+  const tx = W / 2 - cx * s, ty = H / 2 - cy * s;
+  img.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+  return (x, y) => [tx + x * s, ty + y * s];
+}
+function ring(el, map, x0, y0, x1, y1, a, pad = 10) {
+  const [X0, Y0] = map(x0, y0), [X1, Y1] = map(x1, y1);
+  const sc = lerp(1.25, 1, eo(a));
+  const w = X1 - X0 + pad * 2, h = Y1 - Y0 + pad * 2;
+  el.style.left = (X0 - pad) + 'px'; el.style.top = (Y0 - pad) + 'px';
+  el.style.width = w + 'px'; el.style.height = h + 'px';
+  el.style.transform = `scale(${sc})`; el.style.opacity = a;
+}
+
+// Hook cards
+const CARD_T = [0.5, 1.0, 1.5, 2.0];
+const cardsEl = $('cards');
+CARD_T.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'card'; d.id = 'card' + i;
+  d.innerHTML = `<span class="cmd"><em>$</em> pnpm test</span><span class="bad">✗ exit 1</span>`;
+  cardsEl.appendChild(d);
+});
+
+function bg(t) {
+  const b = [[$('b1'), -200, -250, 1.0, 0], [$('b2'), 1250, -150, .8, 2], [$('b3'), 1300, 600, .9, 4], [$('b4'), -100, 650, 1.1, 1]];
+  b.forEach(([el, x, y, f, ph]) => T(el, { x: x + Math.sin(t * .45 * f + ph) * 160, y: y + Math.cos(t * .38 * f + ph) * 120, s: 1 + .12 * Math.sin(t * .6 + ph) }));
+  $('grid').style.transform = `translate(${-(t * 18) % 64}px,${-(t * 10) % 64}px)`;
+}
+
+function wipe(t, tc) {
+  // Diagonal brand-blue panel sweeping left to right, covering at tc.
+  const w = $('wipe');
+  const a = p(t, tc - .32, tc), b = p(t, tc, tc + .34);
+  if (a <= 0 || b >= 1) return false;
+  w.style.display = 'block';
+  const x = a < 1 ? lerp(-2700, -300, eio(a)) : lerp(-300, 2100, eio(b));
+  w.style.transform = `translate(${x}px,0) skewX(-14deg)`;
+  return true;
+}
+
+function render(t) {
+  bg(t);
+  $('wipe').style.display = 'none';
+  wipe(t, 3.5); wipe(t, 19.0);
+  const st = $('stage');
+  st.style.transform = '';
+
+  // S1 HOOK 0 – 3.5
+  show('s1', t < 3.5);
+  if (t < 3.5) {
+    lines('s1h', t, 0.0, 0, .45);
+    mark('s1mark', t, .35, .45);
+    CARD_T.forEach((tl, i) => {
+      const el = $('card' + i);
+      const a = p(t, tl - .16, tl);
+      const land = eo5(a);
+      const after = p(t, tl, tl + .25);
+      const bx = 330 + i * 46, by = 290 + i * 128;
+      const squash = a >= 1 ? 1 + .04 * Math.sin(after * Math.PI) * (1 - after) : 1;
+      const dim = CARD_T.filter(x => t > x).length - 1 - i;
+      T(el, { x: bx + (1 - land) * -80, y: by - (1 - land) * 160, s: lerp(1.35, 1, land) * squash, r: lerp(-6, i % 2 ? .8 : -.8, land), o: a > 0 ? Math.min(1, a * 3) * (dim > 0 ? lerp(1, .55, cl(dim / 3)) : 1) : 0 });
+      el.style.zIndex = 10 + i;
+    });
+    const sa = p(t, 2.42, 2.62);
+    T($('stamp'), { x: 1230, y: 330, s: sa > 0 ? lerp(2.6, 1, eo5(sa)) : 0, r: -9, o: sa > 0 ? 1 : 0 });
+    const sb = p(t, 2.62, 2.9);
+    T($('stampsub'), { x: 1262, y: 760, s: 1, r: -9, o: eo(sb) });
+    // Shake on stamp + card lands
+    let sh = 0;
+    [...CARD_T, 2.5].forEach(tl => { const d = t - tl; if (d > 0 && d < .22) sh += (tl === 2.5 ? 22 : 7) * (1 - d / .22) * Math.sin(d * 120); });
+    st.style.transform = `translate(${sh}px,${sh * .6}px)`;
+  }
+
+  // S2 REVEAL 3.5 – 6.5
+  show('s2', t >= 3.5 && t < 6.5);
+  if (t >= 3.5 && t < 6.5) {
+    const out = ei(p(t, 6.22, 6.5));
+    const la = p(t, 3.55, 4.0);
+    // Brand row centered: logo 170 + gap 40 + wordmark ≈ 750
+    T($('brand'), { x: 960 - 470, y: 130 - out * 80, o: 1 - out });
+    T($('logo'), { s: la > 0 ? back(la) : 0, r: lerp(-30, 0, eo(la)) });
+    const pl = $('pulse'); pl.style.strokeDasharray = 60; pl.style.strokeDashoffset = 60 * (1 - eo(p(t, 3.8, 4.4)));
+    const wa = eo5(p(t, 3.7, 4.15));
+    T($('wordmark'), { x: (1 - wa) * 80, o: wa });
+    const ta = eo5(p(t, 4.05, 4.45));
+    T($('tag'), { y: 360 + (1 - ta) * 40 - out * 80, o: ta * (1 - out) });
+    mark('s2mark', t, 4.45, .4);
+    const wr = eo5(p(t, 3.75, 4.6));
+    T($('ovwin'), { persp: 1800, x: 180, y: lerp(1150, 520, wr) + (t - 4.6) * -14 + out * 300, rx: lerp(38, 22, wr), o: Math.min(1, wr * 2) });
+    cam($('ovimg'), 1560, 852, 720, 410, 1560 / 1440);
+  }
+
+  // S3 LOOPS 6.5 – 10.0
+  show('s3', t >= 6.5 && t < 10);
+  if (t >= 6.5 && t < 10) {
+    const T0 = 6.5, TO = 9.72;
+    const out = ei(p(t, TO, 10));
+    const ca = eo5(p(t, T0, T0 + .35));
+    T($('s3chip'), { x: (1 - ca) * -60 - out * 120, o: ca * (1 - out) });
+    lines('s3h', t, T0 + .08, .1, .45, TO, .26);
+    mark('s3mark', t, T0 + .55, .35);
+    const wa = eo5(p(t, T0 + .15, T0 + .85));
+    T($('lwin'), { persp: 2200, x: 790 + (1 - wa) * 500 + out * 400, y: 170, ry: lerp(-34, -9, wa) + (t - 7.4) * 1.2, o: Math.min(1, wa * 2) * (1 - out) });
+    const z = eio(p(t, 7.25, 8.05));
+    const W = 1040, H = 712;
+    const map = cam($('limg'), W, H, lerp(720, 832, z), lerp(H / 2 / (W / 1440), 476, z), lerp(W / 1440, .86, z));
+    const ra = p(t, 7.95, 8.3);
+    const pulse = ra >= 1 ? 1 + .03 * Math.sin((t - 8.3) * 2 * Math.PI * 2) : 1;
+    ring($('lring'), map, 252, 450, 1413, 486, ra);
+    $('lring').style.transform += ` scale(${pulse})`;
+    const sa = p(t, 8.1, 8.4);
+    T($('lsticker'), { x: 1180, y: 680 + out * 60, s: sa > 0 ? back(sa) : 0, r: -4, o: (sa > 0 ? 1 : 0) * (1 - out) });
+  }
+
+  // S4 AUDIT 10.0 – 13.5
+  show('s4', t >= 10 && t < 13.5);
+  if (t >= 10 && t < 13.5) {
+    const T0 = 10, TO = 13.22;
+    const out = ei(p(t, TO, 13.5));
+    const ca = eo5(p(t, T0, T0 + .35));
+    T($('s4chip'), { x: (1 - ca) * 60 + out * 120, o: ca * (1 - out) });
+    lines('s4h', t, T0 + .08, .1, .45, TO, .26);
+    mark('s4mark', t, T0 + .65, .35);
+    const wa = eo5(p(t, T0 + .12, T0 + .85));
+    T($('awin'), { persp: 2200, x: 100 - (1 - wa) * 500 - out * 400, y: 160, ry: lerp(34, 9, wa) - (t - 10.9) * 1.2, o: Math.min(1, wa * 2) * (1 - out) });
+    const z = eio(p(t, 10.9, 11.7));
+    const W = 1000, H = 712;
+    const map = cam($('aimg'), W, H, lerp(720, 590, z), lerp(H / 2 / (W / 1440), 425, z), lerp(W / 1440, 1.45, z));
+    ring($('aring'), map, 249, 343, 628, 507, p(t, 11.6, 11.95), 8);
+    const na = eo5(p(t, T0 + .45, T0 + .8));
+    T($('s4num'), { y: (1 - na) * 40, o: na * (1 - out) });
+    const cv = Math.round(112468 * eo(p(t, 10.6, 11.9)));
+    $('counter').textContent = '≈' + cv.toLocaleString('en-US');
+  }
+
+  // S5 REPLAY 13.5 – 16.5
+  show('s5', t >= 13.5 && t < 16.5);
+  if (t >= 13.5 && t < 16.5) {
+    const T0 = 13.5, TO = 16.22;
+    const out = ei(p(t, TO, 16.5));
+    const ca = eo5(p(t, T0, T0 + .35));
+    T($('s5chip'), { x: (1 - ca) * -60 - out * 120, o: ca * (1 - out) });
+    lines('s5h', t, T0 + .08, .1, .45, TO, .26);
+    mark('s5mark', t, T0 + .55, .35);
+    const wa = eo5(p(t, T0 + .12, T0 + .85));
+    const wx = 790 + (1 - wa) * 500 + out * 400, wy = 140;
+    T($('rwin'), { persp: 2200, x: wx, y: wy, ry: lerp(-34, -8, wa) + (t - 14.4) * 1.0, o: Math.min(1, wa * 2) * (1 - out) });
+    const W = 1040, H = 772;
+    const pan = eio(p(t, 13.9, 16.2));
+    const s = .86;
+    const map = cam($('rimg'), W, H, 832, lerp(H / 2 / s + 20, 600, pan), s);
+    const r1 = p(t, 14.45, 14.75), r2 = p(t, 14.95, 15.25);
+    ring($('rring1'), map, 249, 416, 1415, 489, r1, 6);
+    ring($('rring2'), map, 249, 511, 1415, 584, r2, 6);
+    // Tags pinned to the ring's right edge (window has a mild Y tilt; approximate placement)
+    const [, y1] = map(0, 452), [, y2] = map(0, 547);
+    T($('rtag1'), { x: wx + 760, y: wy + 48 + y1 - 64, s: r1 > 0 ? back(r1) : 0, r: 3, o: (r1 > 0 ? 1 : 0) * (1 - out) });
+    T($('rtag2'), { x: wx + 760, y: wy + 48 + y2 - 64, s: r2 > 0 ? back(r2) : 0, r: -3, o: (r2 > 0 ? 1 : 0) * (1 - out) });
+  }
+
+  // S6 TRUST 16.5 – 19.0
+  show('s6', t >= 16.5 && t < 19);
+  if (t >= 16.5 && t < 19) {
+    lines('s6h', t, 16.55, 0, .45);
+    mark('s6mark', t, 16.95, .35);
+    [[$('tc1'), 17.0, 175, -3], [$('tc2'), 17.5, 735, 2], [$('tc3'), 18.0, 1270, -2]].forEach(([el, tl, x, r]) => {
+      const a = p(t, tl - .12, tl + .18);
+      T(el, { x, y: 520 + Math.sin((t - tl) * 3) * 6, s: a > 0 ? back(a) : 0, r, o: a > 0 ? 1 : 0 });
+    });
+  }
+
+  // S7 OUTRO 19.0 – 22.5
+  show('s7', t >= 19);
+  if (t >= 19) {
+    const ba = eo5(p(t, 19.15, 19.6));
+    T($('obrand'), { x: 960 - 330, y: 230 + (1 - ba) * 40, o: ba });
+    const pa = p(t, 19.2, 19.55);
+    T($('pill'), { x: 960 - 470, y: 430, s: pa > 0 ? back(pa) : 0, o: pa > 0 ? 1 : 0 });
+    const full = 'npx oc-lens';
+    const n = Math.floor(cl((t - 19.55) / .055, 0, full.length));
+    $('typed').textContent = full.slice(0, n);
+    $('cursor').style.opacity = (n < full.length || Math.floor((t - 19) * 2.5) % 2 === 0) ? 1 : 0;
+    const ma = eo5(p(t, 20.3, 20.7));
+    T($('ometa'), { y: 690 + (1 - ma) * 30, o: ma });
+    T($('s7'), { s: 1 + (t - 19) * .012, x: -(t - 19) * .012 * 960, y: -(t - 19) * .012 * 540 });
+  }
+}
+window.render = render;
+window.ready = (async () => {
+  await document.fonts.ready;
+  await Promise.all([...document.images].map(i => i.decode()));
+  await Promise.all([...document.fonts].map(f => f.load()));
+  render(0);
+  return true;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+Your coding agent ran the same failing test 4 times. You paid for all 4.
+
+oc-lens shows the loops, provider failures, and tokens opencode never recorded. Local and read-only.
+
+npx oc-lens
+github.com/ibrahimkobeissy/oc-lens
+
+#opencode #AIagents #devtools #opensource #buildinpublic

@@ -86,8 +86,9 @@ const V2_MESSAGE_SQL = `
 SELECT r.id, r.session_id, r.time_created, r.time_updated,
   json_patch('{}', json_object(
     'role', 'user',
-    -- opencode's own automatic resends (e.g. "continue" after a failed step); absent on real user turns.
-    'synthetic', CASE WHEN r.type = 'synthetic' THEN json('true') END,
+    -- Who injected a synthetic turn: metadata.source (e.g. "subagent" for a subagent's result), else
+    -- "opencode" (plan-mode reminders, "continue" after a failed step). Absent on real user turns.
+    'synthetic', CASE WHEN r.type = 'synthetic' THEN COALESCE(r.data ->> '$.metadata.source', 'opencode') END,
     'time', json_object('created', COALESCE(r.data ->> '$.time.created', r.time_created)),
     -- v2 user rows record no agent; the agent that answered the prompt is the honest stand-in.
     'agent', (SELECT a.data ->> '$.agent' FROM main.session_message a
@@ -109,6 +110,8 @@ SELECT r.id, r.session_id, r.time_created, r.time_updated,
     'time', json_object('created', COALESCE(r.data ->> '$.time.created', r.time_created), 'completed', r.data ->> '$.time.completed'),
     'finish', r.data ->> '$.finish',
     'error', r.data -> '$.error',
+    -- The last retry opencode scheduled inside this step, when it saved one (data-model §8.7).
+    'retry', r.data -> '$.retry',
     -- A step that failed at the provider or is still streaming records no tokens.
     -- Marked so pricing reads it as "nothing reported", not as broken evidence.
     'usage', CASE WHEN r.data -> '$.tokens' IS NULL THEN 'none' END

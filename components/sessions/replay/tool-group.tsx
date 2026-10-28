@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Layers3, Repeat2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Layers3, RefreshCw, Repeat2 } from "lucide-react";
 
+import { RepeatedAfterFailureMark } from "./failure-marks";
 import { partDomId } from "./part-registry";
 import { ToolPart } from "./tool-part";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +95,7 @@ export function effectiveExpanded(userOverride: boolean | null, targetExpanded: 
   return userOverride ?? (targetExpanded || defaultExpanded);
 }
 
-export function ToolGroup({ parts, turn, defaultExpanded = false, targetPartId, loopParts, onJumpToPart }: { parts: ReplayPart[]; turn: ReplayTurn; defaultExpanded?: boolean; targetPartId?: string | null; loopParts?: ReadonlyMap<string, LoopPartMark>; onJumpToPart?: (partId: string) => void }) {
+export function ToolGroup({ parts, turn, defaultExpanded = false, targetPartId, loopParts, repeatedParts, onJumpToPart }: { parts: ReplayPart[]; turn: ReplayTurn; defaultExpanded?: boolean; targetPartId?: string | null; loopParts?: ReadonlyMap<string, LoopPartMark>; repeatedParts?: ReadonlyMap<string, string>; onJumpToPart?: (partId: string) => void }) {
   const [userOverride, setUserOverride] = useState<boolean | null>(null);
   const targetExpanded = targetPartId !== null && targetPartId !== undefined && parts.some((part) => part.id === targetPartId);
   const expanded = effectiveExpanded(userOverride, targetExpanded, defaultExpanded);
@@ -106,6 +107,7 @@ export function ToolGroup({ parts, turn, defaultExpanded = false, targetPartId, 
   for (const part of parts) if (part.data.type === "tool") statuses[part.data.status] += 1;
   // Named on the header too, so a collapsed group still says a repeat is inside it.
   const repeatedCount = loopParts === undefined ? 0 : parts.filter((part) => loopParts.has(part.id)).length;
+  const redoneCount = repeatedParts === undefined ? 0 : parts.filter((part) => repeatedParts.has(part.id)).length;
   return <section className="rounded-lg border bg-muted/20 p-3" aria-label={`${parts.length} consecutive ${displayName} tool calls`}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -118,12 +120,13 @@ export function ToolGroup({ parts, turn, defaultExpanded = false, targetPartId, 
         {statuses.running > 0 ? <Badge>{statuses.running} running</Badge> : null}
         {statuses.unknown > 0 ? <Badge variant="outline">{statuses.unknown} unknown</Badge> : null}
         {repeatedCount > 0 ? <span title="These calls are not a loop with each other — each one separately also runs elsewhere in this session" className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-foreground"><Repeat2 aria-hidden="true" className="size-3" />{repeatedCount} also run elsewhere</span> : null}
+        {redoneCount > 0 ? <span title="Calls that repeat one made before a failed provider call" className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-foreground"><RefreshCw aria-hidden="true" className="size-3" />{redoneCount} redone after a failure</span> : null}
       </div>
       <Button type="button" variant="ghost" size="xs" aria-expanded={expanded} onClick={() => setUserOverride(!expanded)}>
         {expanded ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
         {expanded ? "Collapse calls" : "Expand calls"}
       </Button>
     </div>
-    {expanded ? <div className="mt-3 space-y-3">{parts.map((part) => { const mark = loopParts?.get(part.id); return <div key={part.id} id={partDomId(part.id)} data-part-id={part.id} data-looped={mark !== undefined || undefined} tabIndex={-1} className={cn("scroll-mt-24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", mark && "rounded-md ring-1 ring-warning/60")}>{mark ? <LoopMark mark={mark} onJumpToPart={onJumpToPart} /> : null}<ToolPart part={part} turn={turn} /></div>; })}</div> : null}
+    {expanded ? <div className="mt-3 space-y-3">{parts.map((part) => { const mark = loopParts?.get(part.id); const repeatOf = repeatedParts?.get(part.id); return <div key={part.id} id={partDomId(part.id)} data-part-id={part.id} data-looped={mark !== undefined || undefined} data-redone={repeatOf !== undefined || undefined} tabIndex={-1} className={cn("scroll-mt-24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (mark || repeatOf) && "rounded-md ring-1 ring-warning/60")}>{mark ? <LoopMark mark={mark} onJumpToPart={onJumpToPart} /> : null}{repeatOf ? <RepeatedAfterFailureMark originalPartId={repeatOf} onJumpToPart={onJumpToPart} /> : null}<ToolPart part={part} turn={turn} /></div>; })}</div> : null}
   </section>;
 }

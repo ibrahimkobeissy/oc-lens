@@ -6,19 +6,12 @@ import { ChevronRight } from "lucide-react";
 import { BarChartCard } from "@/components/charts/bar-chart-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TablePager, useClientPaging } from "@/components/ui/table-pager";
 import { formatCost, formatDuration, formatNumber } from "@/lib/format";
-import { FAILURE_KINDS, type FailureIncident, type FailureKind, type FailuresReport } from "@/lib/audit/failure-types";
+import { FAILURE_KIND_LABELS, FAILURE_KINDS, type FailureIncident, type FailuresReport } from "@/lib/audit/failure-types";
 import type { OcTokens } from "@/types/oc";
 
-export const KIND_LABELS: Record<FailureKind, string> = {
-  "rate-limit": "Rate limit (TPM/RPM)",
-  "provider-down": "Provider down (5xx)",
-  auth: "Auth rejected",
-  "invalid-request": "Invalid request",
-  "provider-error": "Provider error",
-  aborted: "Cancelled by you",
-  unknown: "Unknown",
-};
+export const KIND_LABELS = FAILURE_KIND_LABELS;
 
 function tokenTotal(tokens: OcTokens): number {
   return tokens.input + tokens.output + tokens.reasoning + tokens.cacheRead + tokens.cacheWrite;
@@ -29,6 +22,13 @@ export function resendCostLabel(amount: number, unpriced: number, priced: number
   if (priced === 0) return formatCost({ amount: 0, priced: false });
   const label = formatCost({ amount, priced: true });
   return unpriced > 0 ? `${label} (partial)` : label;
+}
+
+function cacheLostLabel(summary: FailuresReport["summary"]): string {
+  if (summary.cacheLostTokens === 0) return formatCost({ amount: 0, priced: true });
+  if (summary.cacheLostExtraAmount === 0 && summary.cacheLostUnpriced > 0) return formatCost({ amount: 0, priced: false });
+  const amount = `+${formatCost({ amount: summary.cacheLostExtraAmount, priced: true })}`;
+  return summary.cacheLostUnpriced > 0 ? `${amount} (partial)` : amount;
 }
 
 function Stat({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: "warning" }) {
@@ -46,15 +46,28 @@ function FailureSummary({ report }: { report: FailuresReport }) {
   const recoveredProvider = providerIncidents.filter((incident) => incident.recovery !== null).length;
   const pricedResends = recoveredProvider - summary.resendUnpriced;
   return (
-    <section aria-label="Failure totals" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Stat label="Failed model calls" value={formatNumber(summary.failedCalls)} hint={`${formatNumber(summary.byKind["rate-limit"])} rate-limited · ${formatNumber(summary.byKind["provider-down"])} provider down · ${formatNumber(summary.byKind.aborted)} cancelled by you`} />
+    <section aria-label="Failure totals" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+      <Stat label="Failed model calls" value={formatNumber(summary.failedCalls)} hint={`${formatNumber(summary.byKind["rate-limit"])} rate-limited · ${formatNumber(summary.byKind["provider-down"])} provider down · ${formatNumber(summary.byKind.aborted)} cancelled by you · ${formatNumber(summary.hiddenRetries)} retries opencode made inside steps`} />
       <Stat label="Resends after a failure" value={formatNumber(summary.autoResends + summary.userResends)} hint={`${formatNumber(summary.autoResends)} automatic by opencode · ${formatNumber(summary.userResends)} by you. Retries inside a single call are not saved by opencode.`} />
-      <Stat label="Tokens paid by resends" value={formatNumber(tokenTotal(summary.resendTokens))} hint={`${resendCostLabel(summary.resendCostAmount, summary.resendUnpriced, pricedResends)} across ${formatNumber(recoveredProvider)} recovered incident${recoveredProvider === 1 ? "" : "s"}. Upper bound: the original call would have paid most of this context too.`} />
+      <Stat
+        label="Cache lost to failures"
+        value={formatNumber(summary.cacheLostTokens)}
+        tone={summary.cacheLostTokens > 0 ? "warning" : undefined}
+        hint={`Tokens of context paid at full input price instead of cache price on the replay: ${cacheLostLabel(summary)}. ${formatNumber(summary.repeatedCalls)} tool call${summary.repeatedCalls === 1 ? "" : "s"} redone after a failure. The replays sent ${formatNumber(tokenTotal(summary.resendTokens))} tokens in all (${resendCostLabel(summary.resendCostAmount, summary.resendUnpriced, pricedResends)}), most of which the original call would have paid anyway.`}
+      />
+      <Stat
+        label="Accepted, never recorded"
+        value={summary.acceptedUnrecordedRequests > 0 ? `≈${formatNumber(summary.acceptedUnrecordedTokens)}` : "0"}
+        tone={summary.acceptedUnrecordedRequests > 0 ? "warning" : undefined}
+        hint={summary.acceptedUnrecordedRequests > 0
+          ? `Estimated tokens in ${formatNumber(summary.acceptedUnrecordedRequests)} request${summary.acceptedUnrecordedRequests === 1 ? "" : "s"} the provider accepted (HTTP 2xx) that broke mid-response, with no usage recorded by opencode — the likeliest charges you cannot see. Sized from the context of the step before each.`
+          : "No request the provider accepted (HTTP 2xx) went without recorded usage."}
+      />
       <Stat
         label="Usage recorded on failed calls"
         value={formatNumber(tokenTotal(summary.failedCallTokens))}
         tone={summary.failedCallsWithUsage > 0 ? "warning" : undefined}
-        hint={summary.failedCallsWithUsage > 0 ? `${formatNumber(summary.failedCallsWithUsage)} failed call${summary.failedCallsWithUsage === 1 ? "" : "s"} still reported usage — tokens the provider may have charged for a response you never got.` : "No failed call reported any usage. Whether the provider charged them anyway only shows on your bill — compare it below."}
+        hint={summary.failedCallsWithUsage > 0 ? `${formatNumber(summary.failedCallsWithUsage)} failed call${summary.failedCallsWithUsage === 1 ? "" : "s"} still reported usage — tokens the provider may have charged for a response you never got.` : "No failed call reported any usage."}
       />
     </section>
   );
@@ -78,13 +91,13 @@ function IncidentRow({ incident }: { incident: FailureIncident }) {
         <p className="col-start-2 text-xs text-muted-foreground md:col-start-auto">{incident.autoResends} auto · {incident.userResends} by you</p>
         <div className="col-start-2 md:col-start-auto md:text-right">
           {recovery ? <>
-            <p className="font-mono">{formatNumber(tokenTotal(recovery.tokens))} tokens</p>
-            <p className="text-xs text-muted-foreground">{formatCost(recovery.cost)} · recovered after {formatDuration(recovery.timeCreated - incident.firstFailureAt)}</p>
+            <p className="font-mono">{formatNumber(incident.cacheLost?.tokens ?? 0)} cache lost</p>
+            <p className="text-xs text-muted-foreground">{incident.repeatedCalls.length} redone · recovered after {formatDuration(recovery.timeCreated - incident.firstFailureAt)}</p>
           </> : <p className="text-xs text-muted-foreground">Never recovered</p>}
         </div>
       </summary>
       <div className="space-y-3 bg-muted/20 px-4 py-3 text-sm">
-        {recovery ? <p className="text-xs text-muted-foreground">The step that succeeded afterwards sent {formatNumber(recovery.tokens.input)} input tokens ({formatNumber(recovery.tokens.cacheRead)} read from cache) and received {formatNumber(recovery.tokens.output)} output tokens{recovery.modelID ? ` on ${recovery.providerID ?? "?"}/${recovery.modelID}` : ""}. A resend pays the whole conversation context again; little cache reuse means it paid close to full price.</p> : null}
+        {recovery ? <p className="text-xs text-muted-foreground">The step that succeeded afterwards sent {formatNumber(recovery.tokens.input)} input tokens ({formatNumber(recovery.tokens.cacheRead)} read from cache) and received {formatNumber(recovery.tokens.output)} output tokens{recovery.modelID ? ` on ${recovery.providerID ?? "?"}/${recovery.modelID}` : ""}. {incident.cacheLost && incident.cacheLost.tokens > 0 ? ` The step before the failure read ${formatNumber(incident.before?.tokens.cacheRead ?? 0)} from cache, so ${formatNumber(incident.cacheLost.tokens)} tokens were paid at the full input price instead (${incident.cacheLost.extraCost.priced ? `+${formatCost(incident.cacheLost.extraCost)}` : "not priced"}).` : ""}{incident.repeatedCalls.length > 0 ? ` ${incident.repeatedCalls.length} tool call${incident.repeatedCalls.length === 1 ? " was" : "s were"} redone after the resend.` : ""}</p> : null}
         <table className="w-full text-xs">
           <thead className="text-left text-muted-foreground"><tr><th className="py-1 pr-3 font-medium">When</th><th className="py-1 pr-3 font-medium">Failure</th><th className="py-1 pr-3 font-medium">HTTP</th><th className="py-1 pr-3 font-medium">Model</th><th className="py-1 pr-3 text-right font-medium">Usage recorded</th><th className="py-1 font-medium">Provider message</th></tr></thead>
           <tbody>{incident.failures.map((call) => (
@@ -104,6 +117,7 @@ function IncidentRow({ incident }: { incident: FailureIncident }) {
 }
 
 export function FailureReport({ report }: { report: FailuresReport }) {
+  const incidents = useClientPaging([...report.incidents].sort((left, right) => right.firstFailureAt - left.firstFailureAt), 10);
   const series = FAILURE_KINDS.filter((kind) => report.summary.byKind[kind] > 0).map((kind) => ({ key: kind, label: KIND_LABELS[kind] }));
   return (
     <div className="space-y-5">
@@ -116,7 +130,7 @@ export function FailureReport({ report }: { report: FailuresReport }) {
         </summary>
         {report.incidents.length === 0
           ? <p className="border-t border-border p-4 text-sm text-muted-foreground">No failed model calls in this range.</p>
-          : <div className="border-t border-border">{report.incidents.map((incident) => <IncidentRow key={`${incident.sessionId}-${incident.firstFailureAt}`} incident={incident} />)}</div>}
+          : <div className="border-t border-border">{incidents.visible.map((incident) => <IncidentRow key={`${incident.sessionId}-${incident.firstFailureAt}`} incident={incident} />)}<div className="border-t border-border p-4"><TablePager noun={["incident", "incidents"]} {...incidents.pagerProps} /></div></div>}
       </details>
     </div>
   );

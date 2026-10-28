@@ -2,10 +2,14 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Archive, Bot, CalendarDays, FolderKanban, MessageSquare, Wrench } from "lucide-react";
+import { Archive, ArrowDownUp, Bot, CalendarDays, FolderKanban, MessageSquare, Wrench } from "lucide-react";
 
+import { CollapsibleSection } from "@/components/layout/collapsible-section";
 import { FileTimeline } from "@/components/sessions/file-timeline";
 import { DailyTokenTable } from "@/components/sessions/replay/daily-token-table";
+import { NO_FAILURE_MARKS, replayFailureMarks } from "@/components/sessions/replay/failure-marks";
+import { SessionFailures } from "@/components/sessions/replay/session-failures";
+import { SessionSlowStarts } from "@/components/sessions/replay/session-slow-starts";
 import { SessionLoops } from "@/components/sessions/replay/session-loops";
 import { SessionSidebar } from "@/components/sessions/replay/session-sidebar";
 import { TokenAccumulationChart } from "@/components/sessions/replay/token-accumulation-chart";
@@ -18,6 +22,7 @@ import { Onboarding } from "@/components/states/onboarding";
 import { SchemaMismatch } from "@/components/states/schema-mismatch";
 import { WarningsBanner } from "@/components/states/warnings-banner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOc } from "@/hooks/use-oc";
@@ -64,17 +69,36 @@ export default function SessionReplayPage() {
   const tree = useOc(treeRoute, { enabled: (replay.data?.data.childIds.length ?? 0) > 0, polling: false });
   const files = useOc(filesRoute, { enabled: replay.data !== undefined && replay.error === undefined, polling: false });
   const loops = useOc(loopsRoute, { enabled: replay.data !== undefined && replay.error === undefined, polling: false });
+  const failures = useOc(`/api/sessions/${encodeURIComponent(id)}/failures`, { enabled: replay.data !== undefined && replay.error === undefined, polling: false });
+  const slowStarts = useOc(`/api/sessions/${encodeURIComponent(id)}/slow-starts?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}`, { enabled: replay.data !== undefined && replay.error === undefined, polling: false });
+  const failureMarks = useMemo(() => (failures.data || slowStarts.data ? replayFailureMarks(failures.data?.data, slowStarts.data?.data.slowSteps) : NO_FAILURE_MARKS), [failures.data, slowStarts.data]);
   const turnStreamRef = useRef<WindowedTurnStreamHandle>(null);
-  const jumpToTurn = useCallback((index: number) => turnStreamRef.current?.scrollToTurn(index), []);
+  // The conversation can be collapsed; every jump into it reopens it first and
+  // scrolls once the stream is laid out again.
+  const [conversationOpen, setConversationOpen] = useState(true);
+  const inConversation = useCallback((action: () => void) => {
+    setConversationOpen(true);
+    requestAnimationFrame(action);
+  }, []);
+  const jumpToTurn = useCallback((index: number) => inConversation(() => turnStreamRef.current?.scrollToTurn(index)), [inConversation]);
+  // Newest first by default: the latest turn is what you usually came to look at.
+  const [newestFirst, setNewestFirst] = useState(true);
+  const replayData = replay.data?.data;
+  const displayed = useMemo(() => (replayData && newestFirst ? { ...replayData, turns: [...replayData.turns].reverse() } : replayData), [replayData, newestFirst]);
+  const replayTurns = displayed?.turns;
+  const jumpToMessage = useCallback((messageId: string) => {
+    const index = replayTurns?.findIndex((turn) => turn.messageId === messageId) ?? -1;
+    if (index >= 0) inConversation(() => turnStreamRef.current?.scrollToTurn(index));
+  }, [replayTurns, inConversation]);
   // A jump from the loop panel retargets the stream, so the part is highlighted
   // and focused exactly as an incoming `?part=` deep link would.
   const [loopTargetPartId, setLoopTargetPartId] = useState<string | null>(null);
-  const turns = replay.data?.data.turns;
+  const turns = displayed?.turns;
   const jumpToPart = useCallback((partId: string) => {
     setLoopTargetPartId(partId);
     const index = turns === undefined ? -1 : replayTurnIndexForPart(turns, partId);
-    if (index >= 0) turnStreamRef.current?.scrollToTurn(index);
-  }, [turns]);
+    if (index >= 0) inConversation(() => turnStreamRef.current?.scrollToTurn(index));
+  }, [turns, inConversation]);
   // Only the repeated calls themselves are marked, each knowing which repeat it
   // is — banding a whole turn implied its unrelated calls were loops too.
   const loopParts = useMemo(() => {
@@ -112,9 +136,13 @@ export default function SessionReplayPage() {
     {files.isLoading ? <div role="status" aria-label="Loading file timeline"><Skeleton className="h-48 rounded-lg" /></div> : null}
     {files.error ? <ErrorState title="File timeline could not be loaded" message={files.error.message} onRetry={() => void files.mutate()} /> : null}
     {files.data ? <FileTimeline changes={files.data.data.changes} projectWorktree={files.data.data.projectWorktree} /> : null}
+    {slowStarts.data ? <SessionSlowStarts report={slowStarts.data.data} onJumpToMessage={jumpToMessage} /> : null}
+    {failures.data ? <SessionFailures report={failures.data.data} sessionTokens={session.tokens} onJumpToMessage={jumpToMessage} /> : null}
     {loops.data ? <SessionLoops analysis={loops.data.data} onJumpToPart={jumpToPart} minRepeats={minRepeats} onMinRepeatsChange={setMinRepeats} /> : null}
     <TokenAccumulationChart replay={data} />
     <DailyTokenTable turns={data.turns} />
-    {data.turns.length === 0 ? <EmptyState title="No replay turns" description="This session has no recorded messages to replay." /> : <div className="flex min-w-0 flex-col gap-4 lg:flex-row"><SessionSidebar replay={data} onTurnJump={jumpToTurn} /><div className="min-w-0 flex-1"><WindowedTurnStream ref={turnStreamRef} turns={data.turns} targetPartId={loopTargetPartId ?? searchParams.get("part")} loopParts={loopParts} onJumpToPart={jumpToPart} /></div></div>}
+    <CollapsibleSection aria-label="Conversation" title={<><MessageSquare aria-hidden="true" className="size-4" />Conversation</>} description={`${formatNumber(data.turns.length)} turns, ${newestFirst ? "newest" : "oldest"} first. Failed calls, resends, slow starts, and loops are marked in place.`} aside={<Button type="button" variant="outline" size="xs" onClick={() => setNewestFirst((value) => !value)}><ArrowDownUp aria-hidden="true" />{newestFirst ? "Newest first" : "Oldest first"}</Button>} open={conversationOpen} onOpenChange={setConversationOpen}>
+      {data.turns.length === 0 ? <EmptyState title="No replay turns" description="This session has no recorded messages to replay." /> : <div className="flex min-w-0 flex-col gap-4 lg:flex-row"><SessionSidebar replay={displayed ?? data} newestFirst={newestFirst} loopParts={loopParts} failureMarks={failureMarks} onTurnJump={jumpToTurn} /><div className="min-w-0 flex-1"><WindowedTurnStream ref={turnStreamRef} turns={displayed?.turns ?? data.turns} targetPartId={loopTargetPartId ?? searchParams.get("part")} loopParts={loopParts} failureMarks={failureMarks} onJumpToPart={jumpToPart} /></div></div>}
+    </CollapsibleSection>
   </div>;
 }

@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Bot, Clock, Repeat2, UserRound } from "lucide-react";
 
 import { AssistantMarkdown } from "./assistant-markdown";
+import { FailureTurnBanner, RepeatedAfterFailureMark, SlowStartBanner, type ReplayFailureMarks } from "./failure-marks";
 import { partDomId, registerReplayPartRenderer, replayPartRenderer, type ReplayPartRendererProps } from "./part-registry";
 import "./compaction-card";
 import "./patch-card";
@@ -34,16 +35,17 @@ function tokenTotal(tokens: OcTokens | null): number | null {
   return tokens === null ? null : tokens.input + tokens.output + tokens.reasoning + tokens.cacheRead + tokens.cacheWrite;
 }
 
-function PartList({ turn, targetPartId, loopParts, onJumpToPart }: { turn: ReplayTurn; targetPartId?: string | null; loopParts?: ReadonlyMap<string, LoopPartMark>; onJumpToPart?: (partId: string) => void }) {
+function PartList({ turn, targetPartId, loopParts, repeatedParts, onJumpToPart }: { turn: ReplayTurn; targetPartId?: string | null; loopParts?: ReadonlyMap<string, LoopPartMark>; repeatedParts?: ReadonlyMap<string, string>; onJumpToPart?: (partId: string) => void }) {
   return <div className="space-y-3">{groupConsecutiveToolParts(turn.parts).map((item) => {
     if (item.kind === "tool-group") {
       const targetInGroup = targetPartId !== null && targetPartId !== undefined && item.parts.some((part) => part.id === targetPartId);
-      return <ToolGroup key={`group-${item.parts[0]?.id ?? item.tool}`} parts={item.parts} turn={turn} targetPartId={targetInGroup ? targetPartId : null} loopParts={loopParts} onJumpToPart={onJumpToPart} />;
+      return <ToolGroup key={`group-${item.parts[0]?.id ?? item.tool}`} parts={item.parts} turn={turn} targetPartId={targetInGroup ? targetPartId : null} loopParts={loopParts} repeatedParts={repeatedParts} onJumpToPart={onJumpToPart} />;
     }
     const part = item.part;
     const Renderer = replayPartRenderer(part.data.type);
     const mark = loopParts?.get(part.id);
-    return <div key={part.id} id={partDomId(part.id)} data-part-id={part.id} data-looped={mark !== undefined || undefined} tabIndex={-1} className={cn("scroll-mt-24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", mark && "rounded-md ring-1 ring-warning/60")}>{mark ? <LoopMark mark={mark} onJumpToPart={onJumpToPart} /> : null}<Renderer part={part} turn={turn} /></div>;
+    const repeatOf = repeatedParts?.get(part.id);
+    return <div key={part.id} id={partDomId(part.id)} data-part-id={part.id} data-looped={mark !== undefined || undefined} data-redone={repeatOf !== undefined || undefined} tabIndex={-1} className={cn("scroll-mt-24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", (mark || repeatOf) && "rounded-md ring-1 ring-warning/60")}>{mark ? <LoopMark mark={mark} onJumpToPart={onJumpToPart} /> : null}{repeatOf ? <RepeatedAfterFailureMark originalPartId={repeatOf} onJumpToPart={onJumpToPart} /> : null}<Renderer part={part} turn={turn} /></div>;
   })}</div>;
 }
 
@@ -65,20 +67,22 @@ interface TurnCardProps {
   targeted?: boolean;
   /** Per-part repeat position, keyed by part id — only the repeated calls themselves. */
   loopParts?: ReadonlyMap<string, LoopPartMark>;
+  /** Failed calls, resends, recoveries, and calls redone after a failure. */
+  failureMarks?: ReplayFailureMarks;
   onJumpToPart?: (partId: string) => void;
 }
 
-export function UserTurnCard({ turn, position, setSize, targetPartId, targeted = false, loopParts, onJumpToPart }: TurnCardProps) {
-  return <article aria-label="User turn" aria-posinset={position} aria-setsize={setSize} data-message-id={turn.messageId} data-targeted={targeted || undefined} tabIndex={targeted ? -1 : undefined} className={cn("ml-auto max-w-3xl rounded-xl border border-primary/25 bg-primary/5 p-4", targeted && "ring-2 ring-primary ring-offset-2 ring-offset-background")}><header className="mb-3 flex items-start justify-between gap-3"><div className="flex items-center gap-2 font-medium"><UserRound aria-hidden="true" className="size-4 text-primary" />User</div><TurnMeta turn={turn} /></header><PartList turn={turn} targetPartId={targetPartId} loopParts={loopParts} onJumpToPart={onJumpToPart} /></article>;
+export function UserTurnCard({ turn, position, setSize, targetPartId, targeted = false, loopParts, failureMarks, onJumpToPart }: TurnCardProps) {
+  return <article aria-label="User turn" aria-posinset={position} aria-setsize={setSize} data-message-id={turn.messageId} data-targeted={targeted || undefined} tabIndex={targeted ? -1 : undefined} className={cn("ml-auto max-w-3xl rounded-xl border border-primary/25 bg-primary/5 p-4", targeted && "ring-2 ring-primary ring-offset-2 ring-offset-background")}><header className="mb-3 flex items-start justify-between gap-3"><div className="flex items-center gap-2 font-medium"><UserRound aria-hidden="true" className="size-4 text-primary" />User</div><TurnMeta turn={turn} /></header><FailureTurnBanner mark={failureMarks?.turns.get(turn.messageId)} /><PartList turn={turn} targetPartId={targetPartId} loopParts={loopParts} repeatedParts={failureMarks?.repeatedParts} onJumpToPart={onJumpToPart} /></article>;
 }
 
-export function AssistantTurnCard({ turn, position, setSize, targetPartId, targeted = false, loopParts, onJumpToPart }: TurnCardProps) {
+export function AssistantTurnCard({ turn, position, setSize, targetPartId, targeted = false, loopParts, failureMarks, onJumpToPart }: TurnCardProps) {
   // Count only this turn's own repeated calls. Bordering the whole turn implied
   // every call in it was a loop, which is wrong when a turn reads five files and
   // exactly one of them is a repeat.
   const loopedCount = loopParts === undefined ? 0 : turn.parts.filter((part) => loopParts.has(part.id)).length;
   const unknown = turn.role === "unknown";
-  return <article aria-label={unknown ? "Unknown-role turn" : "Assistant turn"} aria-posinset={position} aria-setsize={setSize} data-message-id={turn.messageId} data-targeted={targeted || undefined} tabIndex={targeted ? -1 : undefined} data-looped={loopedCount > 0 || undefined} className={cn("mr-auto max-w-4xl rounded-xl border bg-card p-4", unknown && "border-dashed", targeted && "ring-2 ring-primary ring-offset-2 ring-offset-background")}><header className="mb-3 flex items-start justify-between gap-3"><div className="flex items-center gap-2 font-medium"><Bot aria-hidden="true" className="size-4 text-primary" />{unknown ? "Unknown role" : "Assistant"}{loopedCount > 0 ? <span title="Only the marked calls below are repeats; the rest of this turn is unrelated" className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium tracking-wide text-foreground"><Repeat2 aria-hidden="true" className="size-3" />{loopedCount} repeated call{loopedCount === 1 ? "" : "s"}</span> : null}</div><TurnMeta turn={turn} showDuration={false} /></header><div className="mb-3"><TurnMetrics turn={turn} /></div><PartList turn={turn} targetPartId={targetPartId} loopParts={loopParts} onJumpToPart={onJumpToPart} /></article>;
+  return <article aria-label={unknown ? "Unknown-role turn" : "Assistant turn"} aria-posinset={position} aria-setsize={setSize} data-message-id={turn.messageId} data-targeted={targeted || undefined} tabIndex={targeted ? -1 : undefined} data-looped={loopedCount > 0 || undefined} className={cn("mr-auto max-w-4xl rounded-xl border bg-card p-4", unknown && "border-dashed", targeted && "ring-2 ring-primary ring-offset-2 ring-offset-background")}><header className="mb-3 flex items-start justify-between gap-3"><div className="flex items-center gap-2 font-medium"><Bot aria-hidden="true" className="size-4 text-primary" />{unknown ? "Unknown role" : "Assistant"}{loopedCount > 0 ? <span title="Only the marked calls below are repeats; the rest of this turn is unrelated" className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium tracking-wide text-foreground"><Repeat2 aria-hidden="true" className="size-3" />{loopedCount} repeated call{loopedCount === 1 ? "" : "s"}</span> : null}</div><TurnMeta turn={turn} showDuration={false} /></header><FailureTurnBanner mark={failureMarks?.turns.get(turn.messageId)} /><SlowStartBanner step={failureMarks?.slowStarts.get(turn.messageId)} /><div className="mb-3"><TurnMetrics turn={turn} /></div><PartList turn={turn} targetPartId={targetPartId} loopParts={loopParts} repeatedParts={failureMarks?.repeatedParts} onJumpToPart={onJumpToPart} /></article>;
 }
 
 /** An opencode 2.x lifecycle record between turns — a marker, not a conversation turn. */
@@ -145,7 +149,7 @@ export function replayTurnFocusTarget(root: ParentNode, messageId: string): HTML
   ) ?? null;
 }
 
-export const WindowedTurnStream = forwardRef<WindowedTurnStreamHandle, { turns: ReplayTurn[]; targetPartId?: string | null; loopParts?: ReadonlyMap<string, LoopPartMark>; onJumpToPart?: (partId: string) => void }>(function WindowedTurnStream({ turns, targetPartId, loopParts, onJumpToPart }, ref) {
+export const WindowedTurnStream = forwardRef<WindowedTurnStreamHandle, { turns: ReplayTurn[]; targetPartId?: string | null; loopParts?: ReadonlyMap<string, LoopPartMark>; failureMarks?: ReplayFailureMarks; onJumpToPart?: (partId: string) => void }>(function WindowedTurnStream({ turns, targetPartId, loopParts, failureMarks, onJumpToPart }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const cancelTurnFocusRef = useRef<(() => void) | null>(null);
   const [targetTurnIndex, setTargetTurnIndex] = useState<number | null>(null);
@@ -189,6 +193,6 @@ export const WindowedTurnStream = forwardRef<WindowedTurnStreamHandle, { turns: 
   return <div ref={scrollRef} role="feed" aria-label="Ordered replay turns" className="h-[calc(100vh-15rem)] min-h-[32rem] overflow-auto rounded-lg border border-border bg-muted/20 p-3"><div role="presentation" className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>{virtualItems.map((item) => {
     const turn = turns[item.index];
     if (!turn) return null;
-    return <div key={item.key} ref={virtualizer.measureElement} role="presentation" data-index={item.index} className="absolute left-0 top-0 w-full pb-4" style={{ transform: `translateY(${item.start}px)` }}><TurnCard turn={turn} position={item.index + 1} setSize={turns.length} targetPartId={targetPartId} targeted={targetTurnIndex === item.index} loopParts={loopParts} onJumpToPart={onJumpToPart} /></div>;
+    return <div key={item.key} ref={virtualizer.measureElement} role="presentation" data-index={item.index} className="absolute left-0 top-0 w-full pb-4" style={{ transform: `translateY(${item.start}px)` }}><TurnCard turn={turn} position={item.index + 1} setSize={turns.length} targetPartId={targetPartId} targeted={targetTurnIndex === item.index} loopParts={loopParts} failureMarks={failureMarks} onJumpToPart={onJumpToPart} /></div>;
   })}</div></div>;
 });

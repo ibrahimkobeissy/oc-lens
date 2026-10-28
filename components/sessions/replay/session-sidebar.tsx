@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bot, List, MessagesSquare } from "lucide-react";
+import { AlertOctagon, Bot, Hourglass, List, MessagesSquare, RefreshCw, Repeat2, Wrench } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { formatDuration, formatNumber, formatTokens } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ReplayTurn, SessionReplay } from "@/types/oc";
+import type { ReplayFailureMarks } from "./failure-marks";
+import type { LoopPartMark } from "./tool-group";
 
 export interface VisibleTurnEvidence {
   index: number;
@@ -33,12 +35,53 @@ export function jumpToReplayTurn(turn: Pick<ReplayTurn, "messageId">, index: num
   return scrollMountedReplayTurn(turn.messageId, root);
 }
 
-function turnLabel(turn: ReplayTurn, index: number): string {
+/** `number` is the turn's position in the session, which differs from its list index when the list runs newest first. */
+function turnLabel(turn: ReplayTurn, number: number): string {
   const event = turn.parts.find((part) => part.data.type === "session-event");
-  if (event?.data.type === "session-event") return `${index + 1}. ${event.data.summary.slice(0, 64)}`;
+  if (event?.data.type === "session-event") return `${number}. ${event.data.summary.slice(0, 64)}`;
   const text = turn.parts.find((part) => part.data.type === "text");
   const preview = text?.data.type === "text" ? text.data.text.trim().replace(/\s+/g, " ") : "";
-  return preview ? `${index + 1}. ${preview.slice(0, 64)}` : `${index + 1}. ${turn.role === "unknown" ? "unknown role" : turn.role}`;
+  return preview ? `${number}. ${preview.slice(0, 64)}` : `${number}. ${turn.role === "unknown" ? "unknown role" : turn.role}`;
+}
+
+export interface TurnFlags {
+  toolCalls: number;
+  error: boolean; // a failed provider call, or a tool call that errored
+  loop: boolean; // a repeated call: a loop, or a call redone after a failure
+  slowStart: boolean;
+  resend: boolean;
+}
+
+/** What a turn-index entry shows next to its label. Pure, so it is cheap for hundreds of turns. */
+export function turnFlags(turn: ReplayTurn, loopParts?: ReadonlyMap<string, LoopPartMark>, failureMarks?: ReplayFailureMarks): TurnFlags {
+  let toolCalls = 0;
+  let toolError = false;
+  let loop = false;
+  for (const part of turn.parts) {
+    if (part.data.type === "tool") {
+      toolCalls += 1;
+      if (part.data.status === "error") toolError = true;
+    }
+    if (loopParts?.has(part.id) || failureMarks?.repeatedParts.has(part.id)) loop = true;
+  }
+  const mark = failureMarks?.turns.get(turn.messageId);
+  return {
+    toolCalls,
+    error: toolError || mark?.type === "failed",
+    loop,
+    slowStart: failureMarks?.slowStarts.has(turn.messageId) ?? false,
+    resend: mark?.type === "resend",
+  };
+}
+
+function FlagIcons({ flags }: { flags: TurnFlags }) {
+  return <span className="flex shrink-0 items-center gap-1">
+    {flags.error ? <AlertOctagon role="img" aria-label="Error" className="size-3.5 text-destructive"><title>Error: a failed call or an errored tool</title></AlertOctagon> : null}
+    {flags.loop ? <Repeat2 role="img" aria-label="Repeated call" className="size-3.5 text-warning"><title>Repeated call (loop, or redone after a failure)</title></Repeat2> : null}
+    {flags.slowStart ? <Hourglass role="img" aria-label="Slow start" className="size-3.5 text-warning"><title>Slow start: possible hidden retries or a slow provider</title></Hourglass> : null}
+    {flags.resend ? <RefreshCw role="img" aria-label="Resend" className="size-3.5 text-warning"><title>Resend after a failed call</title></RefreshCw> : null}
+    {flags.toolCalls > 0 ? <Wrench role="img" aria-label={`${flags.toolCalls} tool call${flags.toolCalls === 1 ? "" : "s"}`} className="size-3.5 text-muted-foreground/70"><title>{`${flags.toolCalls} tool call${flags.toolCalls === 1 ? "" : "s"}`}</title></Wrench> : null}
+  </span>;
 }
 
 function useReplayScrollSpy(turns: readonly ReplayTurn[]): [number, (index: number) => void] {
@@ -81,9 +124,12 @@ interface SidebarContentsProps {
   replay: SessionReplay;
   activeTurnIndex: number;
   onSelect: (index: number) => void;
+  newestFirst: boolean;
+  loopParts?: ReadonlyMap<string, LoopPartMark>;
+  failureMarks?: ReplayFailureMarks;
 }
 
-function SidebarContents({ replay, activeTurnIndex, onSelect }: SidebarContentsProps) {
+function SidebarContents({ replay, activeTurnIndex, onSelect, newestFirst, loopParts, failureMarks }: SidebarContentsProps) {
   const session = replay.session;
   const totalTokens = session.tokens.input + session.tokens.output + session.tokens.reasoning + session.tokens.cacheRead + session.tokens.cacheWrite;
   return (
@@ -96,7 +142,7 @@ function SidebarContents({ replay, activeTurnIndex, onSelect }: SidebarContentsP
       <nav aria-label="Replay turn index" className="min-h-0 flex-1 overflow-y-auto">
         {replay.turns.length === 0 ? <p className="text-xs text-muted-foreground">No turns to index.</p> : (
           <ol className="space-y-1">
-            {replay.turns.map((turn, index) => <li key={turn.messageId}><button type="button" aria-current={activeTurnIndex === index ? "step" : undefined} onClick={() => onSelect(index)} className={cn("block w-full truncate rounded-md px-2 py-1.5 text-left text-xs transition-colors", activeTurnIndex === index ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")} title={turnLabel(turn, index)}>{turnLabel(turn, index)}</button></li>)}
+            {replay.turns.map((turn, index) => <li key={turn.messageId}><button type="button" aria-current={activeTurnIndex === index ? "step" : undefined} onClick={() => onSelect(index)} className={cn("flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs transition-colors", activeTurnIndex === index ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")} title={turnLabel(turn, newestFirst ? replay.turns.length - index : index + 1)}><span className="min-w-0 flex-1 truncate">{turnLabel(turn, newestFirst ? replay.turns.length - index : index + 1)}</span><FlagIcons flags={turnFlags(turn, loopParts, failureMarks)} /></button></li>)}
           </ol>
         )}
       </nav>
@@ -104,7 +150,7 @@ function SidebarContents({ replay, activeTurnIndex, onSelect }: SidebarContentsP
   );
 }
 
-export function SessionSidebar({ replay, onTurnJump }: { replay: SessionReplay; onTurnJump: (turnIndex: number) => void }) {
+export function SessionSidebar({ replay, onTurnJump, newestFirst = false, loopParts, failureMarks }: { replay: SessionReplay; onTurnJump: (turnIndex: number) => void; newestFirst?: boolean; loopParts?: ReadonlyMap<string, LoopPartMark>; failureMarks?: ReplayFailureMarks }) {
   const [activeTurnIndex, setActiveTurnIndex] = useReplayScrollSpy(replay.turns);
   const [sheetOpen, setSheetOpen] = useState(false);
   const selectTurn = (index: number) => {
@@ -117,14 +163,14 @@ export function SessionSidebar({ replay, onTurnJump }: { replay: SessionReplay; 
   return (
     <>
       <aside aria-label="Session replay sidebar" className="sticky top-20 hidden h-[calc(100vh-15rem)] min-h-[32rem] w-72 shrink-0 lg:flex lg:flex-col">
-        <SidebarContents replay={replay} activeTurnIndex={activeTurnIndex} onSelect={selectTurn} />
+        <SidebarContents replay={replay} activeTurnIndex={activeTurnIndex} onSelect={selectTurn} newestFirst={newestFirst} loopParts={loopParts} failureMarks={failureMarks} />
       </aside>
       <div className="lg:hidden">
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild><Button type="button" variant="outline" className="w-full"><List aria-hidden="true" />Session details and turn index</Button></SheetTrigger>
           <SheetContent side="right" className="w-[min(92vw,24rem)] sm:max-w-sm">
             <SheetHeader><SheetTitle className="flex items-center gap-2"><MessagesSquare aria-hidden="true" />Session replay</SheetTitle><SheetDescription>Metadata and ordered turn navigation.</SheetDescription></SheetHeader>
-            <div className="min-h-0 flex-1 overflow-hidden px-4 pb-4"><SidebarContents replay={replay} activeTurnIndex={activeTurnIndex} onSelect={selectTurn} /></div>
+            <div className="min-h-0 flex-1 overflow-hidden px-4 pb-4"><SidebarContents replay={replay} activeTurnIndex={activeTurnIndex} onSelect={selectTurn} newestFirst={newestFirst} loopParts={loopParts} failureMarks={failureMarks} /></div>
           </SheetContent>
         </Sheet>
       </div>

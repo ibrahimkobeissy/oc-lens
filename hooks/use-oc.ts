@@ -1,7 +1,8 @@
 "use client";
 
 import type { DailyUsageRow } from "@/lib/pricing/breakdown";
-import type { FailuresReport } from "@/lib/audit/failure-types";
+import type { FailuresReport, SessionFailureReport } from "@/lib/audit/failure-types";
+import type { SlowStartReport } from "@/lib/audit/slow-start-types";
 import { ocFetcher, ocSWRConfig, type OcApiError } from "@/lib/swr";
 import type {
   LoopAnalysis,
@@ -23,7 +24,6 @@ import type {
   SkillSummary,
   StorageBreakdown,
   SubagentNode,
-  TodosResponse,
   ToolsStats,
 } from "@/types/oc";
 import useSWR, { type SWRConfiguration, type SWRResponse } from "swr";
@@ -33,14 +33,13 @@ type StaticRoute =
   | "/api/stats"
   | "/api/activity"
   | "/api/sessions"
-  | "/api/sessions/tree"
   | "/api/projects"
   | "/api/tools"
   | "/api/skills"
-  | "/api/todos"
   | "/api/costs"
   | "/api/costs/daily"
   | "/api/audit/failures"
+  | "/api/audit/slow-starts"
   | "/api/storage"
   | "/api/pricing"
   | "/api/settings"
@@ -61,6 +60,8 @@ export type OcRoute =
   | `/api/sessions/${string}/tree${Query}`
   | `/api/sessions/${string}/files`
   | `/api/sessions/${string}/files${Query}`
+  | `/api/sessions/${string}/failures`
+  | `/api/sessions/${string}/slow-starts${Query}`
   | `/api/projects/${string}`
   | `/api/projects/${string}${Query}`;
 
@@ -73,12 +74,14 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
     ? ActivityStats
     : WithoutQuery<R> extends "/api/sessions"
       ? SessionListResponse
-      : WithoutQuery<R> extends "/api/sessions/tree"
-        ? SubagentNode[]
         : WithoutQuery<R> extends `/api/sessions/${string}/tree`
           ? SubagentNode
         : WithoutQuery<R> extends `/api/sessions/${string}/files`
           ? SessionFilesData
+        : WithoutQuery<R> extends `/api/sessions/${string}/failures`
+          ? SessionFailureReport
+        : WithoutQuery<R> extends `/api/sessions/${string}/slow-starts`
+          ? SlowStartReport
       : WithoutQuery<R> extends `/api/sessions/${string}/replay`
         ? SessionReplay
         : WithoutQuery<R> extends `/api/sessions/${string}`
@@ -91,14 +94,14 @@ export type OcRouteData<R extends OcRoute> = WithoutQuery<R> extends "/api/stats
                 ? ToolsStats
                 : WithoutQuery<R> extends "/api/skills"
                   ? SkillSummary[]
-                  : WithoutQuery<R> extends "/api/todos"
-                    ? TodosResponse
                   : WithoutQuery<R> extends "/api/costs"
                     ? CostBreakdown
                   : WithoutQuery<R> extends "/api/costs/daily"
                     ? DailyUsageRow[]
                   : WithoutQuery<R> extends "/api/audit/failures"
                     ? FailuresReport
+                  : WithoutQuery<R> extends "/api/audit/slow-starts"
+                    ? SlowStartReport
                     : WithoutQuery<R> extends "/api/storage"
                       ? StorageBreakdown
                       : WithoutQuery<R> extends "/api/pricing"

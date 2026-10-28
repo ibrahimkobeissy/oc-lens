@@ -60,6 +60,11 @@ vi.mock("@/hooks/use-oc", () => ({
         mutate: vi.fn(),
       };
     }
+    if (route.includes("/slow-starts")) return { data: { data: { measurable: true, byDay: [], slowSteps: [] }, meta }, error: undefined, isLoading: false, mutate: vi.fn() };
+    if (route.endsWith("/failures")) {
+      const overhead = { failedCalls: 0, failedCallTokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 }, cacheLostTokens: 0, cacheLostExtraAmount: 0, cacheLostUnpriced: 0, repeatedCalls: 0 };
+      return { data: { data: { incidents: [], overhead }, meta }, error: undefined, isLoading: false, mutate: vi.fn() };
+    }
     if (state.filesMode === "loading") return { data: undefined, error: undefined, isLoading: true, mutate: state.filesMutate };
     if (state.filesMode === "error") return { data: undefined, error: { message: "files failed" }, isLoading: false, mutate: state.filesMutate };
     const changes = state.filesMode === "empty" ? [] : [{ sessionId: "ses/one", filePath: "/repo/src/a.ts", tool: "write", timeCreated: 1_500, partId: "part/one" }];

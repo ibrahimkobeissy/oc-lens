@@ -8,14 +8,10 @@
  *
  * Route table
  * -----------
- * This lists exactly the routes named in backlog.md §4.1's dependency graph
- * ("API routes: 030 040 050 052 060 070 080 091 110 120"). Every route wraps
- * its payload in `OcEnvelope<T>` (success) or returns `OcErrorEnvelope`
- * (failure) — see "Envelope" below. Routes owned by later tickets (pricing
- * OCL-016, search OCL-022, storage OCL-035, agents OCL-101, skills OCL-102,
- * health OCL-112, subagent tree OCL-100, file timeline OCL-103) are not in
- * §4.1's list and add their own response types to this file via a documented
- * amendment when their ticket lands, per backlog.md §4.3's serialisation note.
+ * The core v1 routes. Every route wraps its payload in `OcEnvelope<T>`
+ * (success) or returns `OcErrorEnvelope` (failure) — see "Envelope" below.
+ * Routes added later (pricing, search, storage, agents, skills, health,
+ * file timeline, loops) add their response types further down this file.
  *
  * | Ticket  | Route                          | Response type (wrapped in OcResponse<T>) |
  * |---------|---------------------------------|-------------------------------------------|
@@ -744,8 +740,7 @@ export interface ExportResponse {
 // ─── Loop detection (post-v1 amendment) ────────────────────────────────────
 
 /**
- * Documented amendment to this frozen file, per backlog.md §4.3. Loop detection
- * is post-v1 scope: the maintainer's stated primary objective is spotting when
+ * Added after v1. Loop detection exists because the maintainer's stated primary objective is spotting when
  * the model loops for nothing or loops on errors. Nothing here changes an
  * existing field.
  *

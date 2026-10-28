@@ -14,11 +14,9 @@ import {
 } from "lucide-react";
 
 /**
- * The single extension point for navigation (OCL-020). A page ticket adds its
- * entry here and nowhere else — it never edits the sidebar/top-bar/mobile-nav
- * components directly (backlog.md §4.3's serialisation note: this file is
- * owned only by OCL-020; later additions go through this array, not the
- * components that render it).
+ * The single extension point for navigation. A new page adds its entry here
+ * and nowhere else — never in the sidebar/top-bar/mobile-nav components that
+ * render this array.
  *
  * `enabled: false` means the page doesn't exist yet — it renders in the nav
  * as present-but-inert (visually muted, not a real link) rather than being

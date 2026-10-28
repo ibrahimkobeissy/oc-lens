@@ -1,6 +1,6 @@
 # opencode data model — verified reference
 
-**This is the evidence base for every data-layer ticket in [backlog.md](./backlog.md).** Everything marked ✅ VERIFIED was read directly out of the live opencode database on the maintainer's machine on 2026-08-01. **opencode 2.x replaced the transcript tables — see §8 (verified 2026-10-26) before touching any query.** Everything marked ⚠️ UNVERIFIED is claimed by upstream docs or by the vault synthesis note but was **not** observable in the sample available. Do not code against an ⚠️ shape without running the probe step named in its ticket first.
+**This is the evidence base for every data-layer decision in oc-lens.** Everything marked ✅ VERIFIED was read directly out of the live opencode database on the maintainer's machine on 2026-08-01. **opencode 2.x replaced the transcript tables — see §8 (verified 2026-10-26) before touching any query.** Everything marked ⚠️ UNVERIFIED is claimed by upstream docs or by the vault synthesis note but was **not** observable in the sample available. Do not code against an ⚠️ shape without running the probe step named in its ticket first.
 
 ## 0. Environment as measured
 

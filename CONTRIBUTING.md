@@ -1,34 +1,27 @@
 # Contributing to oc-lens
 
-oc-lens protects a database containing a user's complete local agent history. Contributions must preserve the read-only boundary and the evidence rules below.
+Thanks for helping. oc-lens reads a database that holds someone's complete local agent history, so a few rules are non-negotiable. Everything else is ordinary good practice.
 
-## Before taking a ticket
+## The rules
 
-Read these binding documents in full:
+1. **Read-only, always.** The opencode database is opened with `readOnly: true`. No route may write to opencode's database, configuration, or session files. The single sanctioned write is oc-lens's own pricing file, `~/.config/oc-lens/config.json`, through `PUT /api/pricing`.
+2. **Never infer a data shape.** [`project-docs/opencode-data-model.md`](project-docs/opencode-data-model.md) is the source of truth for what opencode stores. If you need a shape it marks ⚠️ UNVERIFIED, or one it does not cover, probe a real database **values-free** (key paths, JSON types, counts, enum-like labels — never text, inputs, paths, or ids) and record the result in that document in the same change.
+3. **Tests use fixtures, never your own history.** Use `test/fixtures/populated.db`, `test/fixtures/empty.db`, the 2.x fixtures in `test/fixtures/v2-fixture.ts`, or a purpose-built temporary database.
+4. **Be honest in the UI.** Empty, sparse, and populated data must all render. No `NaN`, no `Infinity`, no `$0.00` where the truth is "not priced"; unknown values get an explicit `unknown` bucket. An estimate is labelled as one.
+5. **Credentials stay untouched.** The `account`, `credential`, and related tables, and opencode's `auth.json`, are never read; no value from them may appear in any response.
 
-1. [`project-docs/backlog.md`](project-docs/backlog.md), especially §0 (process), the ticket's `Depends on` and `Owns` fields, and §5 (global Definition of Done).
-2. [`project-docs/opencode-data-model.md`](project-docs/opencode-data-model.md), the only source of truth for opencode data shapes.
-3. [`AGENTS.md`](AGENTS.md) for repository and security constraints.
-
-Take **exactly one ticket**. Do not start it until every dependency is merged. Treat the ticket's `Owns` list as an exclusive file lock: no drive-by edits, including to frozen `types/oc.ts`. If a needed change falls outside the lock, stop and coordinate a separate ticket.
-
-A shape marked ⚠️ UNVERIFIED requires the probe named by its ticket. Run that probe and update the data-model document in the same change; never infer a database or JSON shape from fixtures, cc-lens, or memory.
-
-## Development
+## Set up
 
 Node.js 22.23.4+, 24.22.1+, or 26.12.1+ (the Node2Shell fix, CVE-2026-111497) and pnpm are required.
 
 ```sh
 pnpm install
-pnpm fixture
-OC_LENS_DB="$PWD/test/fixtures/populated.db" pnpm dev
+pnpm fixture          # synthetic opencode 1.x history, ~120 sessions
+pnpm fixture:demo     # synthetic opencode 2.x history with failures, retries, and slow starts
+OC_LENS_DB="$PWD/test/fixtures/demo.db" pnpm dev
 ```
 
-`.reference/cc-lens` may inform information architecture, component structure, and interaction design only. Do not use its Claude Code reader/decode layer for opencode, and do not copy its source verbatim.
-
-## Verification
-
-Run the ticket's focused tests while developing, then complete the repository verification required by backlog §5:
+## Before you open a pull request
 
 ```sh
 pnpm typecheck
@@ -37,18 +30,15 @@ pnpm test
 pnpm build
 ```
 
-Tests must use `test/fixtures/populated.db`, `test/fixtures/empty.db`, or a purpose-built temporary fixture. **Never point tests or exploratory writes at the developer's real opencode database.** Exercise empty, sparse, and populated states where the ticket can affect them, and preserve honest unknown/unpriced states: no `NaN`, `Infinity`, or `$0.00` when the value is not priced.
+All four must pass. Then check:
 
-Before handoff:
+- The opencode connection is still read-only, and nothing you added writes outside the pricing file.
+- New behaviour has tests, including the empty state.
+- `types/oc.ts` is the shared API contract: change it deliberately and say why in the PR.
+- Anything that may leave the user's machine (an export, a diagnostics payload) is shape-only — never prompt text, tool inputs, file contents, or paths.
 
-- Confirm the opencode connection remains read-only and no route writes to opencode's database, configuration, or session files.
-- Confirm credential-bearing tables and secret files are never read or exposed.
-- Check the ticket's acceptance criteria individually.
-- Review the scoped diff for unrelated changes and run `git diff --check` on owned files.
-- Report commands and outcomes honestly; do not claim a contract command passed if it was not run.
+Small, focused pull requests are reviewed fastest. For anything larger, open an issue first so we can agree on the approach.
 
-The single sanctioned product write is the user's model pricing file at `~/.config/oc-lens/config.json`, through `PUT /api/pricing` only.
+## Design reference
 
-## Milestones
-
-Follow `AGENTS.md` for milestone reporting. A completed backlog wave, changed locked decision, data-model probe, scope change, or build-stopping blocker must be recorded in the two authorised second-brain files. Per-ticket noise is not a milestone, and source code must not be copied into the vault.
+The information architecture was inspired by [cc-lens](https://github.com/Arindam200/cc-lens) (MIT). Its UX may inform ours; its code may not be copied, and its Claude Code data layer has nothing to do with opencode's.

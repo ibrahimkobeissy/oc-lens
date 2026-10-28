@@ -1,4 +1,4 @@
-# Read-only upstream reference checkout (see project-docs/backlog.md §0.4)
+# Read-only upstream reference checkout (cc-lens, for UX reference only — see CLAUDE.md)
 .reference/
 
 # Ephemeral per-agent worktree checkouts (Agent tool isolation:"worktree")

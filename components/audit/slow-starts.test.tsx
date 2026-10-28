@@ -5,7 +5,7 @@ import { replayFailureMarks, SlowStartBanner } from "@/components/sessions/repla
 import type { SlowStartReport, SlowStep } from "@/lib/audit/slow-start-types";
 import { SlowStarts } from "./slow-starts";
 
-const step: SlowStep = { messageId: "m1", sessionId: "ses_1", sessionTitle: "Ticket work", timeCreated: 1_000, model: "custom-proxy/custom-model", waitSeconds: 127, baselineSeconds: 6.8 };
+const step: SlowStep = { messageId: "m1", sessionId: "ses_1", sessionTitle: "Ticket work", timeCreated: 1_000, model: "proxy/custom-model", waitSeconds: 127, baselineSeconds: 6.8 };
 const report: SlowStartReport = { measurable: true, byDay: [{ date: "2026-10-28", steps: 221, medianSeconds: 11.5, p90Seconds: 44.3, slowSteps: 48 }], slowSteps: [step] };
 
 describe("slow starts", () => {

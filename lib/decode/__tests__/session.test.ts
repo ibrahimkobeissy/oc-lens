@@ -33,7 +33,7 @@ describe("decodeSessionModel", () => {
     expect(warnings[0]?.code).toBe("malformed-session-model");
   });
 
-  it("decodes a model with no variant key at all as variant: null — real shape confirmed live 2026-08-03 (custom custom-proxy provider)", () => {
+  it("decodes a model with no variant key at all as variant: null — real shape confirmed live 2026-08-03 (custom proxy provider)", () => {
     const raw = JSON.stringify({ id: "custom-model", providerID: "custom-proxy" });
     const { value, warnings } = decodeSessionModel(raw);
     expect(warnings).toEqual([]);

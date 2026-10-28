@@ -3,6 +3,7 @@
 import { TriangleAlert } from "lucide-react";
 
 import { AreaChartCard } from "@/components/charts/area-chart-card";
+import { CollapsibleSection } from "@/components/layout/collapsible-section";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/format";
@@ -76,11 +77,13 @@ export function TokenAccumulationChart({ replay }: { replay: TokenReplayEvidence
   const rows = tokenAccumulationRows(replay.tokenAccumulation);
   const status = tokenEvidenceStatus(replay);
   return (
-    <section aria-labelledby="token-accumulation-title" className="space-y-3 rounded-lg border border-border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 id="token-accumulation-title" className="font-semibold">Token accumulation</h2><p className="mt-1 text-xs text-muted-foreground">Running step-finish evidence across the ordered turn stream.</p></div>
-        <Badge variant={status.matches ? "secondary" : "outline"}>{status.matches ? "Matches session total" : "Evidence mismatch"}</Badge>
-      </div>
+    <CollapsibleSection
+      aria-label="Token accumulation"
+      title="Token accumulation"
+      description="Running step-finish evidence across the ordered turn stream."
+      aside={<Badge variant={status.matches ? "secondary" : "outline"}>{status.matches ? "Matches session total" : "Evidence mismatch"}</Badge>}
+      bodyClassName="space-y-3"
+    >
       {!status.matches ? (
         <Alert className="border-warning/40 bg-warning/5">
           <TriangleAlert aria-hidden="true" className="text-warning" />
@@ -103,6 +106,6 @@ export function TokenAccumulationChart({ replay }: { replay: TokenReplayEvidence
         emptyMessage="No step-finish token evidence is available for this session."
         height={300}
       />
-    </section>
+    </CollapsibleSection>
   );
 }

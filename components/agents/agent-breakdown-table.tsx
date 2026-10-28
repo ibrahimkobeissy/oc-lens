@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TablePager, useClientPaging } from "@/components/ui/table-pager";
 import { formatCost, formatDuration, formatNumber, formatTokens } from "@/lib/format";
-import type { AgentSummary, OcTokens } from "@/types/oc";
+import type { AgentActivityPoint, AgentSummary, OcTokens } from "@/types/oc";
 
 function totalTokens(tokens: OcTokens): number {
   return tokens.input + tokens.output + tokens.reasoning + tokens.cacheRead + tokens.cacheWrite;
@@ -16,19 +17,41 @@ export function errorRate(agent: AgentSummary): number | null {
   return calls === 0 ? null : agent.errorCount / calls;
 }
 
-export function AgentBreakdownTable({ agents }: { agents: AgentSummary[] }) {
+/** Each agent's latest active day (UTC, as the activity chart buckets it), from the activity series already returned. */
+export function lastActiveByAgent(activity: readonly AgentActivityPoint[]): Map<string, string> {
+  const last = new Map<string, string>();
+  for (const point of activity) {
+    const current = last.get(point.agent);
+    if (point.messageCount > 0 && (current === undefined || point.date > current)) last.set(point.agent, point.date);
+  }
+  return last;
+}
+
+/** Most recently active first; agents with no dated activity last, then by sessions. */
+export function sortAgentsByRecency(agents: readonly AgentSummary[], lastActive: ReadonlyMap<string, string>): AgentSummary[] {
+  return [...agents].sort((left, right) => {
+    const l = lastActive.get(left.agent) ?? "";
+    const r = lastActive.get(right.agent) ?? "";
+    return r.localeCompare(l) || right.sessionCount - left.sessionCount || left.agent.localeCompare(right.agent);
+  });
+}
+
+export function AgentBreakdownTable({ agents, activity = [] }: { agents: AgentSummary[]; activity?: AgentActivityPoint[] }) {
+  const lastActive = lastActiveByAgent(activity);
+  const { visible, pagerProps } = useClientPaging(sortAgentsByRecency(agents, lastActive), 10);
   return (
+    <section className="space-y-3" aria-label="Agent breakdown">
     <div className="rounded-lg border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Agent</TableHead><TableHead>Sessions</TableHead><TableHead>Messages</TableHead>
+            <TableHead>Agent</TableHead><TableHead>Last active</TableHead><TableHead>Sessions</TableHead><TableHead>Messages</TableHead>
             <TableHead>Tokens</TableHead><TableHead>Cost</TableHead><TableHead>Error rate</TableHead>
             <TableHead>Avg session</TableHead><TableHead>Tool mix</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {agents.map((agent) => {
+          {visible.map((agent) => {
             const calls = toolCallCount(agent);
             const rate = errorRate(agent);
             return (
@@ -38,6 +61,7 @@ export function AgentBreakdownTable({ agents }: { agents: AgentSummary[] }) {
                     {agent.agent}
                   </Badge>
                 </TableCell>
+                <TableCell className="whitespace-nowrap font-mono text-xs">{lastActive.get(agent.agent) ?? <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell className="font-mono tabular-nums">{formatNumber(agent.sessionCount)}</TableCell>
                 <TableCell className="font-mono tabular-nums">{formatNumber(agent.messageCount)}</TableCell>
                 <TableCell className="font-mono tabular-nums" title={`${formatNumber(totalTokens(agent.tokens))} tokens`}>
@@ -65,5 +89,7 @@ export function AgentBreakdownTable({ agents }: { agents: AgentSummary[] }) {
         </TableBody>
       </Table>
     </div>
+    <TablePager noun={["agent", "agents"]} {...pagerProps} />
+    </section>
   );
 }

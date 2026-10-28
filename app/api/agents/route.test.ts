@@ -43,7 +43,7 @@ describe("GET /api/agents", () => {
     cleanupTempDir(directory);
   });
 
-  it("returns exact fixture aggregates, explicit unknown, activity, and the real switch timeline", async () => {
+  it("returns exact fixture aggregates, explicit unknown, and activity — and no switch timeline", async () => {
     const response = await GET();
     const payload = await body(response);
 
@@ -57,10 +57,7 @@ describe("GET /api/agents", () => {
     expect(payload.data.agents.find((agent) => agent.agent === "unknown")?.sessionCount).toBeGreaterThanOrEqual(10);
     expect(payload.data.agents.every((agent) => agent.cost.priced === false)).toBe(true);
     expect(payload.data.activity.reduce((total, point) => total + point.messageCount, 0)).toBe(4_079);
-    expect(payload.data.switches).toHaveLength(126);
-    expect(payload.data.switches.map((event) => event.seq)).toEqual(
-      [...payload.data.switches.map((event) => event.seq)].sort((left, right) => left - right),
-    );
+    expect(payload.data.switches).toEqual([]);
   });
 
   it("returns the exact empty response", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, RefreshCw, Repeat2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { CollapsibleSection } from "@/components/layout/collapsible-section";
 import { formatCost, formatNumber } from "@/lib/format";
 import { MIN_REPEAT_CHOICES } from "@/lib/loops";
 import type { LoopAnalysis, LoopKind } from "@/types/oc";
@@ -50,78 +50,65 @@ export function SessionLoops({
   // panel. Say so, and say what threshold produced that answer.
   if (analysis.incidents.length === 0) {
     return (
-      <Card>
-        <CardContent>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-sm font-medium">
-              <Repeat2 aria-hidden="true" className="size-4 text-muted-foreground" />
-              No loops in this session
-            </h2>
-            {threshold}
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            No call ran {minRepeats} or more times here. Reading different files, or reading one file twice far
-            apart, is ordinary work and is deliberately not counted.
-            {minRepeats > MIN_REPEAT_CHOICES[0] ? " Lower the repeats threshold to widen the search." : ""}
-          </p>
-        </CardContent>
-      </Card>
+      <CollapsibleSection
+        aria-label="Loops in this session"
+        title={<><Repeat2 aria-hidden="true" className="size-4 text-muted-foreground" />No loops in this session</>}
+        description={`No call ran ${minRepeats} or more times here.`}
+      >
+        <div className="mb-2 flex justify-end">{threshold}</div>
+        <p className="text-sm text-muted-foreground">
+          No call ran {minRepeats} or more times here. Reading different files, or reading one file twice far
+          apart, is ordinary work and is deliberately not counted.
+          {minRepeats > MIN_REPEAT_CHOICES[0] ? " Lower the repeats threshold to widen the search." : ""}
+        </p>
+      </CollapsibleSection>
     );
   }
 
   return (
-    <Card>
-      <CardContent>
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-medium">
-            <Repeat2 aria-hidden="true" className="size-4 text-warning" />
-            Loops in this session
-          </h2>
-          <div className="flex items-center gap-3">
-            {threshold}
-          </div>
-        </div>
-        <div className="mb-3">
-          <p className="text-xs text-muted-foreground">
-            {formatNumber(analysis.totalWastedCalls)} redundant run
-            {analysis.totalWastedCalls === 1 ? "" : "s"}
-            {analysis.totalRepeatedTurnCost.priced
-              ? ` · ${formatCost(analysis.totalRepeatedTurnCost)} of turns`
-              : ""}
-          </p>
-        </div>
-        <ul className="space-y-2">
-          {analysis.incidents.map((incident) => {
-            const meta = KIND_LABEL[incident.kind];
-            const Icon = meta.icon;
-            const firstPart = incident.partIds[0];
-            return (
-              <li
-                key={`${incident.sessionId}:${incident.signature}`}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"
-              >
-                <span className="inline-flex items-center gap-1.5 font-medium">
-                  <Icon aria-hidden="true" className="size-3.5 text-warning" />
-                  {meta.label}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground">{incident.tool}</span>
-                <span className="text-xs text-muted-foreground">
-                  {formatNumber(incident.calls)} calls · {formatNumber(incident.wastedCalls)} repeated
-                </span>
-                {firstPart !== undefined && (
-                  <button
-                    type="button"
-                    onClick={() => onJumpToPart(firstPart)}
-                    className="ml-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-primary underline-offset-2 hover:bg-accent hover:underline"
-                  >
-                    Jump to first call
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </CardContent>
-    </Card>
+    <CollapsibleSection
+      aria-label="Loops in this session"
+      title={<><Repeat2 aria-hidden="true" className="size-4 text-warning" />Loops in this session</>}
+      description={<>
+        {formatNumber(analysis.totalWastedCalls)} redundant run
+        {analysis.totalWastedCalls === 1 ? "" : "s"}
+        {analysis.totalRepeatedTurnCost.priced
+          ? ` · ${formatCost(analysis.totalRepeatedTurnCost)} of turns`
+          : ""}
+      </>}
+    >
+      <div className="mb-3 flex justify-end">{threshold}</div>
+      <ul className="space-y-2">
+        {analysis.incidents.map((incident) => {
+          const meta = KIND_LABEL[incident.kind];
+          const Icon = meta.icon;
+          const firstPart = incident.partIds[0];
+          return (
+            <li
+              key={`${incident.sessionId}:${incident.signature}`}
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"
+            >
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <Icon aria-hidden="true" className="size-3.5 text-warning" />
+                {meta.label}
+              </span>
+              <span className="font-mono text-xs text-muted-foreground">{incident.tool}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatNumber(incident.calls)} calls · {formatNumber(incident.wastedCalls)} repeated
+              </span>
+              {firstPart !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => onJumpToPart(firstPart)}
+                  className="ml-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-primary underline-offset-2 hover:bg-accent hover:underline"
+                >
+                  Jump to first call
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </CollapsibleSection>
   );
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { withEmptyFixture, withFixture } from "@/test/fixtures";
 import { FIXTURE_SCHEMA_SQL } from "@/test/fixtures/schema";
-import { agentSwitchEvents, agentUsage } from "../agents";
+import { agentUsage } from "../agents";
 
 describe("OCL-015 agent queries", () => {
   it("keeps unknown agents explicit and aggregates messages, tokens and tool mix", () => withFixture((db) => {
@@ -15,13 +15,6 @@ describe("OCL-015 agent queries", () => {
     expect(result.every((row) => row.cost.priced === false)).toBe(true);
   }));
 
-  it("decodes ordered agent switch events", () => withFixture((db) => {
-    const switches = agentSwitchEvents(db).data;
-    expect(switches).toHaveLength(126);
-    expect(switches.every((event) => event.sessionId !== null && event.timeCreated !== null)).toBe(true);
-    expect(switches.map((event) => event.seq)).toEqual([...switches.map((event) => event.seq)].sort((a, b) => a - b));
-  }));
-
   it("counts a session for an agent observed in its messages after a switch", () => {
     const db = new DatabaseSync(":memory:"); db.exec(FIXTURE_SCHEMA_SQL);
     db.prepare("INSERT INTO session (id, project_id, slug, directory, title, version, agent, time_created, time_updated) VALUES ('s', 'global', 's', '/', 's', '1', 'build', 1, 11)").run();
@@ -32,6 +25,5 @@ describe("OCL-015 agent queries", () => {
 
   it("returns cleanly on the empty fixture", () => withEmptyFixture((db) => {
     expect(agentUsage(db)).toEqual({ data: [], warnings: [] });
-    expect(agentSwitchEvents(db)).toEqual({ data: [], warnings: [] });
   }));
 });

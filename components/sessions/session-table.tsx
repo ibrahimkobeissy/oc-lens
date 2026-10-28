@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 
 import { SessionBadges } from "@/components/sessions/session-badges";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TablePager } from "@/components/ui/table-pager";
 import { formatCost, formatDuration, formatNumber, formatTokens } from "@/lib/format";
 import type { SessionSummary } from "@/types/oc";
 
@@ -18,6 +18,8 @@ interface SessionTableProps {
   page: number;
   sort: SessionSort;
   order: SortOrder;
+  pageSize: number;
+  onPageSize: (size: number) => void;
   canPrevious: boolean;
   canNext: boolean;
   onSort: (sort: SessionSort) => void;
@@ -35,7 +37,7 @@ function SortButton({ label, column, active, order, onSort }: { label: string; c
 }
 
 export function SessionTable(props: SessionTableProps) {
-  const { sessions, totalCount, page, sort, order, canPrevious, canNext, onSort, onPrevious, onNext } = props;
+  const { sessions, totalCount, page, pageSize, onPageSize, sort, order, canPrevious, canNext, onSort, onPrevious, onNext } = props;
   const sortable = (label: string, column: SessionSort) => <SortButton label={label} column={column} active={sort === column} order={order} onSort={onSort} />;
   return (
     <section className="space-y-3" aria-label="Sessions table and pagination">
@@ -68,10 +70,7 @@ export function SessionTable(props: SessionTableProps) {
           })}</TableBody>
         </Table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-        <p>{formatNumber(totalCount)} matching session{totalCount === 1 ? "" : "s"} · Page {page}</p>
-        <div className="flex gap-2"><Button variant="outline" size="sm" disabled={!canPrevious} onClick={onPrevious}><ChevronLeft aria-hidden="true" />Previous <kbd className="font-mono text-xs">[</kbd></Button><Button variant="outline" size="sm" disabled={!canNext} onClick={onNext}>Next <kbd className="font-mono text-xs">]</kbd><ChevronRight aria-hidden="true" /></Button></div>
-      </div>
+      <TablePager total={totalCount} noun={["matching session", "matching sessions"]} page={page} pageSize={pageSize} onPageSize={onPageSize} canPrevious={canPrevious} canNext={canNext} onPrevious={onPrevious} onNext={onNext} previousHint={<kbd className="font-mono text-xs">[</kbd>} nextHint={<kbd className="font-mono text-xs">]</kbd>} />
     </section>
   );
 }

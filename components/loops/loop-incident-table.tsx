@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, RefreshCw, Repeat2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TablePager, useClientPaging } from "@/components/ui/table-pager";
 import { formatCost, formatNumber } from "@/lib/format";
 import type { LoopIncident, LoopKind } from "@/types/oc";
 
@@ -46,15 +47,23 @@ function KindBadge({ kind }: { kind: LoopKind }) {
  * deep-links to the exact first call in replay, because the useful question is
  * never "how many" — it is "what was it actually stuck on".
  */
+/** Newest loop first: the one you can still act on. */
+export function sortLoopsByRecency(incidents: readonly LoopIncident[]): LoopIncident[] {
+  return [...incidents].sort((left, right) => right.firstAt - left.firstAt || left.sessionId.localeCompare(right.sessionId) || left.signature.localeCompare(right.signature));
+}
+
 export function LoopIncidentTable({ incidents }: { incidents: LoopIncident[] }) {
+  const { visible, pagerProps } = useClientPaging(sortLoopsByRecency(incidents), 10);
   if (incidents.length === 0) return null;
 
   return (
+    <section className="space-y-3" aria-label="Detected loops">
     <div className="w-full overflow-x-auto rounded-lg border border-border bg-surface">
       <table className="w-full min-w-[52rem] border-collapse text-sm">
-        <caption className="sr-only">Detected loops, ranked by the cost of the turns containing them</caption>
+        <caption className="sr-only">Detected loops, newest first</caption>
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <th scope="col" className="px-4 py-2 font-medium" title="When the loop started in its session">Date</th>
             <th scope="col" className="px-4 py-2 font-medium">Kind</th>
             <th scope="col" className="px-4 py-2 font-medium">Tool</th>
             <th scope="col" title="How many times this identical call ran in the session" className="px-4 py-2 text-right font-medium">Times run</th>
@@ -65,13 +74,14 @@ export function LoopIncidentTable({ incidents }: { incidents: LoopIncident[] }) 
           </tr>
         </thead>
         <tbody>
-          {incidents.map((incident) => {
+          {visible.map((incident) => {
             const firstPart = incident.partIds[0];
             const href = firstPart
               ? `/sessions/${incident.sessionId}?part=${encodeURIComponent(firstPart)}`
               : `/sessions/${incident.sessionId}`;
             return (
               <tr key={`${incident.sessionId}:${incident.signature}`} className="border-b border-border last:border-0">
+                <td className="whitespace-nowrap px-4 py-2 text-xs"><time suppressHydrationWarning dateTime={new Date(incident.firstAt).toISOString()}>{new Date(incident.firstAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</time></td>
                 <td className="px-4 py-2"><KindBadge kind={incident.kind} /></td>
                 <td className="px-4 py-2 font-mono text-xs">{incident.tool}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{formatNumber(incident.calls)}</td>
@@ -89,5 +99,7 @@ export function LoopIncidentTable({ incidents }: { incidents: LoopIncident[] }) 
         </tbody>
       </table>
     </div>
+    <TablePager noun={["loop", "loops"]} {...pagerProps} />
+    </section>
   );
 }

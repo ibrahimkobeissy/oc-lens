@@ -1,7 +1,6 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
-
+import { CollapsibleSection } from "@/components/layout/collapsible-section";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCost, formatNumber } from "@/lib/format";
 import type { OcTokens, ReplayTurn } from "@/types/oc";
@@ -89,15 +88,11 @@ function UsageCells({ row }: { row: DailyTokenRow }) {
 export function DailyTokenTable({ turns }: { turns: readonly ReplayTurn[] }) {
   const { days, total } = dailyTokenRows(turns);
   return (
-    <details open className="group rounded-lg border border-border bg-card">
-      <summary className="flex cursor-pointer list-none items-start gap-2 p-4 [&::-webkit-details-marker]:hidden">
-        <ChevronRight aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-        <div><h2 className="font-semibold">Tokens by day</h2><p className="mt-1 text-xs text-muted-foreground">Per-message usage grouped by the local day each message started. Subagent sessions are not included.</p></div>
-      </summary>
+    <CollapsibleSection aria-label="Tokens by day" title="Tokens by day" description="Per-message usage grouped by the local day each message started. Subagent sessions are not included." bodyClassName="p-0">
       {days.length === 0 ? (
-        <p className="border-t border-border p-4 text-sm text-muted-foreground">No message in this session reported token usage.</p>
+        <p className="p-4 text-sm text-muted-foreground">No message in this session reported token usage.</p>
       ) : (
-        <div className="border-t border-border">
+        <div>
           <Table>
             <TableHeader><TableRow><TableHead>Day</TableHead><TableHead className="text-right">Messages</TableHead><TableHead className="text-right">Input</TableHead><TableHead className="text-right">Output</TableHead><TableHead className="text-right">Reasoning</TableHead><TableHead className="text-right">Cache read</TableHead><TableHead className="text-right">Cache write</TableHead><TableHead className="text-right">Total</TableHead><TableHead className="text-right">Cost</TableHead></TableRow></TableHeader>
             <TableBody>{days.map((row) => <TableRow key={row.day}><TableCell className="whitespace-nowrap"><time suppressHydrationWarning dateTime={row.day}>{dayLabel(row.day)}</time></TableCell><UsageCells row={row} /></TableRow>)}</TableBody>
@@ -105,6 +100,6 @@ export function DailyTokenTable({ turns }: { turns: readonly ReplayTurn[] }) {
           </Table>
         </div>
       )}
-    </details>
+    </CollapsibleSection>
   );
 }

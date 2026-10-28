@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { SessionFilters, type SessionFilterValues } from "@/components/sessions/session-filters";
 import { SessionTable, type SessionSort, type SortOrder } from "@/components/sessions/session-table";
+import { PAGE_SIZES } from "@/components/ui/table-pager";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
 import { Onboarding } from "@/components/states/onboarding";
@@ -16,6 +17,7 @@ import { useListKeyboardNavigation } from "@/hooks/use-global-keyboard-nav";
 import { useOc } from "@/hooks/use-oc";
 import { schemaVersion } from "@/lib/db/schema-guard";
 
+const DEFAULT_PAGE_SIZE = 25;
 const FILTER_KEYS = ["search", "project", "agent", "model", "from", "to", "archived", "hasError", "isSubagent"] as const;
 const API_KEYS = [...FILTER_KEYS, "sort", "order", "limit", "cursor"] as const;
 const SORTS = new Set<SessionSort>(["timeCreated", "timeUpdated", "timeArchived", "durationMs", "messages", "userMessages", "assistantMessages", "toolCallCount", "tokens", "inputTokens", "outputTokens", "reasoningTokens", "cacheReadTokens", "cacheWriteTokens", "cost"]);
@@ -58,7 +60,7 @@ export function apiRouteFromParams(params: URLSearchParams): `/api/sessions?${st
   }
   if (!api.has("sort")) api.set("sort", "timeCreated");
   if (!api.has("order")) api.set("order", "desc");
-  if (!api.has("limit")) api.set("limit", "25");
+  if (!api.has("limit")) api.set("limit", String(DEFAULT_PAGE_SIZE));
   return `/api/sessions?${api.toString()}`;
 }
 
@@ -104,6 +106,8 @@ function SessionsContent() {
   const requestedSort = searchParams.get("sort");
   const sort: SessionSort = requestedSort !== null && SORTS.has(requestedSort as SessionSort) ? requestedSort as SessionSort : "timeCreated";
   const order: SortOrder = searchParams.get("order") === "asc" ? "asc" : "desc";
+  const requestedLimit = Number(searchParams.get("limit"));
+  const pageSize = (PAGE_SIZES as readonly number[]).includes(requestedLimit) ? requestedLimit : DEFAULT_PAGE_SIZE;
 
   const navigate = useCallback((params: URLSearchParams) => {
     const query = params.toString();
@@ -136,6 +140,15 @@ function SessionsContent() {
     navigate(params);
   }, [navigate, order, searchParams, sort]);
 
+  // A new page size starts again from the first page: the cursor trail belongs to the old size.
+  const changePageSize = useCallback((size: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (size === DEFAULT_PAGE_SIZE) params.delete("limit"); else params.set("limit", String(size));
+    params.delete("cursor");
+    params.delete("trail");
+    navigate(params);
+  }, [navigate, searchParams]);
+
   const previous = useCallback(() => {
     navigate(previousPageParams(new URLSearchParams(searchParams.toString())));
   }, [navigate, searchParams]);
@@ -160,7 +173,7 @@ function SessionsContent() {
       {error && !isLoading && <ErrorState title="Sessions could not be loaded" message={error.message} onRetry={() => void mutate()} />}
       {data && <WarningsBanner warnings={data.meta.warnings} />}
       {data && data.data.sessions.length === 0 && <EmptyState icon={<MessagesSquare />} title={hasFilters ? "No matching sessions" : "No sessions recorded"} description={hasFilters ? "Change or reset the filters to widen this view." : "Sessions will appear after opencode records activity."} />}
-      {data && data.data.sessions.length > 0 && <SessionTable sessions={data.data.sessions} totalCount={data.data.totalCount} page={trail.length + 1} sort={sort} order={order} canPrevious={trail.length > 0} canNext={data.data.nextCursor !== null} onSort={sortBy} onPrevious={previous} onNext={next} />}
+      {data && data.data.sessions.length > 0 && <SessionTable sessions={data.data.sessions} totalCount={data.data.totalCount} page={trail.length + 1} pageSize={pageSize} onPageSize={changePageSize} sort={sort} order={order} canPrevious={trail.length > 0} canNext={data.data.nextCursor !== null} onSort={sortBy} onPrevious={previous} onNext={next} />}
     </div>
   );
 }

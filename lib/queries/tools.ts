@@ -3,7 +3,7 @@ import { decodePartData } from "@/lib/decode";
 import { decodeMessageData } from "@/lib/decode/message";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { query } from "@/lib/db/connection";
-import { categorizeTool, categorizeToolsBatch, categorizeToolError, isSubagentTool, resolveMcpTool } from "@/lib/tools";
+import { categorizeTool, categorizeToolError, isSubagentTool, resolveMcpTool } from "@/lib/tools";
 import type { FeatureAdoption, FeatureAdoptionRow, FileChangeSummary, McpServerSummary, OcPartToolData, OcWarning, SkillSummary, ToolActivityPoint, ToolErrorSummary, ToolSummary } from "@/types/oc";
 import { localDay } from "./activity";
 
@@ -64,11 +64,13 @@ function errorMessage(row: PartRow & { tool: OcPartToolData }): string {
   return "Unknown tool error";
 }
 
-export function toolUsage(db: DatabaseSync, filter: PartQueryFilter = {}, mcpServers: readonly string[] = []): QueryResult<ToolSummary[]> {
+/**
+ * Per-tool usage. A name outside opencode's built-in set (an MCP server's tool,
+ * say) is categorised "other" without a warning: MCP tools are open-ended, so
+ * an unrecognised name is expected, not a data problem.
+ */
+export function toolUsage(db: DatabaseSync, filter: PartQueryFilter = {}): QueryResult<ToolSummary[]> {
   const { calls, warnings } = toolRows(db, filter);
-  const categorization = categorizeToolsBatch(calls
-    .map((call) => call.tool.tool)
-    .filter((name) => resolveMcpTool(name, [...mcpServers]) === null));
   const grouped = new Map<string, Array<(typeof calls)[number]>>();
   for (const call of calls) grouped.set(call.tool.tool, [...(grouped.get(call.tool.tool) ?? []), call]);
   const data = Array.from(grouped, ([tool, rows]) => {
@@ -83,9 +85,7 @@ export function toolUsage(db: DatabaseSync, filter: PartQueryFilter = {}, mcpSer
       firstSeen: Math.min(...rows.map((r) => r.time_created)), lastSeen: Math.max(...rows.map((r) => r.time_created)),
     } satisfies ToolSummary;
   }).sort((a, b) => b.totalCalls - a.totalCalls || a.tool.localeCompare(b.tool));
-  // Keep name-specific unknown-tool warnings distinct. mergeWarnings groups by
-  // code and would otherwise attribute every unknown call to the first name.
-  return { data, warnings: [...warnings, ...categorization.warnings] };
+  return { data, warnings };
 }
 
 export function toolErrors(db: DatabaseSync, filter: PartQueryFilter = {}): QueryResult<ToolErrorSummary[]> {

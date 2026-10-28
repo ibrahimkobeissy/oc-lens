@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { MOBILE_NAV_ROUTES, ROUTES, matchRouteTrail } from "./routes";
 
-/** `href` -> the App Router page file it must resolve to, e.g. "/agents/tree" -> "app/agents/tree/page.tsx". */
+/** `href` -> the App Router page file it must resolve to, e.g. "/settings/pricing" -> "app/settings/pricing/page.tsx". */
 function pageFileFor(href: string): string {
   return href === "/" ? join(process.cwd(), "app", "page.tsx") : join(process.cwd(), "app", ...href.split("/").filter(Boolean), "page.tsx");
 }
@@ -17,12 +17,10 @@ describe("ROUTES", () => {
       "/sessions",
       "/projects",
       "/tools",
-      "/todos",
       "/costs",
       "/audit",
       "/loops",
       "/agents",
-      "/agents/tree",
       "/export",
       "/settings",
       "/settings/pricing",
@@ -37,12 +35,10 @@ describe("ROUTES", () => {
       "/sessions",
       "/projects",
       "/tools",
-      "/todos",
       "/costs",
       "/audit",
       "/loops",
       "/agents",
-      "/agents/tree",
       "/export",
       "/settings",
       "/settings/pricing",

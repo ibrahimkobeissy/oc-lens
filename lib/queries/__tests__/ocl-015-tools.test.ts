@@ -52,7 +52,7 @@ describe("OCL-015 tool queries", () => {
     expect(toolUsage(db).data[0]).toMatchObject({ p50DurationMs: -10, p95DurationMs: -10 }); db.close();
   });
 
-  it("surfaces unknown tool names instead of silently categorising them as other", () => {
+  it("categorises tool names outside the built-in set (MCP tools) as other, without a data caveat", () => {
     const db = new DatabaseSync(":memory:"); db.exec(FIXTURE_SCHEMA_SQL);
     db.prepare("INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated) VALUES ('s', 'global', 's', '/', 's', '1', 1, 2)").run();
     const insert = db.prepare("INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES (?, 'm', 's', 1, 1, ?)");
@@ -63,10 +63,8 @@ describe("OCL-015 tool queries", () => {
     const result = toolUsage(db);
 
     expect(result.data.find((row) => row.tool === "future_tool")).toMatchObject({ category: "other", totalCalls: 2 });
-    expect(result.warnings).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "unknown-tool", message: expect.stringContaining('"future_tool"'), count: 2 }),
-      expect.objectContaining({ code: "unknown-tool", message: expect.stringContaining('"another_tool"'), count: 1 }),
-    ]));
+    expect(result.data.find((row) => row.tool === "another_tool")).toMatchObject({ category: "other", totalCalls: 1 });
+    expect(result.warnings.map((warning) => warning.code)).not.toContain("unknown-tool");
     db.close();
   });
 

@@ -11,7 +11,7 @@ import { checkSchema } from "../schema-guard";
 import { cleanupTempDir, createFullSchemaDb, makeTempDir } from "./test-db";
 import { loopDiagnostics } from "@/lib/diagnostics/loop-report";
 import { costBreakdown } from "@/lib/pricing/breakdown";
-import { agentSwitchEvents, agentUsage } from "@/lib/queries/agents";
+import { agentUsage } from "@/lib/queries/agents";
 import { getOverviewStats, listProjects } from "@/lib/queries/projects";
 import { detectLoops } from "@/lib/queries/loops";
 import { getReplay, subagentTree } from "@/lib/queries/replay";
@@ -262,8 +262,6 @@ describe("v2-only database", () => {
     expect(costs.totalCost.amount).toBeCloseTo(expected, 12);
     const agents = withDb(v2Path, (db) => agentUsage(db, {}, PRICING)).data;
     expect(agents.map((a) => a.agent).sort()).toEqual(["build", "compaction", "explore", "plan", "unknown"].sort());
-    const events = withDb(v2Path, (db) => agentSwitchEvents(db)).data;
-    expect(events).toEqual([expect.objectContaining({ sessionId: V2_MAIN_SESSION, agent: "plan" })]);
   });
 
   it("serves project and overview aggregates without SQL errors", () => {

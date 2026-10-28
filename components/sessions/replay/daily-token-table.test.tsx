@@ -38,9 +38,10 @@ describe("DailyTokenTable", () => {
     expect(total.total).toBe(4);
   });
 
-  it("renders an expanded, collapsible section and an empty state", () => {
+  it("renders a collapsed-by-default section and an empty state", () => {
     const html = renderToStaticMarkup(<DailyTokenTable turns={[turn(at(5, 5), tokens(10, 2))]} />);
-    expect(html).toMatch(/<details open=""/);
+    expect(html).toMatch(/<details aria-label="Tokens by day"/);
+    expect(html).not.toMatch(/<details[^>]*open/);
     expect(html).toContain("Tokens by day");
     for (const label of ["Input", "Output", "Reasoning", "Cache read", "Cache write", "Total", "Cost"]) expect(html).toContain(label);
     expect(html).not.toContain("NaN");

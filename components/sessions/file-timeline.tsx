@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileClock, FilePenLine } from "lucide-react";
 
+import { CollapsibleSection } from "@/components/layout/collapsible-section";
 import { EmptyState } from "@/components/states/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { partDomId } from "@/components/sessions/replay/part-registry";
@@ -51,16 +52,15 @@ function replayHref(change: FileChangeSummary): string {
 }
 
 export function FileTimeline({ changes, projectWorktree }: { changes: FileChangeSummary[]; projectWorktree: string | null }) {
-  if (changes.length === 0) {
-    return <EmptyState icon={<FileClock aria-hidden="true" />} title="No verified file touches" description="No completed write, edit, or patch tool call recorded a usable file path for this session. Data caveats above identify calls with missing path evidence." />;
-  }
-
-  return <section className="rounded-lg border bg-card p-4" aria-labelledby="file-timeline-title">
-    <header className="mb-4">
-      <h2 id="file-timeline-title" className="flex items-center gap-2 font-semibold"><FilePenLine aria-hidden="true" className="size-4" />File changes</h2>
-      <p className="mt-1 text-xs text-muted-foreground">Verified file touches in recorded call order; actual diffs are not read.</p>
-    </header>
-    <ol className="space-y-3 border-l border-border pl-4">
+  return <CollapsibleSection
+    aria-label="File changes"
+    title={<><FilePenLine aria-hidden="true" className="size-4" />File changes</>}
+    description={changes.length === 0 ? "No verified file touches in this session." : "Verified file touches in recorded call order; actual diffs are not read."}
+    aside={<Badge variant="secondary">{changes.length}</Badge>}
+  >
+    {changes.length === 0
+      ? <EmptyState icon={<FileClock aria-hidden="true" />} title="No verified file touches" description="No completed write, edit, or patch tool call recorded a usable file path for this session. Data caveats above identify calls with missing path evidence." />
+      : <ol className="space-y-3 border-l border-border pl-4">
       {changes.map((change) => {
         const absolutePath = absoluteFilePath(change.filePath, projectWorktree);
         return <li key={change.partId} className="relative min-w-0 rounded-md border bg-muted/20 p-3 before:absolute before:-left-[1.3rem] before:top-4 before:size-2 before:rounded-full before:bg-primary">
@@ -71,6 +71,6 @@ export function FileTimeline({ changes, projectWorktree }: { changes: FileChange
         <time suppressHydrationWarning dateTime={new Date(change.timeCreated).toISOString()} className="mt-1 block text-xs text-muted-foreground">{new Date(change.timeCreated).toLocaleString()}</time>
       </li>;
       })}
-    </ol>
-  </section>;
+    </ol>}
+  </CollapsibleSection>;
 }

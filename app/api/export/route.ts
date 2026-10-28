@@ -319,7 +319,7 @@ function streaksFromRange(activity: ActivityStats["dailyActivity"], today: strin
 
 function toolsData(db: DatabaseSync, options: ExportOptions, servers: string[]): { data: ToolsStats; warnings: OcWarning[] } {
   const range = { from: options.from, to: options.to };
-  const tools = toolUsage(db, range, servers);
+  const tools = toolUsage(db, range);
   const adoption = featureAdoption(db, servers, range);
   return {
     data: {

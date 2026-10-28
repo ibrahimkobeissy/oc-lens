@@ -4,7 +4,7 @@ import { getConnection } from "@/lib/db/connection";
 import { schemaVersion } from "@/lib/db/schema-guard";
 import { mergeWarnings } from "@/lib/decode/warnings";
 import { readPricing } from "@/lib/pricing/config";
-import { agentActivity, agentSwitchEvents, agentUsage } from "@/lib/queries/agents";
+import { agentActivity, agentUsage } from "@/lib/queries/agents";
 import type { AgentsResponse, AgentsRouteResponse } from "@/types/oc";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +34,11 @@ export async function GET(): Promise<NextResponse<AgentsRouteResponse>> {
 
     const usage = agentUsage(connection.db, {}, readPricing());
     const activity = agentActivity(connection.db);
-    const switches = agentSwitchEvents(connection.db);
     const data: AgentsResponse = {
       agents: usage.data,
       activity: activity.data,
-      switches: switches.data,
+      // The agent-switch timeline was removed; `switches` stays only because types/oc.ts is frozen (OCL-010).
+      switches: [],
     };
     const usageCodes = new Set(usage.warnings.map((warning) => warning.code));
 
@@ -48,11 +48,10 @@ export async function GET(): Promise<NextResponse<AgentsRouteResponse>> {
         generatedAt: Date.now(),
         schemaVersion,
         // Usage and activity decode the same messages. Keep usage canonical so
-        // a malformed row is counted once, then add activity-only/switch caveats.
+        // a malformed row is counted once, then add activity-only caveats.
         warnings: mergeWarnings([
           usage.warnings,
           activity.warnings.filter((warning) => !usageCodes.has(warning.code)),
-          switches.warnings,
         ]),
       },
     });

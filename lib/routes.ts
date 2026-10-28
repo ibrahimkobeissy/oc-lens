@@ -5,9 +5,7 @@ import {
   DollarSign,
   Download,
   FolderKanban,
-  GitBranch,
   LayoutDashboard,
-  ListTodo,
   Repeat,
   MessagesSquare,
   Settings,
@@ -40,7 +38,6 @@ export const ROUTE_GROUPS = [
   "sessions",
   "projects",
   "tools",
-  "todos",
   "costs",
   "audit",
   "loops",
@@ -55,12 +52,10 @@ export const ROUTES: OcRoute[] = [
   { href: "/sessions", label: "Sessions", icon: MessagesSquare, group: "sessions", enabled: true },
   { href: "/projects", label: "Projects", icon: FolderKanban, group: "projects", enabled: true },
   { href: "/tools", label: "Tools", icon: Wrench, group: "tools", enabled: true },
-  { href: "/todos", label: "Todos", icon: ListTodo, group: "todos", enabled: true },
   { href: "/costs", label: "Costs", icon: DollarSign, group: "costs", enabled: true },
   { href: "/audit", label: "Provider audit", icon: ShieldAlert, group: "audit", enabled: true },
   { href: "/loops", label: "Loops", icon: Repeat, group: "loops", enabled: true },
   { href: "/agents", label: "Agents", icon: Bot, group: "agents", enabled: true },
-  { href: "/agents/tree", label: "Subagent Tree", icon: GitBranch, group: "agents", enabled: true },
   { href: "/export", label: "Export", icon: Download, group: "export", enabled: true },
   { href: "/settings", label: "Settings", icon: Settings, group: "settings", enabled: true },
   { href: "/settings/pricing", label: "Pricing", icon: DollarSign, group: "settings", enabled: true },
@@ -71,8 +66,8 @@ export const MOBILE_NAV_ROUTES: OcRoute[] = [
   ROUTES[0], // Overview
   ROUTES[2], // Sessions
   ROUTES[3], // Projects
-  ROUTES[6], // Costs
-  ROUTES[11], // Export
+  ROUTES[5], // Costs
+  ROUTES[9], // Export
 ].filter((r): r is OcRoute => r !== undefined);
 
 /**

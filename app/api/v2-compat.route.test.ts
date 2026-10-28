@@ -18,11 +18,9 @@ import { GET as replay } from "./sessions/[id]/replay/route";
 import { GET as session } from "./sessions/[id]/route";
 import { GET as sessionTree } from "./sessions/[id]/tree/route";
 import { GET as sessions } from "./sessions/route";
-import { GET as sessionsTree } from "./sessions/tree/route";
 import { GET as settings } from "./settings/route";
 import { GET as skills } from "./skills/route";
 import { GET as stats } from "./stats/route";
-import { GET as todos } from "./todos/route";
 import { GET as tools } from "./tools/route";
 import { GET as warningSample } from "./warnings/sample/route";
 
@@ -81,11 +79,9 @@ describe.each([
     ["sessions/[id]/files", () => sessionFiles(url(`/api/sessions/${sessionId}/files`), ctx(sessionId))],
     ["sessions/[id]/replay", () => replay(url(`/api/sessions/${sessionId}/replay`), ctx(sessionId))],
     ["sessions/[id]/tree", () => sessionTree(url(`/api/sessions/${sessionId}/tree`), ctx(sessionId))],
-    ["sessions/tree", () => sessionsTree()],
     ["settings", () => settings()],
     ["skills", () => skills(url("/api/skills"))],
     ["stats", () => stats(url("/api/stats"))],
-    ["todos", () => todos(url("/api/todos"))],
     ["tools", () => tools(url("/api/tools"))],
     ["warnings/sample", () => warningSample(url("/api/warnings/sample?code=unknown-session-event"))],
   ];

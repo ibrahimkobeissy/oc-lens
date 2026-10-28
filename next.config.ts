@@ -6,6 +6,8 @@ const packageRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Dev only: lets hot reload work when the app is opened at 127.0.0.1 instead of localhost.
+  allowedDevOrigins: ["127.0.0.1"],
   outputFileTracingRoot: packageRoot,
   outputFileTracingExcludes: {
     "*": [

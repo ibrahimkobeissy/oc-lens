@@ -5,10 +5,12 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Archive, Bot, CalendarDays, FolderKanban, MessageSquare, Wrench } from "lucide-react";
 
 import { FileTimeline } from "@/components/sessions/file-timeline";
+import { DailyTokenTable } from "@/components/sessions/replay/daily-token-table";
 import { SessionLoops } from "@/components/sessions/replay/session-loops";
 import { SessionSidebar } from "@/components/sessions/replay/session-sidebar";
 import { TokenAccumulationChart } from "@/components/sessions/replay/token-accumulation-chart";
 import { WindowedTurnStream, replayTurnIndexForPart, type LoopPartMark, type WindowedTurnStreamHandle } from "@/components/sessions/replay/turn-cards";
+import { SessionExportButton } from "@/components/sessions/session-export-button";
 import { SubagentTree } from "@/components/sessions/subagent-tree";
 import { EmptyState } from "@/components/states/empty-state";
 import { ErrorState } from "@/components/states/error-state";
@@ -96,7 +98,7 @@ export default function SessionReplayPage() {
   const model = session.model ? `${session.model.providerID}/${session.model.id}${session.model.variant ? ` · ${session.model.variant}` : ""}` : "unknown model";
   const warnings = dedupeReplayWarnings(replay.data.meta.warnings, tree.data?.meta.warnings ?? [], files.data?.meta.warnings ?? []);
   return <div className="space-y-5 p-4 sm:p-6">
-    <header className="space-y-3"><div><p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Session replay</p><h1 className="mt-1 break-words text-2xl font-semibold tracking-tight">{session.title}</h1></div><div className="flex flex-wrap gap-2"><Badge variant="outline"><FolderKanban />{session.projectDisplayName}</Badge><Badge variant="outline"><Bot />{session.agent ?? "unknown agent"}</Badge><Badge variant="outline">{model}</Badge><Badge variant="outline">v{session.version}</Badge>{session.timeArchived !== null ? <Badge variant="secondary"><Archive />Archived</Badge> : null}</div></header>
+    <header className="space-y-3"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Session replay</p><h1 className="mt-1 break-words text-2xl font-semibold tracking-tight">{session.title}</h1></div><SessionExportButton sessionId={session.id} isSubagent={data.parentId !== null} /></div><div className="flex flex-wrap gap-2"><Badge variant="outline"><FolderKanban />{session.projectDisplayName}</Badge><Badge variant="outline"><Bot />{session.agent ?? "unknown agent"}</Badge><Badge variant="outline">{model}</Badge><Badge variant="outline">v{session.version}</Badge>{session.timeArchived !== null ? <Badge variant="secondary"><Archive />Archived</Badge> : null}</div></header>
     <WarningsBanner warnings={warnings} />
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Card><CardContent><p className="flex items-center gap-2 text-xs text-muted-foreground"><MessageSquare className="size-4" />Turns</p><p className="mt-2 font-mono text-2xl font-semibold">{formatNumber(data.turns.length)}</p></CardContent></Card>
@@ -112,6 +114,7 @@ export default function SessionReplayPage() {
     {files.data ? <FileTimeline changes={files.data.data.changes} projectWorktree={files.data.data.projectWorktree} /> : null}
     {loops.data ? <SessionLoops analysis={loops.data.data} onJumpToPart={jumpToPart} minRepeats={minRepeats} onMinRepeatsChange={setMinRepeats} /> : null}
     <TokenAccumulationChart replay={data} />
+    <DailyTokenTable turns={data.turns} />
     {data.turns.length === 0 ? <EmptyState title="No replay turns" description="This session has no recorded messages to replay." /> : <div className="flex min-w-0 flex-col gap-4 lg:flex-row"><SessionSidebar replay={data} onTurnJump={jumpToTurn} /><div className="min-w-0 flex-1"><WindowedTurnStream ref={turnStreamRef} turns={data.turns} targetPartId={loopTargetPartId ?? searchParams.get("part")} loopParts={loopParts} onJumpToPart={jumpToPart} /></div></div>}
   </div>;
 }

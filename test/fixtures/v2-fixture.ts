@@ -19,7 +19,7 @@ import { DatabaseSync } from "node:sqlite";
  * session the migration has not copied yet.
  */
 
-const V2_SCHEMA_SQL = `
+export const V2_SCHEMA_SQL = `
 CREATE TABLE \`project\` (
   \`id\` text PRIMARY KEY, \`worktree\` text NOT NULL, \`vcs\` text, \`name\` text, \`icon_url\` text,
   \`icon_url_override\` text, \`icon_color\` text, \`time_created\` integer NOT NULL, \`time_updated\` integer NOT NULL,

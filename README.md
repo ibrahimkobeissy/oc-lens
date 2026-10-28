@@ -1,36 +1,99 @@
-# oc-lens
+<p align="center">
+  <img src="docs/social-preview.png" alt="oc-lens — see where your opencode tokens really go" width="100%">
+</p>
 
-Local, read-only analytics for your [opencode](https://opencode.ai/) history.
+<p align="center">
+  <a href="https://www.npmjs.com/package/oc-lens"><img src="https://img.shields.io/npm/v/oc-lens?color=2563eb&label=npm" alt="npm version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0ea5e9" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-16a34a" alt="Node.js 22, 24 or 26">
+  <img src="https://img.shields.io/badge/runs-100%25%20local-7c3aed" alt="Runs 100% locally">
+</p>
 
-> [!IMPORTANT]
-> oc-lens opens opencode's SQLite database in read-only mode. It never writes to the database, opencode configuration, or session files. Its only write is your optional model-price configuration at `~/.config/oc-lens/config.json`. See [SECURITY.md](SECURITY.md) for the enforced guarantees.
-
-`opencode web` is the browser interface for working with live sessions, and `opencode stats` is a terminal summary. oc-lens complements them with history analytics: activity and streaks, token and user-priced cost trends, project and agent breakdowns, tool adoption and failures, todos, subagent trees, loop detection, exports, and conversation replay.
-
-Everything runs on your machine. There is no account, cloud sync, or telemetry.
-
-## Requirements
-
-- Node.js 22.23.4+, 24.22.1+, or 26.12.1+ — earlier releases are affected by Node2Shell (CVE-2026-111497), so the CLI refuses to start on them
-- An opencode SQLite database (normally `~/.local/share/opencode/opencode.db`)
-- Model prices you enter yourself if you want cost figures
-
-oc-lens is verified against the database schemas produced by **opencode 1.17.7** and **opencode 2.1.4** (`opencode-1.17.7+2.1.4`). A database that was upgraded from 1.x to 2.x keeps both formats side by side; oc-lens reads it as one history, counting each migrated session and message once. Settings → Environment shows which format was detected. A schema guard checks required tables and columns before analytics run. If the database is missing, the UI shows the locations it checked. If its schema differs, the UI reports that the database is incompatible and refuses to render potentially wrong numbers; update oc-lens to a compatible release instead of trusting partial results.
-
-## Install and run
-
-Run the published CLI without installing it globally:
+<p align="center">
+  <b>Local, read-only analytics for your <a href="https://opencode.ai/">opencode</a> history.</b><br>
+  Find the loops, the provider failures, and the tokens you paid for without noticing.
+</p>
 
 ```sh
 npx oc-lens
 ```
 
-The dashboard binds only to loopback (`127.0.0.1`), starts on the first free port from 3000, and opens your browser. Available flags:
+That's it — it finds your opencode database, opens a dashboard in your browser, and never writes a byte to your history.
+
+---
+
+## Why
+
+opencode keeps everything in one SQLite file. oc-lens turns it into answers:
+
+- **Where did the agent loop?** The same failing command run four times, the same file re-read for nothing, an edit undone and redone.
+- **What did my provider cost me?** Rate limits, provider outages, streams that broke after the provider accepted the request, the retries opencode hides inside a step, and the cache price lost when a call has to be resent.
+- **Where do the tokens go?** By day, model, project, agent, and session — priced with *your* rates, never a guessed table.
+
+`opencode web` is for working in sessions and `opencode stats` is a terminal summary; oc-lens is the history analysis neither of them does.
+
+## Highlights
+
+### Provider audit
+
+Every failed model call, the resends that followed, and what they added: tokens recorded on failed calls, context paid at full price because the cache was lost, calls the model redid — and an estimate for requests the provider accepted (HTTP 200) but opencode never recorded usage for. **Slow starts** flag steps that waited far longer than usual for the first token: the only trace opencode leaves of retries that eventually succeeded.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/audit-dark.png">
+  <img src="docs/screenshots/audit-light.png" alt="Provider audit: failed calls, resends, cache lost, and requests accepted but never recorded">
+</picture>
+
+### Loop detection
+
+A loop is the *same* call repeated — matched on tool name and a hash of its input, never on the tool name alone. Reading five different files is ordinary work and is never reported; a test re-run four times with the same failure is.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/loops-dark.png">
+  <img src="docs/screenshots/loops-light.png" alt="Loops: error retries and redundant repeats, each linked into the replay">
+</picture>
+
+### Session replay
+
+Every turn, tool call, and token count — with failed calls, resends, slow starts, and loops marked in place, and a turn list that flags them at a glance. Export a single session in the format `opencode session import` reads.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/session-replay-dark.png">
+  <img src="docs/screenshots/session-replay-light.png" alt="Session replay with collapsible panels for file changes, slow starts, failures, loops, and token usage">
+</picture>
+
+### And the rest
+
+| | |
+| --- | --- |
+| **Overview & activity** | KPIs, streaks, calendar heatmap, hourly and weekday patterns |
+| **Sessions** | Search and filter your whole history, newest first |
+| **Costs** | Totals and trends by model, project, and agent, plus a daily usage table — from your prices only |
+| **Projects & agents** | Per-project and per-agent tokens, cost, and tool mix |
+| **Tools** | Rankings, durations, error rates, MCP servers, and skills |
+| **Export** | Local JSON or ZIP of any dataset and date range |
+
+## Honest numbers
+
+oc-lens would rather say "I don't know" than show you a wrong figure:
+
+- **Cost comes from your prices.** opencode's stored `cost` is often `0`; oc-lens prices tokens with the per-million rates you enter in **Settings → Pricing**. Until a model is priced, its totals say **not priced** — never `$0.00`.
+- **Estimates say so.** Resend and loop costs are upper bounds; tokens in requests opencode never recorded are labelled estimates.
+- **Unknowns stay visible.** Missing agents and models get an explicit `unknown` bucket, and a database schema oc-lens does not recognise is refused rather than misread.
+
+## Private by design
+
+- The opencode database is opened **read-only**. No route writes to opencode's database, configuration, or session files.
+- Credential tables and auth files are never read.
+- The server listens on **loopback only**. No account, no cloud, no telemetry.
+- The one thing oc-lens writes is your own price list, at `~/.config/oc-lens/config.json`.
+
+The full threat boundary and the tests that enforce it are in [SECURITY.md](SECURITY.md).
+
+## Usage
 
 ```text
-Usage: oc-lens [options]
+npx oc-lens [options]
 
-Options:
   --port <port>  Bind exactly this loopback port (default: first free from 3000)
   --db <path>    Use only this opencode database path
   --no-open      Do not open a browser
@@ -38,126 +101,46 @@ Options:
   --version, -v  Show the package version
 ```
 
-Examples:
+Without `--db`, oc-lens looks at `OC_LENS_DB`, then `$XDG_DATA_HOME/opencode/opencode.db`, then `~/.local/share/opencode/opencode.db`.
 
-```sh
-# Use a specific database without changing it
-npx oc-lens --db /absolute/path/to/opencode.db
-
-# Choose an exact port and leave browser opening to you
-npx oc-lens --port 4313 --no-open
-```
-
-When `--db` is omitted, discovery checks `OC_LENS_DB`, then `$XDG_DATA_HOME/opencode/opencode.db`, then `~/.local/share/opencode/opencode.db`.
-
-## Set up honest cost analytics
-
-opencode's stored `cost` field is not treated as your bill: some providers report zero and arbitrary providers cannot be priced accurately from a bundled table. oc-lens calculates user cost only from prices you supply.
-
-1. Open **Settings → Model pricing**.
-2. Review the `providerID/modelID` values observed in your database and their token volumes.
-3. Enter your provider's current USD price per one million tokens for input, output, cache-read, and cache-write tokens.
-4. Save. Cost cards, charts, projects, agents, sessions, replay, and exports use the same local pricing configuration.
-
-Until every model involved has a price, affected totals say **not priced** or identify unpriced models; they do not silently become `$0.00`. Provider-reported stored cost remains separately labelled for comparison. Prices stay local in `~/.config/oc-lens/config.json`, the product's single sanctioned write path.
-
-## Features
-
-- Overview KPIs, recent sessions, project/model breakdowns, and activity heatmap
-- Calendar activity, streaks, hourly and weekday patterns
-- Searchable/filterable session history and detailed conversation replay
-- Project portfolio and per-project activity, model, token, and cost analytics
-- Tool rankings, durations, error analysis, MCP usage, skills, adoption, and version history
-- Native opencode todo browsing and status filters
-- Cost trends by model, project, and agent using your prices
-- Agent usage, handoffs, and nested subagent trees
-- Loop detection: repeated tool calls, failed retries, and files rewritten back and forth
-- Local JSON/ZIP export with cancellation and progress
-- Redacted environment settings and editable local pricing
-- Empty, sparse, populated, missing-database, and schema-mismatch states
-- Persistent light and dark themes
-
-## Loop detection
-
-The **Loops** page answers a question the other pages cannot: where did the agent repeat itself without getting anywhere. Three shapes are reported.
-
-| Kind | What it means |
-| --- | --- |
-| Error retry | The same call failed over and over — including a shell command that kept exiting non-zero |
-| Redundant repeat | The same call succeeded over and over, returning nothing new |
-| Oscillation | One file rewritten back and forth between contents it already had |
-
-A call counts as *failed* when the tool errored **or** when it recorded a non-zero exit code. That distinction matters: opencode marks a shell command as `completed` whenever the tool itself ran, regardless of what the command returned, so a build retried until it passes is invisible to a status-only check. Tools that record no exit code fall back to tool status rather than being guessed at from output text.
-
-Two calls are "the same" when the tool name and a hash of the recorded tool input match. The input itself is hashed and never stored or displayed, because tool inputs hold shell command lines and whole file contents.
-
-What is deliberately **not** reported matters as much:
-
-- Calls to different targets. Reading five different files is ordinary work, not a loop.
-- A call that ran only twice. The threshold starts at 3, because a pair is nearly always legitimate — re-reading a file after a context compaction, for example.
-- A re-read of a file that was modified in between, which is edit-then-verify, not repetition.
-- Calls whose input opencode did not record. They cannot be compared, so the page reports how many it could not check rather than implying a clean result.
-
-Each incident links into replay, where the individual repeated calls are marked in place with controls to jump between the runs. Session replay carries the same panel and threshold control, scoped to that session.
-
-> [!NOTE]
-> The "repeated turns cost" figure is the cost of the turns that contained the repeats, not money you would save. opencode records cost per message rather than per tool call, so a message's cost is split across its calls and is dominated by context tokens the turn would have paid anyway. Treat it as an upper bound.
-
-### Calibration export
-
-`GET /api/diagnostics/loops` returns shape-only evidence for tuning thresholds on a machine with more history than the one you are on:
-
-```sh
-curl -s http://127.0.0.1:3000/api/diagnostics/loops > oc-lens-diagnostics.json
-```
-
-It contains tool names, input **key** names, the JSON types of those keys, counts, histograms, and incident counts across several thresholds. It contains **no values** — no ids, paths, titles, commands, or file contents — so it is safe to carry off the machine that produced it. The redaction policy is restated inside the payload, and enforced by test.
+**Requirements:** Node.js 22.23.4+, 24.22.1+, or 26.12.1+ (earlier releases are affected by Node2Shell, CVE-2026-111497, so the CLI refuses to start on them). Verified against opencode **1.17.7** and **2.x** databases, including 1.x databases upgraded to 2.x.
 
 ## Screenshots
 
-The complete 15-route, 30-asset ledger is in [docs/screenshots/README.md](docs/screenshots/README.md), captured against the deterministic fixture database with documentation-only pricing — never a personal opencode database or real pricing configuration.
+<details>
+<summary><b>Every page, light and dark</b> — captured from a synthetic demo database, never real history</summary>
 
 | Page | Light | Dark |
 | --- | --- | --- |
-| Overview (`/`) | [![Overview in light theme](docs/screenshots/overview-light.png)](docs/screenshots/overview-light.png) | [![Overview in dark theme](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png) |
-| Activity (`/activity`) | [![Activity in light theme](docs/screenshots/activity-light.png)](docs/screenshots/activity-light.png) | [![Activity in dark theme](docs/screenshots/activity-dark.png)](docs/screenshots/activity-dark.png) |
-| Sessions (`/sessions`) | [![Sessions in light theme](docs/screenshots/sessions-light.png)](docs/screenshots/sessions-light.png) | [![Sessions in dark theme](docs/screenshots/sessions-dark.png)](docs/screenshots/sessions-dark.png) |
-| Session replay (`/sessions/ses_0000`) | [![Session replay in light theme](docs/screenshots/session-replay-light.png)](docs/screenshots/session-replay-light.png) | [![Session replay in dark theme](docs/screenshots/session-replay-dark.png)](docs/screenshots/session-replay-dark.png) |
-| Projects (`/projects`) | [![Projects in light theme](docs/screenshots/projects-light.png)](docs/screenshots/projects-light.png) | [![Projects in dark theme](docs/screenshots/projects-dark.png)](docs/screenshots/projects-dark.png) |
-| Project detail (`/projects/proj_infra`) | [![Project detail in light theme](docs/screenshots/project-detail-light.png)](docs/screenshots/project-detail-light.png) | [![Project detail in dark theme](docs/screenshots/project-detail-dark.png)](docs/screenshots/project-detail-dark.png) |
-| Tools (`/tools`) | [![Tools in light theme](docs/screenshots/tools-light.png)](docs/screenshots/tools-light.png) | [![Tools in dark theme](docs/screenshots/tools-dark.png)](docs/screenshots/tools-dark.png) |
-| Todos (`/todos`) | [![Todos in light theme](docs/screenshots/todos-light.png)](docs/screenshots/todos-light.png) | [![Todos in dark theme](docs/screenshots/todos-dark.png)](docs/screenshots/todos-dark.png) |
-| Costs (`/costs`) | [![Costs in light theme](docs/screenshots/costs-light.png)](docs/screenshots/costs-light.png) | [![Costs in dark theme](docs/screenshots/costs-dark.png)](docs/screenshots/costs-dark.png) |
-| Agents (`/agents`) | [![Agents in light theme](docs/screenshots/agents-light.png)](docs/screenshots/agents-light.png) | [![Agents in dark theme](docs/screenshots/agents-dark.png)](docs/screenshots/agents-dark.png) |
-| Subagent tree (`/agents/tree`) | [![Subagent tree in light theme](docs/screenshots/subagent-tree-light.png)](docs/screenshots/subagent-tree-light.png) | [![Subagent tree in dark theme](docs/screenshots/subagent-tree-dark.png)](docs/screenshots/subagent-tree-dark.png) |
-| Export (`/export`) | [![Export in light theme](docs/screenshots/export-light.png)](docs/screenshots/export-light.png) | [![Export in dark theme](docs/screenshots/export-dark.png)](docs/screenshots/export-dark.png) |
-| Settings (`/settings`) | [![Settings in light theme](docs/screenshots/settings-light.png)](docs/screenshots/settings-light.png) | [![Settings in dark theme](docs/screenshots/settings-dark.png)](docs/screenshots/settings-dark.png) |
-| Model pricing (`/settings/pricing`) | [![Model pricing in light theme](docs/screenshots/pricing-light.png)](docs/screenshots/pricing-light.png) | [![Model pricing in dark theme](docs/screenshots/pricing-dark.png)](docs/screenshots/pricing-dark.png) |
-| Style guide (`/style-guide`) | [![Style guide in light theme](docs/screenshots/style-guide-light.png)](docs/screenshots/style-guide-light.png) | [![Style guide in dark theme](docs/screenshots/style-guide-dark.png)](docs/screenshots/style-guide-dark.png) |
+| Overview | [![Overview, light](docs/screenshots/overview-light.png)](docs/screenshots/overview-light.png) | [![Overview, dark](docs/screenshots/overview-dark.png)](docs/screenshots/overview-dark.png) |
+| Activity | [![Activity, light](docs/screenshots/activity-light.png)](docs/screenshots/activity-light.png) | [![Activity, dark](docs/screenshots/activity-dark.png)](docs/screenshots/activity-dark.png) |
+| Sessions | [![Sessions, light](docs/screenshots/sessions-light.png)](docs/screenshots/sessions-light.png) | [![Sessions, dark](docs/screenshots/sessions-dark.png)](docs/screenshots/sessions-dark.png) |
+| Session replay | [![Session replay, light](docs/screenshots/session-replay-light.png)](docs/screenshots/session-replay-light.png) | [![Session replay, dark](docs/screenshots/session-replay-dark.png)](docs/screenshots/session-replay-dark.png) |
+| Projects | [![Projects, light](docs/screenshots/projects-light.png)](docs/screenshots/projects-light.png) | [![Projects, dark](docs/screenshots/projects-dark.png)](docs/screenshots/projects-dark.png) |
+| Project detail | [![Project detail, light](docs/screenshots/project-detail-light.png)](docs/screenshots/project-detail-light.png) | [![Project detail, dark](docs/screenshots/project-detail-dark.png)](docs/screenshots/project-detail-dark.png) |
+| Tools | [![Tools, light](docs/screenshots/tools-light.png)](docs/screenshots/tools-light.png) | [![Tools, dark](docs/screenshots/tools-dark.png)](docs/screenshots/tools-dark.png) |
+| Costs | [![Costs, light](docs/screenshots/costs-light.png)](docs/screenshots/costs-light.png) | [![Costs, dark](docs/screenshots/costs-dark.png)](docs/screenshots/costs-dark.png) |
+| Provider audit | [![Provider audit, light](docs/screenshots/audit-light.png)](docs/screenshots/audit-light.png) | [![Provider audit, dark](docs/screenshots/audit-dark.png)](docs/screenshots/audit-dark.png) |
+| Loops | [![Loops, light](docs/screenshots/loops-light.png)](docs/screenshots/loops-light.png) | [![Loops, dark](docs/screenshots/loops-dark.png)](docs/screenshots/loops-dark.png) |
+| Agents | [![Agents, light](docs/screenshots/agents-light.png)](docs/screenshots/agents-light.png) | [![Agents, dark](docs/screenshots/agents-dark.png)](docs/screenshots/agents-dark.png) |
+| Export | [![Export, light](docs/screenshots/export-light.png)](docs/screenshots/export-light.png) | [![Export, dark](docs/screenshots/export-dark.png)](docs/screenshots/export-dark.png) |
+| Settings | [![Settings, light](docs/screenshots/settings-light.png)](docs/screenshots/settings-light.png) | [![Settings, dark](docs/screenshots/settings-dark.png)](docs/screenshots/settings-dark.png) |
+| Pricing | [![Pricing, light](docs/screenshots/pricing-light.png)](docs/screenshots/pricing-light.png) | [![Pricing, dark](docs/screenshots/pricing-dark.png)](docs/screenshots/pricing-dark.png) |
+| Style guide | [![Style guide, light](docs/screenshots/style-guide-light.png)](docs/screenshots/style-guide-light.png) | [![Style guide, dark](docs/screenshots/style-guide-dark.png)](docs/screenshots/style-guide-dark.png) |
 
-## Develop
+How they are made: [docs/screenshots/README.md](docs/screenshots/README.md).
+</details>
+
+## Contributing
 
 ```sh
 pnpm install
-pnpm fixture
-OC_LENS_DB="$PWD/test/fixtures/populated.db" pnpm dev
+pnpm fixture:demo
+OC_LENS_DB="$PWD/test/fixtures/demo.db" pnpm dev
 ```
 
-The fixture is synthetic and deterministic. Tests must use fixture databases, never a developer's real opencode history. See [CONTRIBUTING.md](CONTRIBUTING.md) before taking a ticket.
+The demo and test databases are synthetic and deterministic — tests never touch a real opencode history. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request; [project-docs/opencode-data-model.md](project-docs/opencode-data-model.md) records every opencode data shape oc-lens relies on, and the evidence for it.
 
-## Security and privacy
+## License
 
-- The opencode database connection is opened with SQLite `readOnly: true`.
-- SQL access rejects credential-bearing tables before SQLite executes the query.
-- Routes do not write to opencode data or files.
-- The only mutating route is `PUT /api/pricing`, and it can write only oc-lens's own fixed config path.
-- Safe settings are allowlisted and unknown configuration keys are redacted.
-- The server listens on loopback; oc-lens has no telemetry or remote service.
-
-The full threat boundary and enforced tests are documented in [SECURITY.md](SECURITY.md).
-
-## Licence and attribution
-
-oc-lens is released under the [MIT License](LICENSE).
-
-Its information architecture and interaction design were inspired by [cc-lens v0.4.1](https://github.com/Arindam200/cc-lens), which is also MIT-licensed. oc-lens is independently implemented against opencode's data model; cc-lens code and its Claude Code data-access layer are not copied.
+[MIT](LICENSE). The information architecture was inspired by [cc-lens](https://github.com/Arindam200/cc-lens) (also MIT); oc-lens is an independent implementation against opencode's data model.

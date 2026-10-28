@@ -1,23 +1,23 @@
 # Screenshot ledger
 
-This is the complete screenshot inventory for the 15 shipped pages: one 1440 × 1200 PNG in each theme, for 30 assets total.
+One 1440 × 1200 PNG per page in each theme: 15 pages, 30 assets. [`../social-preview.png`](../social-preview.png) (1280 × 640) is the repository's social card, built from `audit-dark.png`.
 
 > [!NOTE]
-> **Capture status: complete; 30 of 30 assets committed (2026-08-02).** Captured from `pnpm dev` bound to loopback, using the deterministic `test/fixtures/populated.db` and an isolated `XDG_CONFIG_HOME` pricing file with documentation-only rates (see Reproducibility below). No personal opencode database or real pricing configuration was read.
+> Every screenshot is captured from the synthetic demo database (`pnpm fixture:demo` → `test/fixtures/demo.db`) with documentation-only prices in an isolated config directory. No personal opencode database or real pricing configuration is ever read.
 
-| Page | Route captured | Light asset | Dark asset |
+| Page | Route | Light | Dark |
 | --- | --- | --- | --- |
 | Overview | `/` | [`overview-light.png`](overview-light.png) | [`overview-dark.png`](overview-dark.png) |
 | Activity | `/activity` | [`activity-light.png`](activity-light.png) | [`activity-dark.png`](activity-dark.png) |
 | Sessions | `/sessions` | [`sessions-light.png`](sessions-light.png) | [`sessions-dark.png`](sessions-dark.png) |
-| Session replay | `/sessions/ses_0000` | [`session-replay-light.png`](session-replay-light.png) | [`session-replay-dark.png`](session-replay-dark.png) |
+| Session replay | `/sessions/<id>` (the demo session with a broken stream) | [`session-replay-light.png`](session-replay-light.png) | [`session-replay-dark.png`](session-replay-dark.png) |
 | Projects | `/projects` | [`projects-light.png`](projects-light.png) | [`projects-dark.png`](projects-dark.png) |
-| Project detail | `/projects/proj_infra` | [`project-detail-light.png`](project-detail-light.png) | [`project-detail-dark.png`](project-detail-dark.png) |
+| Project detail | `/projects/prj_billing` | [`project-detail-light.png`](project-detail-light.png) | [`project-detail-dark.png`](project-detail-dark.png) |
 | Tools | `/tools` | [`tools-light.png`](tools-light.png) | [`tools-dark.png`](tools-dark.png) |
-| Todos | `/todos` | [`todos-light.png`](todos-light.png) | [`todos-dark.png`](todos-dark.png) |
 | Costs | `/costs` | [`costs-light.png`](costs-light.png) | [`costs-dark.png`](costs-dark.png) |
+| Provider audit | `/audit` | [`audit-light.png`](audit-light.png) | [`audit-dark.png`](audit-dark.png) |
+| Loops | `/loops` | [`loops-light.png`](loops-light.png) | [`loops-dark.png`](loops-dark.png) |
 | Agents | `/agents` | [`agents-light.png`](agents-light.png) | [`agents-dark.png`](agents-dark.png) |
-| Subagent tree | `/agents/tree` | [`subagent-tree-light.png`](subagent-tree-light.png) | [`subagent-tree-dark.png`](subagent-tree-dark.png) |
 | Export | `/export` | [`export-light.png`](export-light.png) | [`export-dark.png`](export-dark.png) |
 | Settings | `/settings` | [`settings-light.png`](settings-light.png) | [`settings-dark.png`](settings-dark.png) |
 | Model pricing | `/settings/pricing` | [`pricing-light.png`](pricing-light.png) | [`pricing-dark.png`](pricing-dark.png) |
@@ -25,15 +25,16 @@ This is the complete screenshot inventory for the 15 shipped pages: one 1440 × 
 
 ## Reproducibility
 
-Start the capture server against an absolute fixture path and a temporary `XDG_CONFIG_HOME`, never the default database or pricing locations:
+The demo database is seeded and anchored to the day it is built, so the default 30-day views have data. Build it, then serve a production build against it with a temporary config directory:
 
 ```sh
-pnpm fixture
-OC_LENS_DB="$PWD/test/fixtures/populated.db" XDG_CONFIG_HOME=/tmp/oc-lens-shots-config pnpm dev --port 4173
+pnpm fixture:demo
+pnpm build
+OC_LENS_DB="$PWD/test/fixtures/demo.db" XDG_CONFIG_HOME=/tmp/oc-lens-shots-config pnpm start -p 4173 -H 127.0.0.1
 ```
 
-Give the six fixture models (`opencode/deepseek-v4-flash-free`, `opencode/qwen3-coder`, `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5`, `openai/gpt-5-mini`, `google/gemini-2.5-pro`) deterministic nonzero USD-per-million-token rates in `$XDG_CONFIG_HOME/oc-lens/config.json` solely so every cost-capable page demonstrates priced data.
+Give the three demo models (`anthropic/claude-sonnet-5`, `openai/gpt-5-mini`, `opencode/qwen3-coder`) nonzero documentation prices in `$XDG_CONFIG_HOME/oc-lens/config.json`, solely so cost pages show priced data.
 
-Capture with a headless Chromium driven by Playwright (`pip install playwright && playwright install chromium`), one browser context per theme: a 1440×1200 viewport, `color_scheme` set to `light`/`dark` so `prefers-color-scheme` resolves correctly, and an `add_init_script` that seeds `localStorage["oc-lens-theme"]` before the app's own theme script runs. For each of the 15 routes, navigate with `wait_until="networkidle"`, wait an additional ~600ms for client-side data fetches to settle, then screenshot to PNG. Load each route from the local loopback server only.
+Capture with headless Chromium driven by Playwright, one browser context per theme: a 1440×1200 viewport, `colorScheme` set to `light` or `dark`, and an init script that seeds `localStorage["oc-lens-theme"]` before the app's theme script runs. For each route, navigate with `waitUntil: "networkidle"`, wait a further ~900 ms for client-side data, and take a viewport screenshot. Load routes from the local loopback server only.
 
-The PNGs are documentation artifacts, not visual-regression baselines. Regenerate the full ledger after a material shipped-page layout change, and verify every file is a decoded PNG of the expected dimensions before committing it.
+The PNGs are documentation, not visual-regression baselines. Regenerate them after a material layout change, and check that every file decodes as a PNG of the expected size before committing.

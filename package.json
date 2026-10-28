@@ -2,7 +2,7 @@
   "name": "oc-lens",
   "version": "0.8.0",
   "private": false,
-  "description": "Local, read-only analytics dashboard for opencode",
+  "description": "Local, read-only analytics for opencode: find agent loops, provider failures, hidden retries, and where your tokens go",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -15,6 +15,11 @@
   },
   "keywords": [
     "opencode",
+    "ai-agent",
+    "llm",
+    "tokens",
+    "cost",
+    "observability",
     "analytics",
     "dashboard",
     "sqlite",
@@ -42,6 +47,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "fixture": "tsx test/fixtures/build-fixture.ts",
+    "fixture:demo": "tsx test/fixtures/build-demo.ts",
     "prepack": "pnpm build:dist"
   },
   "dependencies": {
